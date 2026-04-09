@@ -1,8 +1,8 @@
 """
 ============================================================
-QC Dashboard — Streamlit 独立看板  v2.8
+QC Dashboard — Streamlit 看板  v4.0（AI 增强版）
 ============================================================
-侧边栏导航：数据总览 | 数据导入
+对标 HTML 模板版 UI 风格（白底卡片/胶囊Tab/轻量走势图）
 用法:  cd qc-dashboard && streamlit run app.py
 依赖: streamlit, plotly, pandas, xlsxwriter (pip install -r requirements.txt)
 数据源: data/metrics.db (SQLite) + 用户上传 xlsx
@@ -16,8 +16,9 @@ from datetime import datetime, timedelta
 
 import pandas as pd
 import plotly.graph_objects as go
-import plotly.express as px
 import streamlit as st
+import requests
+import yaml
 
 # ── 路径 ──
 BASE = os.path.dirname(os.path.abspath(__file__))
@@ -25,74 +26,87 @@ DB_PATH = os.path.join(BASE, "data", "metrics.db")
 UPLOAD_DIR = os.path.join(BASE, "data", "uploads")
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 
-# ── 队列配置 ──────────────────────────────────────────────
-# 底线阈值规则：
-#   violation_rate（违规准确率）: min=最低要求，低于此值标红
-#   miss_rate（漏率）: max=最高容忍值，高于此值标红
-#   audit_accuracy（审核准确率）: min=最低要求
+# ════════════════════════════════════════════════════════════════
+#  队列配置
+# ════════════════════════════════════════════════════════════════
 QUEUES = [
     {
-        "id": "q1_toufang",
-        "name": "投放误漏",
+        "id": "q1_toufang", "name": "投放误漏",
         "full_name": "【供应商】投放误漏case",
         "icon": "📢", "color": "#3b82f6",
         "metric_keys": ["violation_rate", "miss_rate"],
         "metric_labels": {"violation_rate": "违规准确率", "miss_rate": "漏率"},
         "thresholds": {"violation_rate": {"min": 0.98}, "miss_rate": {"max": 0.02}},
+        "primary_metric": "violation_rate",
     },
     {
-        "id": "q2_erjiansimple",
-        "name": "简单二审",
+        "id": "q2_erjiansimple", "name": "简单二审",
         "full_name": "【供应商】简单二审误漏case",
         "icon": "📋", "color": "#22c55e",
         "metric_keys": ["violation_rate", "miss_rate"],
         "metric_labels": {"violation_rate": "违规准确率", "miss_rate": "漏率"},
         "thresholds": {"violation_rate": {"min": 0.98}, "miss_rate": {"max": 0.02}},
+        "primary_metric": "violation_rate",
     },
     {
-        "id": "q3_erjian_4qi_gt",
-        "name": "四期-二审GT",
+        "id": "q3_erjian_4qi_gt", "name": "四期-二审GT",
         "full_name": "【四期供应商】二审周推质检分歧单（二审GT）",
         "icon": "🔄", "color": "#f97316",
         "metric_keys": ["violation_rate", "miss_rate"],
         "metric_labels": {"violation_rate": "违规准确率", "miss_rate": "漏率"},
         "thresholds": {"violation_rate": {"min": 0.99}, "miss_rate": {"max": 0.01}},
+        "primary_metric": "violation_rate",
     },
     {
-        "id": "q3b_erjian_4qi_qiepian",
-        "name": "四期-切片GT",
+        "id": "q3b_erjian_4qi_qiepian", "name": "四期-切片GT",
         "full_name": "【四期供应商】二审周推质检分歧单（二审切片GT）",
         "icon": "🔪", "color": "#f59e0b",
         "metric_keys": ["violation_rate", "miss_rate"],
         "metric_labels": {"violation_rate": "违规准确率", "miss_rate": "漏率"},
         "thresholds": {"violation_rate": {"min": 0.99}, "miss_rate": {"max": 0.01}},
+        "primary_metric": "violation_rate",
     },
     {
-        "id": "q5_lahei",
-        "name": "拉黑误漏",
+        "id": "q4_jubao_4qi", "name": "四期-举报",
+        "full_name": "【四期供应商】举报周推质检分歧单",
+        "icon": "🚨", "color": "#a855f7",
+        "metric_keys": ["pre_violation_rate", "pre_miss_rate", "post_violation_rate", "post_miss_rate"],
+        "metric_labels": {
+            "pre_violation_rate": "申诉前-违规率", "pre_miss_rate": "申诉前-漏率",
+            "post_violation_rate": "申诉后-违规率", "post_miss_rate": "申诉后-漏率",
+        },
+        "thresholds": {
+            "pre_violation_rate": {"min": 0.99}, "pre_miss_rate": {"max": 0.01},
+            "post_violation_rate": {"min": 0.99}, "post_miss_rate": {"max": 0.01},
+        },
+        "primary_metric": "post_violation_rate",
+    },
+    {
+        "id": "q5_lahei", "name": "拉黑误漏",
         "full_name": "【供应商】拉黑误漏case",
         "icon": "🚫", "color": "#ef4444",
         "metric_keys": ["violation_rate", "miss_rate"],
         "metric_labels": {"violation_rate": "违规准确率", "miss_rate": "漏率"},
         "thresholds": {"violation_rate": {"min": 0.98}, "miss_rate": {"max": 0.02}},
+        "primary_metric": "violation_rate",
     },
     {
-        "id": "q6_shangqiang",
-        "name": "上墙文本",
+        "id": "q6_shangqiang", "name": "上墙文本",
         "full_name": "上墙文本申诉-云雀",
         "icon": "📝", "color": "#06b6d4",
         "metric_keys": ["audit_accuracy"],
         "metric_labels": {"audit_accuracy": "审核准确率"},
         "thresholds": {"audit_accuracy": {"min": 0.98}},
+        "primary_metric": "audit_accuracy",
     },
 ]
 
 QUEUE_MAP = {q["id"]: q for q in QUEUES}
 
 
-# ================================================================
+# ════════════════════════════════════════════════════════════════
 #  数据层
-# ================================================================
+# ════════════════════════════════════════════════════════════════
 
 @st.cache_data(ttl=60)
 def load_all_queue_data():
@@ -141,7 +155,7 @@ def filter_by_date(df, date_from, date_to):
 
 
 def find_latest_nonzero(df, keys):
-    """倒序查找最新非零行"""
+    """倒序查找最新非零行（任一 key 非零即返回）"""
     if df.empty:
         return None
     for idx in range(len(df) - 1, -1, -1):
@@ -153,7 +167,31 @@ def find_latest_nonzero(df, keys):
     return df.iloc[-1]
 
 
+def find_latest_nonzero_per_key(df, mk):
+    """对单个 metric_key 倒序查找最新非零值"""
+    if df.empty or mk not in df.columns:
+        return None
+    for idx in range(len(df) - 1, -1, -1):
+        v = df.iloc[idx][mk]
+        if v is not None and isinstance(v, (int, float)) and not (v != v) and v != 0:
+            return v
+    v = df.iloc[-1][mk]
+    return v if pd.notna(v) else None
+
+
+def get_valid_values(df, mk):
+    """获取某指标的非空非零值列表"""
+    if df.empty or mk not in df.columns:
+        return []
+    vals = []
+    for v in df[mk]:
+        if v is not None and isinstance(v, (int, float)) and not (v != v) and v != 0:
+            vals.append(v)
+    return vals
+
+
 def fmt_pct(val):
+    """格式化百分比（2位小数）"""
     if val is None or (isinstance(val, float) and (val != val)):
         return "--"
     try:
@@ -163,6 +201,7 @@ def fmt_pct(val):
 
 
 def fmt_pct1(val):
+    """格式化百分比（1位小数）"""
     if val is None or (isinstance(val, float) and (val != val)):
         return "--"
     try:
@@ -171,46 +210,30 @@ def fmt_pct1(val):
         return str(val)
 
 
-# ── 底线阈值检查 ────────────────────────────────────────
+# ════════════════════════════════════════════════════════════════
+#  底线阈值检查
+# ════════════════════════════════════════════════════════════════
 
 def check_threshold(q, metric_key, value):
-    """检查某指标是否达标，返回 (is_ok, status_str, css_color)
-    
-    规则：
-      - violation_rate / audit_accuracy（越高越好）: min 阈值 → 低于标红
-      - miss_rate（越低越好）: max 阈值 → 高于标红
-    返回: (是否达标, 状态描述, CSS颜色值)
-    """
+    """检查某指标是否达标。返回: (is_ok, status_str, css_color)"""
     thresholds = q.get("thresholds", {})
     rule = thresholds.get(metric_key)
     if not rule or value is None:
         return True, "", ""
-    
     try:
         v = float(value)
     except (TypeError, ValueError):
         return True, "", ""
-    
-    # 越高越好的指标（违规准确率、审核准确率）
-    if metric_key in ("violation_rate", "audit_accuracy", "pre_violation_rate", 
-                       "post_violation_rate", "pre_accuracy", "post_accuracy"):
-        min_val = rule.get("min")
-        if min_val is not None and v < min_val:
-            return False, f"⚠️ 低于底线 {min_val*100:.0f}%", "#dc2626"
-    
-    # 越低越好的指标（漏率）
-    elif metric_key in ("miss_rate", "pre_miss_rate", "post_miss_rate"):
-        max_val = rule.get("max")
-        if max_val is not None and v > max_val:
-            return False, f"⚠️ 超出上限 {max_val*100:.0f}%", "#dc2626"
-    
+    if "min" in rule and v < rule["min"]:
+        return False, f"⚠️ 低于底线 {rule['min']*100:.0f}%", "#dc2626"
+    if "max" in rule and v > rule["max"]:
+        return False, f"⚠️ 超出上限 {rule['max']*100:.0f}%", "#dc2626"
     return True, "✅ 达标", "#16a34a"
 
 
 def get_threshold_label(q, metric_key):
     """返回某指标的底线说明文本"""
-    thresholds = q.get("thresholds", {})
-    rule = thresholds.get(metric_key)
+    rule = q.get("thresholds", {}).get(metric_key)
     if not rule:
         return ""
     if "min" in rule:
@@ -220,859 +243,854 @@ def get_threshold_label(q, metric_key):
     return ""
 
 
-# ================================================================
-#  页面：数据总览
-# ================================================================
+# ════════════════════════════════════════════════════════════════
+#  AI 智能分析模块
+# ════════════════════════════════════════════════════════════════
 
-def render_dashboard(all_data):
-    """质检数据看板主页"""
+def _load_deepseek_config():
+    """从 config.yaml 读取 DeepSeek 配置，返回 (api_key, base_url)"""
+    cfg_path = os.path.join(BASE, "config.yaml")
+    if not os.path.exists(cfg_path):
+        return None, None
+    try:
+        with open(cfg_path, "r", encoding="utf-8") as f:
+            config = yaml.safe_load(f)
+        ds_cfg = config.get("global", {}).get("deepseek", {})
+        key = os.environ.get("DEEPSEEK_API_KEY", "") or ds_cfg.get("api_key", "")
+        url = os.environ.get("DEEPSEEK_BASE_URL", "") or ds_cfg.get("base_url", "https://api.deepseek.com")
+        return key or None, url
+    except Exception:
+        return None, None
 
-    min_date, max_date = get_date_range(all_data)
 
-    # ── Header ──
-    st.markdown("### 📊 QC 质检数据统一看板")
-    total_records = sum(len(d) for d in all_data.values())
-    st.caption(
-        f"多队列 · 按日期聚合指标 · 数据来源：企业微信智能表格 · "
-        f"共 **{total_records}** 条记录 · 更新于 `{datetime.now().strftime('%Y-%m-%d %H:%M')}`"
-    )
+def _call_deepseek(prompt, system_msg=None):
+    """调用 DeepSeek API，返回文本或 None"""
+    api_key, base_url = _load_deepseek_config()
+    if not api_key:
+        return None
+    try:
+        headers = {
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type": "application/json",
+        }
+        payload = {
+            "model": "deepseek-chat",
+            "messages": [
+                {"role": "system", "content": system_msg or "你是质检数据分析师，擅长从数据中提取关键信息并给出专业建议。"},
+                {"role": "user", "content": prompt},
+            ],
+            "temperature": 0.3,
+            "max_tokens": 800,
+        }
+        resp = requests.post(
+            f"{base_url}/v1/chat/completions",
+            headers=headers,
+            json=payload,
+            timeout=30,
+        )
+        resp.raise_for_status()
+        return resp.json()["choices"][0]["message"]["content"].strip()
+    except Exception as e:
+        st.error(f"❌ AI 调用失败: {str(e)}")
+        return None
 
-    # ── 日期筛选区 ──
-    date_from_str, date_to_str = None, None
 
-    with st.expander("📅 日期筛选", expanded=False):
-        f_cols = st.columns([1, 1, 1, 1, 1, 1])
-        with f_cols[0]:
-            d_from = st.date_input("起始日期", value=None, key="df")
-        with f_cols[1]:
-            d_to = st.date_input("截止日期", value=None, key="dt")
-        with f_cols[2]:
-            if st.button("近7天", use_container_width=True):
-                if max_date:
-                    st.session_state["_quick"] = ("week", max_date)
-                    st.rerun()
-        with f_cols[3]:
-            if st.button("近30天", use_container_width=True):
-                if max_date:
-                    st.session_state["_quick"] = ("month", max_date)
-                    st.rerun()
-        with f_cols[4]:
-            if st.button("全部", use_container_width=True):
-                st.session_state["_quick"] = ("all", None)
-                st.rerun()
-        with f_cols[5]:
-            if st.button("清除缓存", use_container_width=True):
-                st.cache_data.clear()
-                st.rerun()
+@st.cache_data(ttl=300)  # 缓存 5 分钟避免重复调用
+def _cached_ai_summary(cache_key, prompt, system_msg=None):
+    """带缓存的 AI 调用包装（cache_key 用于使缓存失效）"""
+    return _call_deepseek(prompt, system_msg)
 
-        date_from_str = d_from.strftime("%Y-%m-%d") if d_from else None
-        date_to_str = d_to.strftime("%Y-%m-%d") if d_to else None
 
-        if "_quick" in st.session_state:
-            mode, ref = st.session_state["_quick"]
-            if mode == "week" and ref:
-                dt = datetime.strptime(ref, "%Y-%m-%d")
-                date_from_str = (dt - timedelta(days=6)).strftime("%Y-%m-%d")
-                date_to_str = ref
-            elif mode == "month" and ref:
-                dt = datetime.strptime(ref, "%Y-%m-%d")
-                date_from_str = (dt - timedelta(days=29)).strftime("%Y-%m-%d")
-                date_to_str = ref
-            else:
-                date_from_str, date_to_str = None, None
-            del st.session_state["_quick"]
-
-        st.caption(f"数据范围：`{min_date}` ~ `{max_date}`" if min_date else "暂无数据")
-
-    # ── Overview 卡片行（含底线阈值警示）──
-    st.markdown("#### 📋 全局概览")
-    ov_cols = st.columns(len(QUEUES))
-    for i, q in enumerate(QUEUES):
+def build_global_ai_data(all_data):
+    """组装全局 AI 摘要所需的各队列最新指标数据"""
+    items = []
+    for q in QUEUES:
         df_raw = all_data.get(q["id"], pd.DataFrame())
-        df_f = filter_by_date(df_raw, date_from_str, date_to_str)
-        lr = find_latest_nonzero(df_f, q["metric_keys"])
-
-        first_mk = q["metric_keys"][0]
-        display_val = fmt_pct1(lr[first_mk]) if lr is not None and first_mk in lr.index else "--"
-        latest_date = lr["date"] if lr is not None else "--"
-        
-        # 检查所有指标的阈值达标情况
-        has_alert = False
-        alert_items = []
-        alert_count = 0
-        if lr is not None:
-            for mk in q["metric_keys"]:
-                if mk in lr.index:
-                    is_ok, status_txt, _ = check_threshold(q, mk, lr.get(mk))
+        if df_raw.empty:
+            continue
+        lr = find_latest_nonzero(df_raw, q["metric_keys"])
+        if lr is None:
+            continue
+        metrics_str = {}
+        alerts = []
+        for mk in q["metric_keys"]:
+            if mk in df_raw.columns:
+                v = find_latest_nonzero_per_key(df_raw, mk)
+                if v is not None:
+                    label = q["metric_labels"].get(mk, mk)
+                    metrics_str[mk] = f"{label}: {fmt_pct(v)}"
+                    is_ok, alert_txt = check_threshold(q, mk, v)
                     if not is_ok:
-                        has_alert = True
-                        alert_count += 1
-                        lbl = q["metric_labels"].get(mk, mk)
-                        val_str = fmt_pct1(lr[mk])
-                        alert_items.append(f"{lbl} {val_str}")
+                        alerts.append(f"{label}{alert_txt}")
+        items.append({
+            "icon": q["icon"],
+            "name": q["name"],
+            "date": str(lr["date"]),
+            "metrics": metrics_str,
+            "metric_labels": q["metric_labels"],
+            "alerts": alerts,
+        })
+    return items
 
-        with ov_cols[i]:
-            # 用 HTML 容器包裹整个卡片，不达标时左侧红色边框 + 顶部小警示条
-            border_color = "#dc2626" if has_alert else q["color"]
-            bg_color = "#fef2f2" if has_alert else "#f8fafc"
-            
-            # 构建辅助信息
-            alert_html = ""
-            if has_alert:
-                detail = " · ".join(alert_items)
-                alert_html = f"""
-                <div style='background:#dc2626;color:#fff;font-size:11px;padding:3px 10px;
-                            border-radius:6px 6px 0 0;font-weight:600;margin:-8px -8px 8px -8px;'>
-                    ⚠️ {alert_count}项不达标：{detail}
-                </div>"""
-            
-            st.markdown(f"""
-            <div style='border-left:3px solid {border_color};background:{bg_color};
-                        border-radius:8px;padding:12px 10px;box-shadow:0 1px 3px rgba(0,0,0,0.06);'>
-                {alert_html}
-                <div style='font-size:12px;color:#64748b;margin-bottom:4px;'>
-                    {q['icon']} <b>{q['name']}</b>
-                </div>
-                <div style='font-size:22px;font-weight:700;color:#1e293b;'>
-                    {display_val}
-                </div>
-                <div style='font-size:11px;color:#94a3b8;margin-top:2px;'>
-                    {len(df_f)} 天 · {latest_date}
-                </div>
-            </div>
-            """, unsafe_allow_html=True)
 
-    st.divider()
+def render_ai_summary_section(all_data):
+    """渲染全局 AI 日报摘要区域"""
+    # 检查是否有 DeepSeek 配置
+    api_key, _ = _load_deepseek_config()
 
-    # ── 队列 Tabs ──
-    tab_labels = [f"{q['icon']} {q['name']}" for q in QUEUES]
-    tabs = st.tabs(tab_labels)
+    st.markdown("""<div style="font-size:14px;font-weight:600;margin:18px 0 10px;display:flex;align-items:center;gap:7px;">
+        🤖 AI 日报摘要</div>""", unsafe_allow_html=True)
 
-    for tab_idx, tab in enumerate(tabs):
-        q = QUEUES[tab_idx]
-        qid = q["id"]
-        df_raw = all_data.get(qid, pd.DataFrame())
+    ai_col1, ai_col2 = st.columns([1, 5])
+    with ai_col1:
+        generate = st.button("🔄 生成分析", type="primary", use_container_width=True,
+                             help="调用 AI 生成今日质检数据分析")
 
-        with tab:
-            df = filter_by_date(df_raw, date_from_str, date_to_str)
+    with ai_col2:
+        if not api_key:
+            st.info('💡 **未配置 DeepSeek API Key** — 在 `config.yaml` 填入 `deepseek.api_key` 或设置环境变量 `DEEPSEEK_API_KEY` 即可启用 AI 分析')
+            return
 
-            if df.empty:
-                st.info(f"😴 **{q['name']}** 在选定日期范围内暂无数据")
-                continue
+    if not generate and "_ai_generated" not in st.session_state:
+        st.caption("点击「生成分析」按钮获取 AI 洞察 → 对标企微推送完整版（含整体情况 + 不达标详情 + 改善建议）")
+        return
 
-            # 统计卡片（含阈值警示 — 精致版）
-            st.markdown("##### 📌 核心指标")
-            n_metrics = len(q["metric_keys"]) + 1
-            stat_cols = st.columns(min(n_metrics, 5))
+    if generate or "_ai_summary_html" not in st.session_state:
+        with st.spinner("🤖 AI 正在分析数据..."):
+            items = build_global_ai_data(all_data)
+            if not items:
+                st.warning("暂无数据可供分析")
+                return
 
-            with stat_cols[0]:
-                date_range_str = (
-                    f"`{df['date'].iloc[0]} ~ {df['date'].iloc[-1]}"
-                    if len(df) > 0 else ""
-                )
-                st.metric(label="📅 数据天数", value=f"{len(df)} 天", delta=date_range_str)
+            # 组装 prompt（对标 daily_push.py 的提示词结构）
+            data_text = ""
+            alert_queues = []
+            for item in items:
+                data_text += f"\n{item['icon']} **{item['name']}**（{item['date']}）:\n"
+                for mk, val in item["metrics"].items():
+                    data_text += f"  - {val}\n"
+                if item["alerts"]:
+                    alert_queues.append(item["name"])
+                    data_text += f"  ⚠️ 不达标: {', '.join(item['alerts'])}\n"
 
-            for ki, mk in enumerate(q["metric_keys"]):
-                valid_vals = []
-                for _, r in df.iterrows():
-                    v = r.get(mk) if mk in r.index else None
-                    if v is not None and isinstance(v, (int, float)) and not (v != v):
-                        valid_vals.append(v)
+            alert_note = ""
+            if alert_queues:
+                alert_note = f"\n特别关注：以下队列未达标 - {', '.join(alert_queues)}"
 
-                if not valid_vals:
-                    continue
+            prompt = f"""你是质检数据分析师。根据以下各队列最新指标数据，生成一份简洁的日报摘要。
 
-                lr_nz = find_latest_nonzero(df, [mk])
-                last_val = lr_nz[mk] if (lr_nz is not None and mk in lr_nz.index) else valid_vals[-1]
-                avg_val = sum(valid_vals) / len(valid_vals)
-                
-                # 阈值检查
-                is_ok, status_txt, color = check_threshold(q, mk, last_val)
-                thresh_label = get_threshold_label(q, mk)
-                # 阈值图标：达标✅ / 不达标⚠️
-                status_icon = "🟢" if is_ok else "🔴"
+要求：
+1. 用 3-5 句话概括整体情况
+2. 重点标注不达标的队列和指标
+3. 给出简短的改善建议（如有不达标项）
+4. 语气专业简洁，不要啰嗦
+5. 使用 Markdown 格式
 
-                trend_str = ""
-                non_zero_indices = [i for i, v in enumerate(valid_vals) if v != 0]
-                if len(non_zero_indices) >= 2:
-                    prev_i = non_zero_indices[-2]
-                    curr_i = non_zero_indices[-1]
-                    prev_v = valid_vals[prev_i]
-                    curr_v = valid_vals[curr_i]
-                    if prev_v != 0:
-                        chg = ((curr_v - prev_v) / abs(prev_v)) * 100
-                        arrow = "↑" if chg > 0 else ("↓" if chg < 0 else "→")
-                        trend_str = f"{arrow} {abs(chg):.1f}%"
+今日数据：{data_text}
+{alert_note}"""
 
-                lbl = q["metric_labels"].get(mk, mk)
-                # 精致的指标标签：名称 + 阈值 + 状态图标一行展示
-                tag_parts = [lbl]
-                if thresh_label:
-                    tag_parts.append(f"<span style='color:#94a3b8;font-weight:400;'>| {thresh_label}</span>")
-                display_label = f"{status_icon} {' '.join(tag_parts)}"
-                
-                with (stat_cols[ki + 1] if ki + 1 < len(stat_cols) else st.columns(1)[0]):
-                    # 用 HTML 容器替代原生 metric，更精细控制样式
-                    val_str = fmt_pct(last_val)
-                    delta_text = f"均{fmt_pct1(avg_val)} {trend_str}" if trend_str else f"均值 {fmt_pct1(avg_val)}"
-                    
-                    card_bg = "#fef2f2" if not is_ok else "#f0fdf4"
-                    border_l = "#dc2626" if not is_ok else "#16a34a"
-                    val_color = "#dc2626" if not is_ok else "#1e293b"
-                    
-                    st.markdown(f"""
-                    <div style='border-left:3px solid {border_l};background:{card_bg};
-                                border-radius:8px;padding:10px 12px;margin-bottom:8px;'>
-                        <div style='font-size:12px;color:#475569;font-weight:500;'>{display_label}</div>
-                        <div style='font-size:20px;font-weight:700;color:{val_color};margin:2px 0;'>{val_str}</div>
-                        <div style='font-size:11px;color:#64748b;'>{delta_text}</div>
-                    </div>
-                    """, unsafe_allow_html=True)
-
-            # 图表区
-            c1, c2 = st.columns([2, 1])
-
-            with c1:
-                st.markdown("##### 📈 指标走势")
-                fig_trend = go.Figure()
-
-                chart_colors = ["#3b82f6", "#22c55e", "#ef4444", "#f97316", "#eab308", "#a855f7", "#06b6d4"]
-                for ki, mk in enumerate(q["metric_keys"]):
-                    if mk not in df.columns:
-                        continue
-                    lbl = q["metric_labels"].get(mk, mk)
-                    vals = df[mk].tolist()
-                    color = chart_colors[ki % len(chart_colors)]
-                    fig_trend.add_trace(go.Scatter(
-                        x=df["date"].tolist(), y=vals,
-                        name=lbl,
-                        line=dict(color=color),
-                        fill="tonexty" if ki <= 1 else None,
-                        mode="lines+markers",
-                        marker=dict(size=3 if len(vals) > 15 else 5),
-                    ))
-
-                fig_trend.update_layout(
-                    height=380,
-                    margin=dict(l=40, r=30, t=20, b=50),
-                    legend=dict(font_size=11, orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
-                    xaxis=dict(tickangle=-45, tickfont=dict(size=10)),
-                    yaxis=dict(tickformat=".0%", range=[0, 1.05]),
-                    hovermode="x unified",
-                    template="plotly_white",
-                )
-                fig_trend.update_yaxes(tickformat=".0%")
-                st.plotly_chart(fig_trend, use_container_width=True)
-
-            # 辅助图表 — 环形图
-            with c2:
-                lr_nz = find_latest_nonzero(df, q["metric_keys"])
-                if lr_nz is not None:
-                    st.markdown("##### 🍩 最新指标构成")
-                    dk = [mk for mk in q["metric_keys"] if mk in lr_nz.index and pd.notna(lr_nz.get(mk))]
-                    dl = [q["metric_labels"].get(k, k) for k in dk]
-                    dv = [float(lr_nz[k]) for k in dk]
-                    if dv:
-                        fig_donut = go.Figure(go.Pie(
-                            labels=dl, values=dv,
-                            hole=0.55,
-                            textinfo="label+percent",
-                            textfont=dict(size=11),
-                            marker=dict(colors=[q["color"]] + px.colors.qualitative.Set2[:len(dv)-1]),
-                        ))
-                        fig_donut.update_layout(height=300, margin=dict(t=20, b=10, l=10, r=10), showlegend=True)
-                        st.plotly_chart(fig_donut, use_container_width=True)
-
-            # 雷达图
-            if len(q["metric_keys"]) >= 2:
-                st.markdown("##### 🎯 指标雷达（均值）")
-                avgs = []
-                for mk in q["metric_keys"]:
-                    if mk not in df.columns:
-                        avgs.append(0)
-                        continue
-                    vals = df[mk].dropna().tolist()
-                    avgs.append(sum(vals) / len(vals) if vals else 0)
-
-                radar_labels = [q["metric_labels"].get(k, k) for k in q["metric_keys"]]
-                fig_radar = go.Figure(go.Scatterpolar(
-                    r=avgs, theta=radar_labels, fill="toself", name="均值",
-                    line=dict(color="#3b82f6"), marker=dict(color="#3b82f6", size=8),
-                ))
-                fig_radar.update_layout(
-                    height=280,
-                    polar=dict(radialaxis=dict(visible=True, tickformat=".0%", range=[0, 1])),
-                    template="plotly_white", margin=dict(t=20, b=10),
-                )
-                st.plotly_chart(fig_radar, use_container_width=True)
-
-            # 数据明细表
-            st.divider()
-            st.markdown(f"##### 📋 **{q['name']}** 数据明细 ({len(df)} 条)")
-
-            disp_cols = ["date"] + q["metric_keys"]
-            disp_df = df[disp_cols].copy().sort_values("date", ascending=False).reset_index(drop=True)
-
-            for mk in q["metric_keys"]:
-                if mk in disp_df.columns:
-                    disp_df[mk] = disp_df[mk].apply(fmt_pct)
-
-            rename_map = {"date": "📅 日期"}
-            for mk in q["metric_keys"]:
-                rename_map[mk] = q["metric_labels"].get(mk, mk)
-            disp_df.rename(columns=rename_map, inplace=True)
-
-            def _highlight(s):
-                """按底线阈值给单元格上色：不达标红色醒目标注 / 达标保持干净"""
-                result = [""] * len(s)
-                col_name = s.name
-                # 从 rename_map 反查 metric_key
-                reverse_map = {v: k for k, v in rename_map.items()}
-                mk = reverse_map.get(col_name, "")
-                
-                if not mk:
-                    return result
-                
-                for i, v in enumerate(s):
-                    if isinstance(v, str) and v.endswith("%"):
-                        try:
-                            num = float(v.rstrip("%")) / 100
-                            is_ok, _, color = check_threshold(q, mk, num)
-                            if not is_ok:
-                                # 不达标：红色文字+粗体+淡红背景，视觉突出但不喧宾夺主
-                                result[i] = "color:#dc2626;font-weight:700;background-color:#fef2f2;"
-                        except (ValueError, TypeError):
-                            pass
-                    elif isinstance(v, (int, float)):
-                        is_ok, _, color = check_threshold(q, mk, v)
-                        if not is_ok:
-                            result[i] = "color:#dc2626;font-weight:700;background-color:#fef2f2;"
-                return result
-
-            styled_df = disp_df.style.apply(_highlight, axis=0)
-            st.dataframe(styled_df, use_container_width=True, hide_index=True,
-                         height=min(max(40 * len(disp_df), 200), 500))
-
-            # 导出 Excel
-            to_excel = io.BytesIO()
-            raw_df = df[disp_cols].copy().sort_values("date", ascending=False).reset_index(drop=True)
-            raw_rename = {"date": "📅 日期"}
-            for mk in q["metric_keys"]:
-                raw_rename[mk] = q["metric_labels"].get(mk, mk)
-            raw_df.rename(columns=raw_rename, inplace=True)
-            raw_df.to_excel(to_excel, index=False, engine='xlsxwriter')
-            to_excel.seek(0)
-
-            st.download_button(
-                label=f"📥 导出 {q['name']} 数据 (.xlsx)",
-                data=to_excel,
-                file_name=f"{q['name']}_质检数据_{datetime.now().strftime('%Y%m%d')}.xlsx",
-                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                key=f"dl_{qid}",
+            summary = _cached_ai_summary(
+                f"global_{datetime.now().strftime('%Y%m%d%H')}",
+                prompt,
             )
 
-    # Footer
-    st.divider()
-    st.markdown(
-        '<div style="text-align:center;color:#94a3b8;font-size:11px;padding:10px 0">'
-        '📊 QC Dashboard v2.8 · Powered by Streamlit + Plotly · '
-        f'<span style="opacity:0.7">{datetime.now().strftime("%Y-%m-%d %H:%M:%S")}</span></div>',
-        unsafe_allow_html=True,
+            if summary:
+                st.session_state["_ai_summary_html"] = summary
+                st.session_state["_ai_generated"] = True
+
+    if "_ai_summary_html" in st.session_state:
+        # 渲染为美观的卡片
+        st.html(f'''<div style="background:linear-gradient(135deg,#f0f9ff 0%,#e0f2fe 100%);
+            border:1px solid #bae6fd;border-radius:12px;padding:18px 20px;
+            box-shadow:0 2px 8px rgba(14,165,233,0.1);margin-bottom:6px;">
+            <div style="display:flex;align-items:center;gap:6px;margin-bottom:10px;">
+                <span style="font-size:18px;">🤖</span>
+                <span style="font-size:14px;font-weight:700;color:#0369a1;">AI 分析结果</span>
+                <span style="font-size:10px;color:#94a3b8;margin-left:auto;">DeepSeek · {datetime.now().strftime('%H:%M')}</span>
+            </div>
+            <div style="font-size:13px;line-height:1.7;color:#334155;">
+            {st.session_state["_ai_summary_html"].replace('\n', '<br>')}
+            </div></div>''')
+
+
+def render_queue_ai_insight(q, df):
+    """渲染单队列 AI 洞察按钮及结果"""
+    api_key, _ = _load_deepseek_config()
+    if not api_key:
+        return
+
+    # 用 expander 包裹，默认折叠
+    with st.expander("🔍 AI 队列洞察", expanded=False):
+        c_btn, c_hint = st.columns([1, 3])
+        with c_btn:
+            do_analyze = st.button("分析此队列", key=f"_ai_q_{q['id']}", type="primary", use_container_width=True)
+        with c_hint:
+            st.caption("基于当前筛选范围的数据生成针对性分析")
+
+        if do_analyze or f"_ai_q_{q['id']}_html" in st.session_state:
+            if do_analyze:
+                with st.spinner(f"🤖 正在分析 {q['name']} ..."):
+                    # 组装该队列的数据摘要
+                    latest = find_latest_nonzero(df, q["metric_keys"])
+
+                    data_lines = [f"**队列**: {q['full_name']}"]
+                    if latest is not None:
+                        data_lines.append(f"**最新日期**: {latest['date']}")
+                        data_lines.append(f"**数据天数**: {len(df)}")
+
+                    metric_lines = []
+                    alert_lines = []
+                    for mk in q["metric_keys"]:
+                        if mk not in df.columns:
+                            continue
+                        vv = get_valid_values(df, mk)
+                        if not vv:
+                            continue
+                        label = q["metric_labels"].get(mk, mk)
+                        lv = vv[-1]
+                        av = sum(vv) / len(vv)
+                        metric_lines.append(f"- **{label}**: 最新={fmt_pct(lv)}, 均值={fmt_pct1(av)}, 数据点={len(vv)}")
+
+                        # 达标率
+                        ok_cnt = sum(1 for v in vv if check_threshold(q, mk, v)[0])
+                        pc = ok_cnt / len(vv) * 100
+                        metric_lines.append(f"  - 达标率: {pc:.0f}% ({ok_cnt}/{len(vv)})")
+
+                        is_ok, alert_txt = check_threshold(q, mk, lv)
+                        if not is_ok:
+                            alert_lines.append(f"  - ⚠️ {label}: {fmt_pct(lv)} {alert_txt}")
+
+                    # 趋势信息
+                    trend_lines = []
+                    for mk in q["metric_keys"]:
+                        if mk not in df.columns:
+                            continue
+                        vv = get_valid_values(df, mk)
+                        if len(vv) >= 7:
+                            recent = vv[-7:]
+                            older = vv[-14:-7] if len(vv) >= 14 else vv[:-7]
+                            if older:
+                                r_avg = sum(recent) / len(recent)
+                                o_avg = sum(older) / len(older)
+                                label = q["metric_labels"].get(mk, mk)
+                                chg = ((r_avg - o_avg) / abs(o_avg)) * 100 if o_avg != 0 else 0
+                                direction = "上升 ↗️" if chg > 0.5 else ("下降 ↘️" if chg < -0.5 else "稳定 →")
+                                trend_lines.append(f"- 近7天 vs 前7天 **{label}**: {direction} ({chg:+.1f}%)")
+
+                    all_lines = data_lines + ["\n**指标详情**:"] + metric_lines
+                    if alert_lines:
+                        all_lines.append("\n**⚠️ 不达标项**:")
+                        all_lines.extend(alert_lines)
+                    if trend_lines:
+                        all_lines.append("\n**趋势变化**:")
+                        all_lines.extend(trend_lines)
+
+                    prompt = f"""你是一位资深质检分析师。请对以下质检数据进行深入分析：
+
+{''.join(all_lines)}
+
+请用中文给出：
+1. **数据概览**：1-2句话总结当前状态
+2. **问题诊断**：如有不达标项，分析可能原因
+3. **趋势判断**：根据近期走势预判后续风险
+4. **行动建议**：2-3条具体可执行的建议
+语气专业、简洁、有洞察力。使用 Markdown 格式。"""
+
+                    result = _cached_ai_summary(
+                        f"q_{q['id']}_{datetime.now().strftime('%Y%m%d%H')}",
+                        prompt,
+                        "你是一位资深质检分析师，擅长从质检数据中发现隐藏问题和趋势，并给出可执行的改善建议。",
+                    )
+
+                    if result:
+                        st.session_state[f"_ai_q_{q['id']}_html"] = result
+
+            if f"_ai_q_{q['id']}_html" in st.session_state:
+                st.html(f'''<div style="background:#faf5ff;border:1px solid #e9d5ff;
+                    border-radius:10px;padding:14px 16px;margin-top:8px;">
+                    <div style="font-size:12px;color:#7c3aed;margin-bottom:6px;">🔮 AI 洞察 · {q['icon']} {q['name']}</div>
+                    <div style="font-size:13px;line-height:1.7;color:#334155;">
+                    {st.session_state[f'_ai_q_{q["id"]}_html'].replace(chr(10), '<br>')}
+                    </div></div>''')
+
+def render_dashboard(all_data):
+    """质检数据看板主页 — 对标参考设计：白底卡片网格 / 胶囊Tab / 轻量走势图"""
+
+    min_date, max_date = get_date_range(all_data)
+    total_records = sum(len(d) for d in all_data.values())
+
+    # ── Header ──
+    st.html(f'''<div style="display:flex;align-items:center;justify-content:space-between;
+        flex-wrap:wrap;gap:12px;margin-bottom:2px;padding-bottom:12px;border-bottom:1px solid #e2e8f0;">
+        <div>
+            <div style="font-size:22px;font-weight:700;color:#1e293b;">📊 质检数据统一看板</div>
+            <div style="font-size:12px;color:#64748b;margin-top:2px;">多队列 · 按日期聚合指标 · 数据来源：企业微信智能表格 · 共 <b>{total_records}</b> 条记录</div>
+        </div>
+        <div style="font-size:11px;color:#94a3b8;">{datetime.now().strftime('%Y-%m-%d %H:%M')}</div>
+    </div>''')
+
+    # ── 日期筛选行（对标HTML模板版：紧凑一行）──
+    c_d1, c_d2, c_btns = st.columns([2, 2, 4])
+    with c_d1:
+        d_from = st.date_input("起始", value=None, key="df", label_visibility="collapsed")
+    with c_d2:
+        d_to = st.date_input("截止", value=None, key="dt", label_visibility="collapsed")
+    with c_btns:
+        bc1, bc2, bc3, bc4 = st.columns(4)
+        if bc1.button("周", use_container_width=True, key="_bw"):
+            if max_date: st.session_state["_quick"] = ("week", max_date); st.rerun()
+        if bc2.button("月", use_container_width=True, key="_bm"):
+            if max_date: st.session_state["_quick"] = ("month", max_date); st.rerun()
+        if bc3.button("全部", use_container_width=True, key="_ba"):
+            st.session_state["_quick"] = ("all", None); st.rerun()
+        if bc4.button("清缓存", use_container_width=True, key="_bc"):
+            st.cache_data.clear(); st.rerun()
+
+    date_from_str = d_from.strftime("%Y-%m-%d") if d_from else None
+    date_to_str = d_to.strftime("%Y-%m-%d") if d_to else None
+
+    if "_quick" in st.session_state:
+        mode, ref = st.session_state["_quick"]
+        if mode == "week" and ref:
+            dt = datetime.strptime(ref, "%Y-%m-%d")
+            date_from_str, date_to_str = (dt - timedelta(days=6)).strftime("%Y-%m-%d"), ref
+        elif mode == "month" and ref:
+            dt = datetime.strptime(ref, "%Y-%m-%d")
+            date_from_str, date_to_str = (dt - timedelta(days=29)).strftime("%Y-%m-%d"), ref
+        else:
+            date_from_str, date_to_str = None, None
+        del st.session_state["_quick"]
+
+    # ════════════════════════════════════════════════════════════
+    #  Overview 卡片行（7列白底卡片网格 — 对齐参考设计）
+    # ════════════════════════════════════════════════════════════
+    ov_cards = []
+    for q in QUEUES:
+        df_f = filter_by_date(all_data.get(q["id"], pd.DataFrame()), date_from_str, date_to_str)
+        lr = find_latest_nonzero(df_f, q["metric_keys"])
+        latest_date = lr["date"] if lr is not None else "--"
+
+        pm = q.get("primary_metric", q["metric_keys"][0])
+        main_val = find_latest_nonzero_per_key(df_f, pm)
+        is_ok_main = check_threshold(q, pm, main_val)[0] if main_val is not None else True
+        val_color = "#dc2626" if (main_val is not None and not is_ok_main) else q["color"]
+        val_str = fmt_pct(main_val) if main_val is not None else "--"
+
+        ov_cards.append(f'''
+        <div class="ovc" style="background:#fff;border:1px solid #e2e8f0;border-radius:10px;
+            padding:14px;text-align:center;box-shadow:0 1px 3px rgba(0,0,0,0.08);
+            transition:transform 0.15s ease,box-shadow 0.15s ease;cursor:default;">
+            <div style="font-size:24px;margin-bottom:4px;">{q['icon']}</div>
+            <div style="font-size:12px;font-weight:600;color:#334155;margin-bottom:4px;">{q['name']}</div>
+            <div style="font-size:20px;font-weight:700;color:{val_color};">{val_str}</div>
+            <div style="font-size:10px;color:#94a3b8;margin-top:3px;">{latest_date}</div>
+        </div>''')
+
+    st.html(f'''<style>
+    .ov-grid{{display:grid;grid-template-columns:repeat(7,1fr);gap:10px;margin-bottom:18px;}}
+    .ovc:hover{{transform:translateY(-2px);border-color:rgba(59,130,246,0.25);box-shadow:0 4px 12px rgba(0,0,0,0.1);}}
+    @media(max-width:1100px){{.ov-grid{{grid-template-columns:repeat(4,1fr);}}}}
+    @media(max-width:700px){{.ov-grid{{grid-template-columns:repeat(2,1fr);}}}}
+    </style><div class="ov-grid">{"".join(ov_cards)}</div>''')
+
+    # ════════════════════════════════════════════════════════════
+    #  🤖 AI 日报摘要（对标企微推送完整版）
+    # ════════════════════════════════════════════════════════════
+    render_ai_summary_section(all_data)
+
+    # ════════════════════════════════════════════════════════════
+    #  队列选择（自定义 HTML 胶囊按钮）
+    # ════════════════════════════════════════════════════════════
+    if "active_qidx" not in st.session_state:
+        st.session_state.active_qidx = 0
+
+    # 构建胶囊按钮（纯展示，点击不直接交互）
+    tab_btns_html = []
+    for i, q in enumerate(QUEUES):
+        df_f = filter_by_date(all_data.get(q["id"], pd.DataFrame()), date_from_str, date_to_str)
+        n_days = len(df_f)
+        active = (i == st.session_state.active_qidx)
+        bgt = f"{n_days}天" if n_days > 0 else "待接入"
+
+        if active:
+            style = f"background:{q['color']};color:#fff;border:1px solid {q['color']};box-shadow:0 2px 8px rgba(0,0,0,0.15);"
+            dot_color = "#fff"
+            badge_style = "background:rgba(255,255,255,0.25);color:#fff;"
+        else:
+            style = f"background:#fff;color:#475569;border:1px solid #e2e8f0;"
+            dot_color = q["color"]
+            badge_style = f"background:{q['color']}12;color:{q['color']};"
+
+        btn_html = (
+            f'<div class="qc-tab-btn {"qc-tab-active" if active else ""}" '
+            f'data-idx="{i}" '
+            f'style="display:inline-flex;align-items:center;gap:5px;padding:7px 14px;'
+            f'border-radius:20px;font-size:13px;font-weight:600;cursor:pointer;'
+            f'white-space:nowrap;transition:all 0.15s ease;{style}'
+            f'">'
+            f'<span style="width:7px;height:7px;border-radius:50%;background:{dot_color};'
+            f'display:inline-block;flex-shrink:0;"></span>'
+            f'{q["icon"]} {q["name"]} '
+            f'<span style="font-size:10px;padding:1px 6px;border-radius:10px;{badge_style}">{bgt}</span>'
+            f'</div>'
+        )
+        tab_btns_html.append(btn_html)
+
+    # 渲染胶囊按钮行
+    current_idx = st.session_state.active_qidx
+    st.html(f'''
+<style>
+.qc-tab-row {{ display:flex;gap:5px;margin-bottom:14px;overflow-x:auto;padding-bottom:3px;flex-wrap:wrap; }}
+.qc-tab-btn:hover:not(.qc-tab-active) {{
+    border-color:rgba(59,130,246,0.35)!important;transform:translateY(-1px);box-shadow:0 2px 6px rgba(0,0,0,0.08);
+}}
+</style>
+<div class="qc-tab-row">{''.join(tab_btns_html)}</div>
+''')
+
+    # 用隐藏的 radio 做状态管理（视觉上不可见，但可交互）
+    tab_labels = [f"{q['icon']} {q['name']}" for q in QUEUES]
+    new_idx = st.radio(
+        "_queue_tabs", options=list(range(len(QUEUES))),
+        index=current_idx,
+        format_func=lambda i: tab_labels[i],
+        label_visibility="collapsed",
+        key="_qtabs",
     )
+    if new_idx != current_idx:
+        st.session_state.active_qidx = new_idx
+        st.rerun()
+
+    # CSS 隐藏 radio（但保持可交互——用 sr-only 技巧）
+    st.html('''<style>
+div[data-testid="stRadio"] {
+    position:absolute;width:1px;height:1px;padding:0;margin:-1px;
+    overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0;
+}
+''')
+
+    # ════════════════════════════════════════════════════════════
+    #  当前队列详情
+    # ════════════════════════════════════════════════════════════
+    q = QUEUES[st.session_state.active_qidx]
+    qid = q["id"]
+    df_raw = all_data.get(qid, pd.DataFrame())
+    df = filter_by_date(df_raw, date_from_str, date_to_str)
+
+    if df.empty:
+        st.info(f"😴 **{q['name']}** 在选定日期范围内暂无数据")
+        return
+
+    # ── 统计区：左侧天数 + 右侧各指标 ──
+    sc_left, sc_right = st.columns([1, 3])
+    with sc_left:
+        dr_s = f"{df['date'].iloc[0]} ~ {df['date'].iloc[-1]}" if len(df) > 0 else ""
+        st.html(f'''<div style="background:#fff;border:1px solid #e2e8f0;border-radius:12px;
+            padding:16px 18px;box-shadow:0 1px 3px rgba(0,0,0,0.08);">
+            <div style="font-size:11px;color:#94a3b8;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px;">数据天数</div>
+            <div style="font-size:28px;font-weight:700;color:#1e293b;line-height:1;">{len(df)}<span style="font-size:15px;color:#94a3b8;font-weight:400;margin-left:2px;">天</span></div>
+            <div style="font-size:11px;color:#94a3b8;margin-top:5px;">{dr_s}</div>
+        </div>''')
+
+    with sc_right:
+        mcols = st.columns(len(q["metric_keys"]))
+        for ki, mk in enumerate(q["metric_keys"]):
+            vv = get_valid_values(df, mk)
+            if not vv:
+                with mcols[ki]:
+                    st.caption(f"{q['metric_labels'].get(mk, mk)}: 无数据")
+                continue
+
+            last_v = vv[-1]
+            avg_v = sum(vv) / len(vv)
+            is_ok, _, _ = check_threshold(q, mk, last_v)
+            tl = get_threshold_label(q, mk)
+
+            trend_html = ""
+            if len(vv) >= 2:
+                pv, cv = vv[-2], vv[-1]
+                if pv != 0:
+                    chg = ((cv - pv) / abs(pv)) * 100
+                    arr = "↑" if chg > 0 else ("↓" if chg < 0 else "→")
+                    tc = "#ef4444" if abs(chg) > 0.5 else ("#22c55e" if chg != 0 else "#94a3b8")
+                    trend_html = f'<span style="color:{tc};font-weight:500;">{arr} {abs(chg):.1f}%</span>'
+
+            lbl = q["metric_labels"].get(mk, mk)
+            bg_c = "#fef2f2" if not is_ok else "#f0fdf4"
+            bl_c = "#dc2626" if not is_ok else "#16a34a"
+            vc = "#dc2626" if not is_ok else "#1e293b"
+
+            with mcols[ki]:
+                st.html(f'''<div style="border-left:3px solid {bl_c};background:{bg_c};
+                    border-radius:10px;padding:14px 16px;">
+                    <div style="font-size:11px;color:#64748b;margin-bottom:4px;">
+                    {lbl} <span style="color:#cbd5e1;">|</span> {tl}</div>
+                    <div style="font-size:24px;font-weight:700;color:{vc};">{fmt_pct(last_v)}</div>
+                    <div style="font-size:11px;color:#64748b;margin-top:4px;">
+                    均值 <b>{fmt_pct1(avg_v)}</b>&nbsp;&nbsp;{trend_html}</div></div>''')
+
+    # ── 走势图标题 ──
+    st.markdown(f"""<div style="font-size:14px;font-weight:600;margin:18px 0 10px;
+        display:flex;align-items:center;gap:7px;">
+        <span style="width:8px;height:8px;border-radius:50%;background:{q['color']};"></span>
+        {q['icon']} {q['name']} — 指标走势</div>""", unsafe_allow_html=True)
+
+    fig = go.Figure()
+    ccolors = ["#3b82f6", "#22c55e", "#ef4444", "#f97316", "#eab308", "#a855f7", "#06b6d4"]
+
+    for ki, mk in enumerate(q["metric_keys"]):
+        if mk not in df.columns:
+            continue
+        lbl = q["metric_labels"].get(mk, mk)
+        pdf = df[["date", mk]].copy()
+        pdf.loc[pdf[mk] == 0, mk] = None
+        clr = ccolors[ki % len(ccolors)]
+        fig.add_trace(go.Scatter(
+            x=pdf["date"].tolist(), y=pdf[mk].tolist(),
+            name=lbl, line=dict(color=clr, width=2),
+            mode="lines", connectgaps=True,
+        ))
+
+    # 底线参考线
+    shapes, annots = [], []
+    for ki, mk in enumerate(q["metric_keys"]):
+        rule = q.get("thresholds", {}).get(mk, {})
+        clr = ccolors[ki % len(ccolors)]
+        if "min" in rule:
+            shapes.append(dict(type="line", yref="y", y0=rule["min"], y1=rule["min"],
+                xref="paper", x0=0, x1=1, line=dict(color=clr, width=1, dash="dot")))
+            annots.append(dict(x=1, y=rule["min"], xref="paper", yref="y",
+                text=f"底线≥{rule['min']*100:.0f}%", showarrow=False,
+                font=dict(size=9, color=clr), xanchor="right", yanchor="bottom"))
+        elif "max" in rule:
+            shapes.append(dict(type="line", yref="y", y0=rule["max"], y1=rule["max"],
+                xref="paper", x0=0, x1=1, line=dict(color=clr, width=1, dash="dot")))
+            annots.append(dict(x=1, y=rule["max"], xref="paper", yref="y",
+                text=f"上限≤{rule['max']*100:.0f}%", showarrow=False,
+                font=dict(size=9, color=clr), xanchor="right", yanchor="top"))
+
+    # Y轴自动缩放 ±15%
+    all_nv = [v for mk in q["metric_keys"] for v in get_valid_values(df, mk)]
+    if all_nv:
+        y_lo, y_hi = min(all_nv), max(all_nv)
+        sp = max(y_hi - y_lo, 0.05)
+        y_min, y_max = max(0, y_lo - sp * 0.15), min(1.05, y_hi + sp * 0.15)
+    else:
+        y_min, y_max = 0, 1.05
+
+    fig.update_layout(
+        height=320, margin=dict(l=40, r=35, t=10, b=45),
+        legend=dict(font_size=11, orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+        xaxis=dict(tickangle=-45, tickfont=dict(size=10)),
+        yaxis=dict(tickformat=".0%", range=[y_min, y_max]),
+        hovermode="x unified", template="plotly_white",
+        shapes=shapes, annotations=annots,
+    )
+    st.plotly_chart(fig, use_container_width=True)
+
+    # ── 🔍 单队列 AI 洞察（可折叠）──
+    render_queue_ai_insight(q, df)
+
+    # ── 最新指标构成 ──
+    st.markdown("""<div style="font-size:14px;font-weight:600;margin:18px 0 10px;">✅ 最新指标构成</div>""", unsafe_allow_html=True)
+    icols = st.columns(len(q["metric_keys"]))
+    for ki, mk in enumerate(q["metric_keys"]):
+        vv = get_valid_values(df, mk)
+        if not vv:
+            with icols[ki]:
+                st.caption(f"{q['metric_labels'].get(mk, mk)}: 无数据")
+            continue
+        lv = vv[-1]
+        ok, _, _ = check_threshold(q, mk, lv)
+        lbl = q["metric_labels"].get(mk, mk)
+        pc = sum(1 for v in vv if check_threshold(q, mk, v)[0]) / len(vv) * 100
+        bc = "#16a34a" if ok else "#dc2626"
+        em = "✅" if ok else "❌"
+
+        with icols[ki]:
+            st.html(f'''<div style="text-align:center;padding:12px;background:#fff;
+                border:1px solid #e2e8f0;border-radius:12px;box-shadow:0 1px 3px rgba(0,0,0,0.08);">
+                <div style="font-size:24px;">{em}</div>
+                <div style="font-size:12px;font-weight:600;color:#334155;margin:4px 0;">{lbl}</div>
+                <div style="font-size:20px;font-weight:700;color:{bc};">{fmt_pct(lv)}</div>
+                <div style="background:#e2e8f0;border-radius:4px;height:6px;margin-top:8px;">
+                <div style="background:{bc};height:6px;width:{pc:.0f}%;border-radius:4px;"></div></div>
+                <div style="font-size:10px;color:#94a3b8;margin-top:4px;">
+                达标率 {pc:.0f}% ({sum(1 for v in vv if check_threshold(q,mk,v)[0])}/{len(vv)})</div></div>''')
+
+    # ── 数据明细表 ──
+    st.markdown(f"""<div style="font-size:14px;font-weight:600;margin:18px 0 10px;">
+        📋 {q['name']} 数据明细 ({len(df)} 条)</div>""", unsafe_allow_html=True)
+
+    disp_cols = ["date"] + q["metric_keys"]
+    disp_df = df[disp_cols].copy().sort_values("date", ascending=False).reset_index(drop=True)
+    for mk in q["metric_keys"]:
+        if mk in disp_df.columns:
+            disp_df[mk] = disp_df[mk].apply(fmt_pct)
+    rmap = {"date": "📅 日期"}
+    for mk in q["metric_keys"]:
+        rmap[mk] = q["metric_labels"].get(mk, mk)
+    disp_df.rename(columns=rmap, inplace=True)
+
+    def _hl(s):
+        r = [""] * len(s)
+        rm = {v: k for k, v in rmap.items()}
+        mk = rm.get(s.name, "")
+        if not mk: return r
+        for i, v in enumerate(s):
+            if isinstance(v, str) and v.endswith("%"):
+                try:
+                    n = float(v.rstrip("%")) / 100
+                    if n == 0: r[i] = "color:#94a3b8;"
+                    elif not check_threshold(q, mk, n)[0]:
+                        r[i] = "color:#dc2626;font-weight:700;background-color:#fef2f2;"
+                except (ValueError, TypeError): pass
+        return r
+
+    st.dataframe(disp_df.style.apply(_hl, axis=0), use_container_width=True, hide_index=True,
+                 height=min(max(40 * len(disp_df), 200), 500))
+
+    # 导出 Excel
+    buf = io.BytesIO()
+    rdf = df[disp_cols].copy().sort_values("date", ascending=False).reset_index(drop=True)
+    rr = {"date": "📅 日期"}
+    for mk in q["metric_keys"]: rr[mk] = q["metric_labels"].get(mk, mk)
+    rdf.rename(columns=rr, inplace=True)
+    rdf.to_excel(buf, index=False, engine='xlsxwriter')
+    buf.seek(0)
+    st.download_button(label=f"📥 导出 {q['name']} 数据 (.xlsx)", data=buf,
+                       file_name=f"{q['name']}_质检数据_{datetime.now().strftime('%Y%m%d')}.xlsx",
+                       mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                       key=f"dl_{qid}")
+
+    # Footer
+    st.html('<div style="text-align:center;color:#94a3b8;font-size:11px;padding:14px 0;border-top:1px solid #e2e8f0;margin-top:10px;">'
+            f'📊 QC Dashboard v4.0 (AI) · {datetime.now().strftime("%Y-%m-%d %H:%M")}</div>')
 
 
-# ================================================================
-#  页面：数据导入
-# ================================================================
+# ════════════════════════════════════════════════════════════════
+#  页面：数据导入（保持不变）
+# ════════════════════════════════════════════════════════════════
 
 def render_import():
-    """数据导入页面：上传 + 清洗 + 一键刷新 + 清除缓存 + 清除数据"""
+    """数据导入页面"""
 
     st.markdown("# 📥 数据导入")
     st.caption("上传质检 Excel 文件、管理缓存和数据")
 
-    # ── 区域1：上传文件 ──
+    # 上传
     st.markdown("### 📤 上传质检 Excel")
-    st.caption("支持 `.xlsx` / `.xls` 格式，可拖拽多选批量上传")
-
-    uploaded_files = st.file_uploader(
-        "选择质检文件",
-        type=["xlsx", "xls"],
-        accept_multiple_files=True,
-        help="支持 .xlsx 和 .xls 格式，可同时选择多个文件",
-    )
-
+    uploaded_files = st.file_uploader("选择质检文件", type=["xlsx", "xls"],
+                                      accept_multiple_files=True)
     if uploaded_files:
-        st.success(f"已选择 **{len(uploaded_files)}** 个文件：")
-        file_info = []
-        for uf in uploaded_files:
-            size_kb = round(len(uf.getvalue()) / 1024, 1)
-            file_info.append(f"- **{uf.name}** ({size_kb} KB)")
-        st.markdown("\n".join(file_info))
-
+        st.success(f"已选择 **{len(uploaded_files)}** 个文件")
         if st.button("⬆️ 批量导入", type="primary", use_container_width=True):
             _process_uploads(uploaded_files)
 
     st.divider()
 
-    # ── 区域2：一键刷新（页面内执行） ──
+    # 一键刷新
     st.markdown("### 🔄 一键刷新")
-    st.caption("从已上传的 Excel 文件中解析数据并导入数据库")
+    excel_files = [(f, os.path.join(UPLOAD_DIR, f)) for f in sorted(os.listdir(UPLOAD_DIR))
+                   if os.path.isdir(UPLOAD_DIR) and f.lower().endswith(('.xlsx', '.xls'))]
+    processed_count = len([f for f in os.listdir(os.path.join(UPLOAD_DIR, "processed"))
+                           if f.lower().endswith(('.xlsx', '.xls'))]) if os.path.isdir(os.path.join(UPLOAD_DIR, "processed")) else 0
 
-    # 检测 uploads 目录中的待处理文件
-    excel_files = []
-    if os.path.isdir(UPLOAD_DIR):
-        for fn in os.listdir(UPLOAD_DIR):
-            if fn.lower().endswith(('.xlsx', '.xls')):
-                fp = os.path.join(UPLOAD_DIR, fn)
-                size_kb = round(os.path.getsize(fp) / 1024, 1)
-                excel_files.append({"文件": fn, "大小": f"{size_kb} KB"})
-
-    # 同时检查 processed 目录
-    processed_dir = os.path.join(UPLOAD_DIR, "processed")
-    processed_count = 0
-    if os.path.isdir(processed_dir):
-        processed_count = len([f for f in os.listdir(processed_dir) if f.lower().endswith(('.xlsx', '.xls'))])
-
-    c_info, c_btn = st.columns([2, 1])
-    with c_info:
+    ci, cb = st.columns([2, 1])
+    with ci:
         if excel_files:
             st.info(f"📂 待处理 **{len(excel_files)}** 个文件（已处理 {processed_count} 个）")
-            st.dataframe(pd.DataFrame(excel_files), use_container_width=True, hide_index=True)
+            st.dataframe(pd.DataFrame([{"文件": f, "大小(KB)": round(os.path.getsize(p)/1024, 1)}
+                                       for f, p in excel_files]), use_container_width=True, hide_index=True)
         else:
-            st.warning("⏳ `data/uploads/` 目录下暂无 Excel 文件，请先上传")
+            st.warning("⏳ 暂无文件，请先上传")
 
-    with c_btn:
+    with cb:
         st.markdown("<br>", unsafe_allow_html=True)
         if not excel_files:
-            st.button("🔄 执行刷新", disabled=True, help="先上传 Excel 文件",
-                     type="primary", use_container_width=True)
-        else:
-            do_refresh = st.button("🔄 执行刷新", type="primary", use_container_width=True,
-                                   help="读取 uploads 中的 xlsx → 解析入库 → 清理未来日期")
-            if do_refresh:
-                _do_refresh()
+            st.button("🔄 执行刷新", disabled=True, type="primary", use_container_width=True)
+        elif st.button("🔄 执行刷新", type="primary", use_container_width=True):
+            _do_refresh()
 
     st.divider()
 
-    # ── 区域3：已上传文件 ──
+    # 已上传文件
     st.markdown("### 📂 已上传文件")
-    upload_files = sorted(os.listdir(UPLOAD_DIR)) if os.path.isdir(UPLOAD_DIR) else []
-
-    if upload_files:
-        records = []
-        for fn in upload_files:
-            fp = os.path.join(UPLOAD_DIR, fn)
-            stat = os.stat(fp)
-            size_kb = round(stat.st_size / 1024, 1)
-            mtime = datetime.fromtimestamp(stat.st_mtime).strftime("%Y-%m-%d %H:%M:%S")
-            records.append({"文件名": fn, "大小(KB)": size_kb, "上传时间": mtime})
-        st.dataframe(pd.DataFrame(records), use_container_width=True, hide_index=True)
-
+    ufiles = sorted(os.listdir(UPLOAD_DIR)) if os.path.isdir(UPLOAD_DIR) else []
+    if ufiles:
+        st.dataframe(pd.DataFrame([{"文件名": f, "大小(KB)": round(os.stat(os.path.join(UPLOAD_DIR,f)).st_size/1024, 1),
+                                     "时间": datetime.fromtimestamp(os.stat(os.path.join(UPLOAD_DIR,f)).st_mtime).strftime("%Y-%m-%d %H:%M")} for f in ufiles]),
+                      use_container_width=True, hide_index=True)
         if st.button("🗑️ 清空上传记录"):
             import shutil
-            shutil.rmtree(UPLOAD_DIR)
-            os.makedirs(UPLOAD_DIR, exist_ok=True)
-            st.success("已清空")
-            st.rerun()
-    else:
-        st.caption("暂无上传文件")
+            shutil.rmtree(UPLOAD_DIR); os.makedirs(UPLOAD_DIR, exist_ok=True)
+            st.success("已清空"); st.rerun()
 
     st.divider()
 
-    # ── 区域4：缓存 & 数据管理 ──
-    c_cache, c_data = st.columns(2)
-
-    with c_cache:
+    cc, cd = st.columns(2)
+    with cc:
         st.markdown("### 🧹 清除缓存")
-        st.caption("清除 Streamlit 数据缓存，不删除数据库")
         if st.button("清除缓存", use_container_width=True):
-            st.cache_data.clear()
-            st.success("✅ 缓存已清除")
-            time.sleep(1)
-            st.rerun()
+            st.cache_data.clear(); st.success("✅"); time.sleep(1); st.rerun()
 
-    with c_data:
+    with cd:
         st.markdown("### ⚠️ 清除数据")
-
-        # ── 选项1: 按日期范围清除 ──
-        with st.expander("📅 按日期范围清除", expanded=False):
-            st.caption("删除指定日期范围内的数据，不可恢复")
-            d_del_from = st.date_input("起始日期", key="del_from")
-            d_del_to = st.date_input("截止日期", key="del_to")
-            
-            # 预览将删除的记录数
-            preview_del = 0
-            if d_del_from and d_del_to:
-                from_s = d_del_from.strftime("%Y-%m-%d") if d_del_from else None
-                to_s = d_del_to.strftime("%Y-%m-%d") if d_del_to else None
-                conn_preview = sqlite3.connect(DB_PATH)
-                c_prev = conn_preview.cursor()
-                c_prev.execute(
-                    "SELECT COUNT(*) FROM daily_metrics WHERE date BETWEEN ? AND ?",
-                    (from_s, to_s),
-                )
-                preview_del = c_prev.fetchone()[0]
-                conn_preview.close()
-                
-                if preview_del > 0:
-                    st.warning(f"⚠️ 将删除 **{preview_del}** 条记录（{from_s} ~ {to_s}）")
+        with st.expander("📅 按日期范围清除"):
+            dd1 = st.date_input("起始", key="del_from")
+            dd2 = st.date_input("截止", key="del_to")
+            if dd1 and dd2:
+                fs, ts = dd1.strftime("%Y-%m-%d"), dd2.strftime("%Y-%m-%d")
+                cnt = sqlite3.connect(DB_PATH).execute(
+                    "SELECT COUNT(*) FROM daily_metrics WHERE date BETWEEN ? AND ?", (fs, ts)).fetchone()[0]
+                if cnt > 0:
+                    st.warning(f"将删除 **{cnt}** 条（{fs} ~ {ts}）")
+                    if st.button("🗑️ 删除选中范围", type="primary"):
+                        conn = sqlite3.connect(DB_PATH)
+                        conn.execute("DELETE FROM daily_metrics WHERE date BETWEEN ? AND ?", (fs, ts))
+                        conn.commit(); conn.close(); st.cache_data.clear()
+                        st.success(f"✅ 删除 {cnt} 条"); time.sleep(1); st.rerun()
                 else:
-                    st.info(f"该范围内暂无数据（{from_s} ~ {to_s}）")
-                
-                if preview_del > 0 and st.button(
-                    "🗑️ 删除选中范围", type="primary",
-                    key="_del_range_btn", disabled=(preview_del == 0)
-                ):
-                    conn_del = sqlite3.connect(DB_PATH)
-                    cd = conn_del.cursor()
-                    cd.execute("DELETE FROM daily_metrics WHERE date BETWEEN ? AND ?", (from_s, to_s))
-                    deleted_count = cd.rowcount
-                    conn_del.commit()
-                    conn_del.close()
-                    st.cache_data.clear()
-                    st.success(f"✅ 已删除 **{deleted_count}** 条记录")
-                    time.sleep(1)
-                    st.rerun()
+                    st.info(f"该范围无数据（{fs} ~ {ts}）")
 
-        st.divider()
-
-        # ── 选项2: 全部清除 ──
         st.markdown("**全部清除**")
-        st.caption("永久删除数据库中**所有**质检数据，不可恢复")
-        
-        confirm = st.text_input("输入 CONFIRM 确认全量删除", key="_confirm_del", placeholder="CONFIRM")
-        if confirm and confirm.strip().upper() == "CONFIRM":
-            if st.button("确认清除全部数据", type="primary", use_container_width=True):
+        conf = st.text_input("输入 CONFIRM 确认全量删除", key="_conf_del")
+        if conf and conf.strip().upper() == "CONFIRM":
+            if st.button("确认清除全部数据", type="primary"):
                 conn = sqlite3.connect(DB_PATH)
-                cursor = conn.cursor()
-                cursor.execute("DELETE FROM daily_metrics")
-                deleted_all = cursor.rowcount
-                conn.commit()
-                conn.close()
-                st.success(f"已删除 **{deleted_all}** 条记录")
-                st.cache_data.clear()
-                time.sleep(1)
-                st.rerun()
+                c = conn.execute("DELETE FROM daily_metrics"); conn.commit()
+                st.success(f"已删除 {c.rowcount} 条"); conn.close(); st.cache_data.clear(); time.sleep(1); st.rerun()
 
 
 def _process_uploads(uploaded_files):
-    """处理上传文件"""
-    progress_bar = st.progress(0, "准备导入...")
-    status_text = st.empty()
-    results = []
-    total = len(uploaded_files)
-    success_count = 0
-    error_count = 0
-
+    pb = st.progress(0); status = st.empty(); res = []; ok = err = 0
     for i, uf in enumerate(uploaded_files):
         try:
-            status_text.text(f"[{i+1}/{total}] 处理: **{uf.name}** ...")
-            progress_bar.progress((i + 0.5) / total)
-
-            save_path = os.path.join(UPLOAD_DIR, f"{datetime.now().strftime('%Y%m%d%H%M%S')}_{uf.name}")
-            with open(save_path, "wb") as f:
-                f.write(uf.getvalue())
-
-            bytes_io = io.BytesIO(uf.getvalue())
-            xl_sheets = pd.ExcelFile(bytes_io)
-            first_sheet = xl_sheets.sheet_names[0]
-            df = pd.read_excel(bytes_io, sheet_name=first_sheet)
-
-            results.append({
-                "文件": uf.name,
-                "状态": "✅ 已读取",
-                "行数": len(df),
-                "列数": len(df.columns),
-                "子表": first_sheet,
-            })
-            success_count += 1
-
+            status.text(f"[{i+1}/{len(uploaded_files)}] 处理: **{uf.name}** ...")
+            pb.progress((i+0.5)/len(uploaded_files))
+            sp = os.path.join(UPLOAD_DIR, f"{datetime.now().strftime('%Y%m%d%H%M%S')}_{uf.name}")
+            with open(sp, "wb") as f: f.write(uf.getvalue())
+            xl = pd.ExcelFile(io.BytesIO(uf.getvalue()))
+            sn = xl.sheet_names[0]
+            df = pd.read_excel(io.BytesIO(uf.getvalue()), sheet_name=sn)
+            res.append({"文件": uf.name, "状态": "✅", "行数": len(df), "子表": sn}); ok += 1
         except Exception as e:
-            results.append({
-                "文件": uf.name,
-                "状态": f"❌ 失败: {str(e)[:60]}",
-                "行数": 0, "列数": 0, "子表": "-",
-            })
-            error_count += 1
-
-    progress_bar.progress(1.0, "完成！")
-    status_text.text("导入完成")
-
-    st.subheader("📊 导入结果")
-    c_ok, c_err = st.columns(2)
-    c_ok.metric("成功", success_count)
-    c_err.metric("失败", error_count)
-
-    if results:
-        st.dataframe(pd.DataFrame(results), use_container_width=True, hide_index=True)
+            res.append({"文件": uf.name, "状态": f"❌ {str(e)[:40]}", "行数": 0, "子表": "-"}); err += 1
+    pb.progress(1.0)
+    st.subheader("结果")
+    st.columns(2)[0].metric("成功", ok); st.columns(2)[1].metric("失败", err)
+    if res: st.dataframe(pd.DataFrame(res), use_container_width=True)
 
 
 def _do_refresh():
-    """一键刷新：读取 uploads 中的 xlsx → 解析入库 → 清理未来日期 → 清缓存"""
     import yaml
     from pathlib import Path
-
-    status = st.empty()
-    progress = st.progress(0, "准备刷新...")
-    log_lines = []
-
-    def log(msg):
-        log_lines.append(msg)
-        status.markdown("\n".join(f"· {line}" for line in log_lines[-12:]))
-
+    status = st.empty(); progress = st.progress(0); logs = []
+    def log(msg): logs.append(msg); status.markdown("\n".join(f"· {l}" for l in logs[-12:]))
     try:
-        # Step 1: 加载配置
-        progress.progress(5, "加载配置...")
-        log("📋 读取 config.yaml ...")
+        progress.progress(5); log("📋 加载配置...")
         cfg_path = os.path.join(BASE, "config.yaml")
-        if not os.path.exists(cfg_path):
-            st.error("❌ 找不到 config.yaml")
-            return
-        with open(cfg_path, "r") as f:
-            config = yaml.safe_load(f)
+        if not os.path.exists(cfg_path): st.error("❌ config.yaml 不存在"); return
+        with open(cfg_path) as f: config = yaml.safe_load(f)
 
-        # Step 2: 导入 Excel（复用 collector.py 的逻辑）
-        progress.progress(15, "导入 Excel 数据...")
-        log("📂 扫描 data/uploads/ 目录...")
-
-        # 动态导入 collector 模块
+        progress.progress(15); log("📂 扫描 uploads...")
         sys_path = os.path.join(BASE, "src")
-        if sys_path not in __import__("sys").path:
-            __import__("sys").path.insert(0, sys_path)
-
+        if sys_path not in __import__("sys").path: __import__("sys").path.insert(0, sys_path)
         import importlib.util
-        collector_spec = importlib.util.spec_from_file_location(
-            "collector", os.path.join(sys_path, "collector.py")
-        )
-        if collector_spec and collector_spec.loader:
-            collector_mod = importlib.util.module_from_spec(collector_spec)
-            collector_spec.loader.exec_module(collector_mod)
-
-            conn = collector_mod.init_db()
-            imported = collector_mod.import_excel(conn, config)
-            log(f"✅ 导入完成：**{imported}** 条新记录")
+        spec = importlib.util.spec_from_file_location("collector", os.path.join(sys_path, "collector.py"))
+        if spec and spec.loader:
+            mod = importlib.util.module_from_spec(spec); spec.loader.exec_module(mod)
+            conn = mod.init_db(); imported = mod.import_excel(conn, config)
+            log(f"✅ 导入 **{imported}** 条")
         else:
-            # fallback: 直接用 pandas 简单导入
-            log("⚠️ collector.py 不可用，使用简单模式导入")
-            _simple_import(progress, log)
+            log("⚠️ 简单模式"); _simple_import(progress, log); imported = "?"
 
-        progress.progress(60, "清理未来日期...")
-
-        # Step 3: 清理未来日期
+        progress.progress(60); log("🧹 清理未来日期...")
         from datetime import date as _date
-        conn_sqlite = sqlite3.connect(DB_PATH)
-        c = conn_sqlite.cursor()
-        today_str = _date.today().isoformat()
-        c.execute("DELETE FROM daily_metrics WHERE date > ?", (today_str,))
-        future_deleted = c.rowcount
-        conn_sqlite.commit()
-        conn_sqlite.close()
+        today_s = _date.today().isoformat()
+        cn = sqlite3.connect(DB_PATH); c = cn.cursor()
+        c.execute("DELETE FROM daily_metrics WHERE date > ?", (today_s,))
+        fd = c.rowcount; cn.commit(); cn.close()
+        if fd: log(f"🧹 清理 {fd} 条未来日期")
+        else: log("🧹 无需清理")
 
-        if future_deleted > 0:
-            log(f"🧹 清理 **{future_deleted}** 条未来日期数据 (>{today_str})")
-        else:
-            log("🧹 无需清理未来日期")
-
-        progress.progress(80, "清除缓存...")
-
-        # Step 4: 清除 Streamlit 缓存
-        st.cache_data.clear()
-        log("🔄 缓存已清除")
-
-        progress.progress(100, "✅ 刷新完成！")
-
-        time.sleep(1)
-        st.success(
-            f"🎉 **刷新完成！**\n\n"
-            f"- 新增记录：{imported if 'imported' in dir() else '?'} 条\n"
-            f"- 未来日期清理：{future_deleted} 条\n"
-            f"- 数据已更新，可切换到「数据总览」查看"
-        )
+        progress.progress(80); st.cache_data.clear(); log("🔄 缓存已清除")
+        progress.progress(100)
+        st.success(f"🎉 完成！新增 {imported} 条 · 未来清理 {fd} 条")
         time.sleep(2)
-
     except Exception as e:
-        st.error(f"❌ 刷新失败：{str(e)}")
-        import traceback
-        st.code(traceback.format_exc(), language="text")
+        st.error(f"❌ 失败: {str(e)}")
 
 
 def _simple_import(progress, log):
-    """简单模式：直接用 pandas 读取 uploads 中所有 xlsx 入库"""
-    import glob as _glob
-
-    excel_files = list(_glob.glob(os.path.join(UPLOAD_DIR, "*.xlsx"))) + \
-                   list(_glob.glob(os.path.join(UPLOAD_DIR, "*.xls")))
-    total_imported = 0
-    processed_dir = os.path.join(UPLOAD_DIR, "processed")
-    os.makedirs(processed_dir, exist_ok=True)
-
-    for fi, fpath in enumerate(excel_files):
-        fname = os.path.basename(fname := os.path.basename(fpath))
-        progress.progress(20 + int(40 * fi / max(len(excel_files), 1)), f"[{fi+1}/{len(excel_files)}] {fname}")
-        log(f"📄 [{fi+1}/{len(excel_files)}] {fname}")
-
+    import glob
+    files = list(glob.glob(os.path.join(UPLOAD_DIR, "*.xlsx"))) + list(glob.glob(os.path.join(UPLOAD_DIR, "*.xls")))
+    proc_dir = os.path.join(UPLOAD_DIR, "processed"); os.makedirs(proc_dir, exist_ok=True)
+    total = 0
+    for fi, fp in enumerate(files):
+        fn = os.path.basename(fp)
+        progress.progress(0.2 + 0.4*fi/max(len(files),1))
+        log(f"📄 [{fi+1}/{len(files)}] {fn}")
         try:
-            xl = pd.ExcelFile(fpath)
+            xl = pd.ExcelFile(fp)
             for sn in xl.sheet_names:
                 df = pd.read_excel(xl, sheet_name=sn, header=None)
-                log(f"   📊 子表「{sn}」: {df.shape[0]} 行 × {df.shape[1]} 列")
-
-                # 这里只做基础保存记录，完整解析需要 config.yaml 映射
-                # 将文件移到 processed 避免重复处理
-            dest = os.path.join(processed_dir, f"{datetime.now().strftime('%Y%m%d%H%M%S')}_{fname}")
-            shutil_move = __import__("shutil").move
-            shutil_move(fpath, dest)
-            total_imported += len(df) - 2  # 减去表头行
+                log(f"   📊 「{sn}」: {df.shape}")
+            import shutil
+            shutil.move(fp, os.path.join(proc_dir, f"{datetime.now().strftime('%Y%m%d%H%M%S')}_{fn}"))
+            total += len(df) - 2
         except Exception as e:
-            log(f"   ❌ 失败: {str(e)[:80]}")
+            log(f"   ❌ {str(e)[:60]}")
+    log(f"✅ 处理完成 {total} 行")
 
-    log(f"✅ 处理完成：{total_imported} 行数据")
 
-
-# ================================================================
-#  主程序 — 侧边栏导航
-# ================================================================
+# ════════════════════════════════════════════════════════════════
+#  主程序入口
+# ════════════════════════════════════════════════════════════════
 
 st.set_page_config(
-    page_title="QC 质检数据看板",
-    page_icon="📊",
-    layout="wide",
-    initial_sidebar_state="expanded",
-    menu_items={
-        "About": "📊 QC Dashboard v2.8 — 质检数据统一看板",
-        "Report a bug": None,
-        "Get Help": None,
-    },
+    page_title="QC 质检数据看板", page_icon="📊", layout="wide",
+    initial_sidebar_state="collapsed",
+    menu_items={"About": "📊 QC Dashboard v4.0 (AI)", "Report a bug": None, "Get Help": None},
 )
 
+# 全局 CSS（极简）
 st.markdown("""
 <style>
-    /* ── 全局基础样式 ──*/
-    .main blockquote {
-        border-left: 4px solid #3b82f6 !important;
-        background: #f0f9ff !important;
-        border-radius: 0 8px 8px 0 !important;
-        padding: 12px 16px !important;
-    }
-    
-    /* 隐藏 Streamlit 自带的侧边栏默认元素（避免重复） */
-    [data-testid="stSidebar"] [data-testid="stVerticalBlock"] > *:first-child {
-        display: none !important;
-    }
-    
-    /* 原生 metric 卡片美化（仅用于数据导入页等保留 metric 的地方） */
-    [data-testid="stMetric"] {
-        background-color: #ffffff;
-        border: 1px solid #e2e8f0;
-        border-radius: 10px;
-        padding: 12px !important;
-        box-shadow: 0 1px 3px rgba(0,0,0,0.06);
-    }
-    
-    h1 { font-size: 24px !important; font-weight: 700 !important; margin-bottom: 8px !important; }
-    h3 { font-size: 20px !important; font-weight: 600 !important; color: #1e293b !important; }
-    h4, h5 { color: #334155 !important; }
-    
-    /* 上传区域 */
-    [data-testid="stFileUploader"] {
-        border: 2px dashed #cbd5e1 !important;
-        border-radius: 12px !important;
-        padding: 20px !important;
-        background: #fafafa !important;
-    }
-    [data-testid="stFileUploader"]:hover {
-        border-color: #93c5fd !important;
-        background: #eff6ff !important;
-    }
-    
-    /* 表格样式 — 精致圆角+细边框 */
-    [data-testid="stDataFrame"] { 
-        border-radius: 10px; 
-        overflow: hidden; 
-        border: 1px solid #e2e8f0 !important;
-    }
-    [data-testid="stDataFrame"] th {
-        background-color: #f8fafc !important;
-        color: #475569 !important;
-        font-weight: 600 !important;
-        font-size: 12px !important;
-        text-transform: uppercase;
-        letter-spacing: 0.03em;
-        padding: 10px 12px !important;
-    }
-    [data-testid="stDataFrame"] td {
-        font-size: 13px !important;
-        padding: 8px 12px !important;
-    }
+    /* 完全隐藏侧边栏 */
+    [data-testid="stSidebar"] { display: none !important; }
+    /* 隐藏 Streamlit 顶部的 Deploy 菜单和 >> 按钮 */
+    [data-testid="stAppViewBlockContainer"] [data-testid="stToolbar"] { display: none !important; }
+    /* 隐藏右上角 Deploy / menu */
+    #MainMenu { visibility: hidden; }
+    header { visibility: hidden; }
+    /* 主内容撑满 */
+    .main blockquote { border-left: 4px solid #3b82f6 !important; background: #f0f9ff !important;
+        border-radius: 0 8px 8px 0 !important; padding: 12px 16px !important; }
+    [data-testid="stMetric"] { background: #fff; border: 1px solid #e2e8f0; border-radius: 10px; box-shadow: 0 1px 3px rgba(0,0,0,0.06); }
+    [data-testid="stDataFrame"] { border-radius: 10px; overflow: hidden; border: 1px solid #e2e8f0 !important; }
+    [data-testid="stDataFrame"] th { background: #f8fafc !important; color: #475569 !important; font-weight: 600; font-size: 12px; }
+    [data-testid="stDataFrame"] td { font-size: 13px; padding: 7px 10px; }
+    [data-testid="stFileUploader"] { border: 2px dashed #cbd5e1 !important; border-radius: 12px !important; padding: 20px !important; }
+    .stButton button[kind="primary"] { border-radius: 8px !important; font-weight: 600; }
+    hr { border: none !important; border-top: 1px solid #f1f5f9 !important; margin: 16px 0; }
+    .js-plotly-plot { border-radius: 10px !important; overflow: hidden; }
+</style>""", unsafe_allow_html=True)
 
-    /* Tabs 标签页美化 */
-    [data-testid="stTabs"] button {
-        font-size: 13px !important;
-        font-weight: 500 !important;
-        padding: 8px 16px !important;
-        border-radius: 8px 8px 0 0 !important;
-    }
-    [data-testid="stTabs"] [aria-selected="true"] {
-        border-bottom: 2.5px solid #3b82f6 !important;
-        color: #1e293b !important;
-        font-weight: 600 !important;
-    }
-    
-    /* 按钮微调 */
-    .stButton button[kind="primary"] {
-        border-radius: 8px !important;
-        font-weight: 600 !important;
-    }
-    
-    /* Expander 美化 */
-    .streamlit-expanderHeader {
-        font-size: 13px !important;
-        font-weight: 500 !important;
-    }
-    
-    /* Divider 细线 */
-    hr { 
-        border: none !important; 
-        border-top: 1px solid #f1f5f9 !important; 
-        margin: 16px 0 !important;
-    }
-    
-    /* 侧边栏导航按钮样式 */
-    [data-testid="stSidebar"] .row-widget {
-        margin-bottom: 4px;
-    }
-    
-    /* 图表容器圆角 */
-    .js-plotly-plot {
-        border-radius: 8px !important;
-        overflow: hidden;
-    }
-</style>
-""", unsafe_allow_html=True)
+# ── 顶部导航条（替代侧边栏）──
+nav_col1, nav_col2, nav_spacer = st.columns([1, 1, 5])
+with nav_col1:
+    if st.button("📊 数据总览", use_container_width=True, type="primary",
+                 disabled=(st.session_state.get("_page", "dash") == "dash")):
+        st.session_state._page = "dash"; st.rerun()
+with nav_col2:
+    if st.button("📥 数据导入", use_container_width=True,
+                 disabled=(st.session_state.get("_page", "dash") == "import")):
+        st.session_state._page = "import"; st.rerun()
 
-# ── 侧边栏：唯一导航入口 ──
-with st.sidebar:
-    st.markdown("### 📌 导航")
-    st.markdown("---")
-    
-    page = st.radio(
-        "导航选择",
-        ["📊 数据总览", "📥 数据导入"],
-        index=0,
-        label_visibility="collapsed",
-    )
-    
-    st.markdown("---")
-    st.caption(
-        f"📅 {datetime.now().strftime('%Y-%m-%d')}\n\n"
-        f"📊 QC Dashboard v2.8"
-    )
-
-# ── 渲染对应页面 ──
-if page == "📊 数据总览":
+if st.session_state.get("_page", "dash") == "import":
+    render_import()
+else:
     with st.spinner("加载中..."):
         all_data = load_all_queue_data()
     render_dashboard(all_data)
-elif page == "📥 数据导入":
-    render_import()
