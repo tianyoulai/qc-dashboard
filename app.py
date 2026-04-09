@@ -608,10 +608,20 @@ st.set_page_config(
     page_icon="📊",
     layout="wide",
     initial_sidebar_state="expanded",
+    menu_items={
+        "About": "📊 QC Dashboard v2.1 — 质检数据统一看板",
+        "Report a bug": None,
+        "Get Help": None,
+    },
 )
 
 st.markdown("""
 <style>
+    /* 隐藏 Streamlit 自带的侧边栏默认元素（避免重复） */
+    [data-testid="stSidebar"] [data-testid="stVerticalBlock"] > *:first-child {
+        display: none !important;
+    }
+    
     /* 统计卡片 */
     [data-testid="stMetric"] {
         background-color: #ffffff;
@@ -630,23 +640,31 @@ st.markdown("""
     }
     /* 表格样式 */
     [data-testid="stDataFrame"] { border-radius: 12px; overflow: hidden; }
+    
+    /* 侧边栏导航按钮样式 */
+    [data-testid="stSidebar"] .row-widget {
+        margin-bottom: 4px;
+    }
 </style>
 """, unsafe_allow_html=True)
 
-# ── 侧边栏导航 ──
-page = st.sidebar.radio(
-    "📌 导航",
-    ["📊 数据总览", "📥 数据导入"],
-    index=0,
-    label_visibility="collapsed",
-)
-
-# 侧边栏底部信息
-st.sidebar.divider()
-st.sidebar.caption(
-    f"📅 {datetime.now().strftime('%Y-%m-%d')}\n"
-    f"📊 QC Dashboard v2.1"
-)
+# ── 侧边栏：唯一导航入口 ──
+with st.sidebar:
+    st.markdown("### 📌 导航")
+    st.markdown("---")
+    
+    page = st.radio(
+        "导航选择",
+        ["📊 数据总览", "📥 数据导入"],
+        index=0,
+        label_visibility="collapsed",
+    )
+    
+    st.markdown("---")
+    st.caption(
+        f"📅 {datetime.now().strftime('%Y-%m-%d')}\n\n"
+        f"📊 QC Dashboard v2.1"
+    )
 
 # ── 渲染对应页面 ──
 if page == "📊 数据总览":
