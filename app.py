@@ -624,42 +624,7 @@ def render_dashboard(all_data):
 
     st.markdown('</div>', unsafe_allow_html=True)
 
-    # 胶囊 Tab 全局美化 CSS — 用 key 选择器精确匹配 _tab_ 按钮
-    components.html(f'''<style>
-    /* 胶囊 Tab 行 */
-    .qc-tab-row {{
-        display: flex !important;
-        gap: 6px !important;
-        margin-bottom: 18px !important;
-        flex-wrap: nowrap !important;
-    }}
-    .qc-tab-row > div {{
-        padding: 0 !important;
-        min-width: 0 !important;
-    }}
-    /* 所有 Tab 按钮 → 胶囊外观 */
-    [id^="_tab_"] {{
-        background: #ffffff !important;
-        color: #64748b !important;
-        border: 1px solid #e2e8f0 !important;
-        border-radius: 10px !important;
-        font-size: 12px !important;
-        font-weight: 600 !important;
-        padding: 8px 4px !important;
-        box-shadow: none !important;
-        transition: all 0.2s !important;
-        text-align: center !important;
-        white-space: nowrap !important;
-        overflow: hidden !important;
-        text-overflow: ellipsis !important;
-        min-height: 36px !important;
-    }}
-    [id^="_tab_"]:hover {{
-        border-color: rgba(59,130,246,0.35) !important;
-        box-shadow: 0 2px 8px rgba(0,0,0,0.08) !important;
-        transform: translateY(-1px) !important;
-    }}
-    </style>''', height=0)
+    # 胶囊 Tab CSS 已移至 custom.css 统一加载（见页面底部）
 
     # ════════════════════════════════════════════════════════════
     #  当前队列详情
@@ -1047,28 +1012,16 @@ st.set_page_config(
     menu_items={"About": "📊 QC Dashboard v4.0 (AI)", "Report a bug": None, "Get Help": None},
 )
 
-# 全局 CSS（极简）— 用 components.html 注入避免 <style> 文本暴露
-components.html("""
-<style>
-    /* 完全隐藏侧边栏 */
-    [data-testid="stSidebar"] { display: none !important; }
-    /* 隐藏 Streamlit 顶部的 Deploy 菜单和 >> 按钮 */
-    [data-testid="stAppViewBlockContainer"] [data-testid="stToolbar"] { display: none !important; }
-    /* 隐藏右上角 Deploy / menu */
-    #MainMenu { visibility: hidden; }
-    header { visibility: hidden; }
-    /* 主内容撑满 */
-    .main blockquote { border-left: 4px solid #3b82f6 !important; background: #f0f9ff !important;
-        border-radius: 0 8px 8px 0 !important; padding: 12px 16px !important; }
-    [data-testid="stMetric"] { background: #fff; border: 1px solid #e2e8f0; border-radius: 10px; box-shadow: 0 1px 3px rgba(0,0,0,0.06); }
-    [data-testid="stDataFrame"] { border-radius: 10px; overflow: hidden; border: 1px solid #e2e8f0 !important; }
-    [data-testid="stDataFrame"] th { background: #f8fafc !important; color: #475569 !important; font-weight: 600; font-size: 12px; }
-    [data-testid="stDataFrame"] td { font-size: 13px; padding: 7px 10px; }
-    [data-testid="stFileUploader"] { border: 2px dashed #cbd5e1 !important; border-radius: 12px !important; padding: 20px !important; }
-    .stButton button[kind="primary"] { border-radius: 8px !important; font-weight: 600; }
-    hr { border: none !important; border-top: 1px solid #f1f5f9 !important; margin: 16px 0; }
-    .js-plotly-plot { border-radius: 10px !important; overflow: hidden; }
-</style>""", height=0)
+# 全局 CSS — 从 custom.css 文件加载（避免 <style> 标签在旧版 Streamlit 上暴露为文本）
+_css_path = os.path.join(BASE, "custom.css")
+if os.path.exists(_css_path):
+    _css_content = open(_css_path, "r").read()
+    # 用 <link> 标签引入外部 CSS（data URI 方式，不依赖 static 目录）
+    import base64
+    _css_b64 = base64.b64encode(_css_content.encode()).decode()
+    st.markdown(f'''<link rel="stylesheet" href="data:text/css;base64,{_css_b64}">''', unsafe_allow_html=True)
+else:
+    st.markdown("""<link rel="stylesheet" href="static/custom.css">""", unsafe_allow_html=True)
 
 # ── 顶部导航条（替代侧边栏）──
 nav_col1, nav_col2, nav_spacer = st.columns([1, 1, 5])
