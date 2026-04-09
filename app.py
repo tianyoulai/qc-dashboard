@@ -561,17 +561,63 @@ def render_import():
 
     with c_data:
         st.markdown("### ⚠️ 清除数据")
-        st.caption("永久删除数据库中所有质检数据，不可恢复")
-        confirm = st.text_input("输入 CONFIRM 确认删除", key="_confirm_del", placeholder="CONFIRM")
+
+        # ── 选项1: 按日期范围清除 ──
+        with st.expander("📅 按日期范围清除", expanded=False):
+            st.caption("删除指定日期范围内的数据，不可恢复")
+            d_del_from = st.date_input("起始日期", key="del_from")
+            d_del_to = st.date_input("截止日期", key="del_to")
+            
+            # 预览将删除的记录数
+            preview_del = 0
+            if d_del_from and d_del_to:
+                from_s = d_del_from.strftime("%Y-%m-%d") if d_del_from else None
+                to_s = d_del_to.strftime("%Y-%m-%d") if d_del_to else None
+                conn_preview = sqlite3.connect(DB_PATH)
+                c_prev = conn_preview.cursor()
+                c_prev.execute(
+                    "SELECT COUNT(*) FROM daily_metrics WHERE date BETWEEN ? AND ?",
+                    (from_s, to_s),
+                )
+                preview_del = c_prev.fetchone()[0]
+                conn_preview.close()
+                
+                if preview_del > 0:
+                    st.warning(f"⚠️ 将删除 **{preview_del}** 条记录（{from_s} ~ {to_s}）")
+                else:
+                    st.info(f"该范围内暂无数据（{from_s} ~ {to_s}）")
+                
+                if preview_del > 0 and st.button(
+                    "🗑️ 删除选中范围", type="primary",
+                    key="_del_range_btn", disabled=(preview_del == 0)
+                ):
+                    conn_del = sqlite3.connect(DB_PATH)
+                    cd = conn_del.cursor()
+                    cd.execute("DELETE FROM daily_metrics WHERE date BETWEEN ? AND ?", (from_s, to_s))
+                    deleted_count = cd.rowcount
+                    conn_del.commit()
+                    conn_del.close()
+                    st.cache_data.clear()
+                    st.success(f"✅ 已删除 **{deleted_count}** 条记录")
+                    time.sleep(1)
+                    st.rerun()
+
+        st.divider()
+
+        # ── 选项2: 全部清除 ──
+        st.markdown("**全部清除**")
+        st.caption("永久删除数据库中**所有**质检数据，不可恢复")
+        
+        confirm = st.text_input("输入 CONFIRM 确认全量删除", key="_confirm_del", placeholder="CONFIRM")
         if confirm and confirm.strip().upper() == "CONFIRM":
             if st.button("确认清除全部数据", type="primary", use_container_width=True):
                 conn = sqlite3.connect(DB_PATH)
                 cursor = conn.cursor()
                 cursor.execute("DELETE FROM daily_metrics")
-                deleted = cursor.rowcount
+                deleted_all = cursor.rowcount
                 conn.commit()
                 conn.close()
-                st.success(f"已删除 **{deleted}** 条记录")
+                st.success(f"已删除 **{deleted_all}** 条记录")
                 st.cache_data.clear()
                 time.sleep(1)
                 st.rerun()
