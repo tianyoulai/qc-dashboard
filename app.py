@@ -26,6 +26,10 @@ UPLOAD_DIR = os.path.join(BASE, "data", "uploads")
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 
 # ── 队列配置 ──────────────────────────────────────────────
+# 底线阈值规则：
+#   violation_rate（违规准确率）: min=最低要求，低于此值标红
+#   miss_rate（漏率）: max=最高容忍值，高于此值标红
+#   audit_accuracy（审核准确率）: min=最低要求
 QUEUES = [
     {
         "id": "q1_toufang",
@@ -34,6 +38,7 @@ QUEUES = [
         "icon": "📢", "color": "#3b82f6",
         "metric_keys": ["violation_rate", "miss_rate"],
         "metric_labels": {"violation_rate": "违规准确率", "miss_rate": "漏率"},
+        "thresholds": {"violation_rate": {"min": 0.98}, "miss_rate": {"max": 0.02}},
     },
     {
         "id": "q2_erjiansimple",
@@ -42,6 +47,7 @@ QUEUES = [
         "icon": "📋", "color": "#22c55e",
         "metric_keys": ["violation_rate", "miss_rate"],
         "metric_labels": {"violation_rate": "违规准确率", "miss_rate": "漏率"},
+        "thresholds": {"violation_rate": {"min": 0.98}, "miss_rate": {"max": 0.02}},
     },
     {
         "id": "q3_erjian_4qi_gt",
@@ -50,6 +56,7 @@ QUEUES = [
         "icon": "🔄", "color": "#f97316",
         "metric_keys": ["violation_rate", "miss_rate"],
         "metric_labels": {"violation_rate": "违规准确率", "miss_rate": "漏率"},
+        "thresholds": {"violation_rate": {"min": 0.99}, "miss_rate": {"max": 0.01}},
     },
     {
         "id": "q3b_erjian_4qi_qiepian",
@@ -58,6 +65,7 @@ QUEUES = [
         "icon": "🔪", "color": "#f59e0b",
         "metric_keys": ["violation_rate", "miss_rate"],
         "metric_labels": {"violation_rate": "违规准确率", "miss_rate": "漏率"},
+        "thresholds": {"violation_rate": {"min": 0.99}, "miss_rate": {"max": 0.01}},
     },
     {
         "id": "q5_lahei",
@@ -66,6 +74,7 @@ QUEUES = [
         "icon": "🚫", "color": "#ef4444",
         "metric_keys": ["violation_rate", "miss_rate"],
         "metric_labels": {"violation_rate": "违规准确率", "miss_rate": "漏率"},
+        "thresholds": {"violation_rate": {"min": 0.98}, "miss_rate": {"max": 0.02}},
     },
     {
         "id": "q6_shangqiang",
@@ -74,6 +83,7 @@ QUEUES = [
         "icon": "📝", "color": "#06b6d4",
         "metric_keys": ["audit_accuracy"],
         "metric_labels": {"audit_accuracy": "审核准确率"},
+        "thresholds": {"audit_accuracy": {"min": 0.98}},
     },
 ]
 
@@ -161,6 +171,55 @@ def fmt_pct1(val):
         return str(val)
 
 
+# ── 底线阈值检查 ────────────────────────────────────────
+
+def check_threshold(q, metric_key, value):
+    """检查某指标是否达标，返回 (is_ok, status_str, css_color)
+    
+    规则：
+      - violation_rate / audit_accuracy（越高越好）: min 阈值 → 低于标红
+      - miss_rate（越低越好）: max 阈值 → 高于标红
+    返回: (是否达标, 状态描述, CSS颜色值)
+    """
+    thresholds = q.get("thresholds", {})
+    rule = thresholds.get(metric_key)
+    if not rule or value is None:
+        return True, "", ""
+    
+    try:
+        v = float(value)
+    except (TypeError, ValueError):
+        return True, "", ""
+    
+    # 越高越好的指标（违规准确率、审核准确率）
+    if metric_key in ("violation_rate", "audit_accuracy", "pre_violation_rate", 
+                       "post_violation_rate", "pre_accuracy", "post_accuracy"):
+        min_val = rule.get("min")
+        if min_val is not None and v < min_val:
+            return False, f"⚠️ 低于底线 {min_val*100:.0f}%", "#dc2626"
+    
+    # 越低越好的指标（漏率）
+    elif metric_key in ("miss_rate", "pre_miss_rate", "post_miss_rate"):
+        max_val = rule.get("max")
+        if max_val is not None and v > max_val:
+            return False, f"⚠️ 超出上限 {max_val*100:.0f}%", "#dc2626"
+    
+    return True, "✅ 达标", "#16a34a"
+
+
+def get_threshold_label(q, metric_key):
+    """返回某指标的底线说明文本"""
+    thresholds = q.get("thresholds", {})
+    rule = thresholds.get(metric_key)
+    if not rule:
+        return ""
+    if "min" in rule:
+        return f"≥{rule['min']*100:.0f}%"
+    if "max" in rule:
+        return f"≤{rule['max']*100:.0f}%"
+    return ""
+
+
 # ================================================================
 #  页面：数据总览
 # ================================================================
@@ -225,7 +284,7 @@ def render_dashboard(all_data):
 
         st.caption(f"数据范围：`{min_date}` ~ `{max_date}`" if min_date else "暂无数据")
 
-    # ── Overview 卡片行 ──
+    # ── Overview 卡片行（含底线阈值警示）──
     st.markdown("#### 📋 全局概览")
     ov_cols = st.columns(len(QUEUES))
     for i, q in enumerate(QUEUES):
@@ -236,8 +295,27 @@ def render_dashboard(all_data):
         first_mk = q["metric_keys"][0]
         display_val = fmt_pct1(lr[first_mk]) if lr is not None and first_mk in lr.index else "--"
         latest_date = lr["date"] if lr is not None else "--"
+        
+        # 检查所有指标的阈值达标情况
+        has_alert = False
+        alert_count = 0
+        if lr is not None:
+            for mk in q["metric_keys"]:
+                if mk in lr.index:
+                    is_ok, _, _ = check_threshold(q, mk, lr.get(mk))
+                    if not is_ok:
+                        has_alert = True
+                        alert_count += 1
 
         with ov_cols[i]:
+            # 不达标时卡片边框标红
+            if has_alert:
+                st.markdown(f"""
+                <div style="border:2px solid #dc2626;border-radius:12px;padding:8px;background:#fef2f2;">
+                    <div style="font-size:13px;color:#dc2626;font-weight:600;">⚠️ {alert_count}项不达标</div>
+                </div>
+                """, unsafe_allow_html=True)
+            
             st.metric(
                 label=f"{q['icon']} {q['name']}",
                 value=display_val,
@@ -263,7 +341,7 @@ def render_dashboard(all_data):
                 st.info(f"😴 **{q['name']}** 在选定日期范围内暂无数据")
                 continue
 
-            # 统计卡片
+            # 统计卡片（含阈值警示）
             st.markdown("##### 📌 核心指标")
             n_metrics = len(q["metric_keys"]) + 1
             stat_cols = st.columns(min(n_metrics, 5))
@@ -288,6 +366,10 @@ def render_dashboard(all_data):
                 lr_nz = find_latest_nonzero(df, [mk])
                 last_val = lr_nz[mk] if (lr_nz is not None and mk in lr_nz.index) else valid_vals[-1]
                 avg_val = sum(valid_vals) / len(valid_vals)
+                
+                # 阈值检查
+                is_ok, status_txt, color = check_threshold(q, mk, last_val)
+                thresh_label = get_threshold_label(q, mk)
 
                 trend_str = ""
                 non_zero_indices = [i for i, v in enumerate(valid_vals) if v != 0]
@@ -302,9 +384,21 @@ def render_dashboard(all_data):
                         trend_str = f"{arrow} {abs(chg):.1f}%"
 
                 lbl = q["metric_labels"].get(mk, mk)
+                # 指标标签加底线说明
+                display_label = f"{lbl}"
+                if thresh_label:
+                    display_label += f" <span style='font-size:10px;color:#6b7280'>(底线{thresh_label})</span>"
+                
                 with (stat_cols[ki + 1] if ki + 1 < len(stat_cols) else st.columns(1)[0]):
+                    # 不达标时显示红色提示
+                    if not is_ok:
+                        st.markdown(
+                            f"<div style='color:{color};font-size:11px;font-weight:600;margin-bottom:2px;'>"
+                            f"{status_txt}</div>",
+                            unsafe_allow_html=True,
+                        )
                     st.metric(
-                        label=lbl,
+                        label=display_label,
                         value=fmt_pct(last_val),
                         delta=f"均{fmt_pct1(avg_val)} {trend_str}" if trend_str else f"均值 {fmt_pct1(avg_val)}",
                     )
@@ -403,17 +497,35 @@ def render_dashboard(all_data):
             disp_df.rename(columns=rename_map, inplace=True)
 
             def _highlight(s):
+                """按底线阈值给单元格上色：不达标红色 / 达标绿色"""
                 result = [""] * len(s)
+                col_name = s.name
+                # 从 rename_map 反查 metric_key
+                reverse_map = {v: k for k, v in rename_map.items()}
+                mk = reverse_map.get(col_name, "")
+                
+                if not mk:
+                    return result
+                
                 for i, v in enumerate(s):
                     if isinstance(v, str) and v.endswith("%"):
                         try:
                             num = float(v.rstrip("%")) / 100
-                            if num < 0.9:
+                            is_ok, _, color = check_threshold(q, mk, num)
+                            if not is_ok:
+                                # 不达标：红底红字加粗
                                 result[i] = "background-color: #fef2f2; color: #dc2626; font-weight:600;"
-                            elif num >= 0.98:
-                                result[i] = "background-color: #f0fdf4; color: #16a34a; font-weight:600;"
+                            else:
+                                # 达标：绿底绿字
+                                result[i] = "background-color: #f0fdf4; color: #16a34a; font-weight:500;"
                         except (ValueError, TypeError):
                             pass
+                    elif isinstance(v, (int, float)):
+                        is_ok, _, color = check_threshold(q, mk, v)
+                        if not is_ok:
+                            result[i] = "background-color: #fef2f2; color: #dc2626; font-weight:600;"
+                        else:
+                            result[i] = "background-color: #f0fdf4; color: #16a34a; font-weight:500;"
                 return result
 
             styled_df = disp_df.style.apply(_highlight, axis=0)
