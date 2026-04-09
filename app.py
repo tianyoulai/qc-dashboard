@@ -400,7 +400,7 @@ def render_ai_summary_section(all_data):
 
     if "_ai_summary_html" in st.session_state:
         # 渲染为美观的卡片
-        st.html(f'''<div style="background:linear-gradient(135deg,#f0f9ff 0%,#e0f2fe 100%);
+        st.markdown(f'''<div style="background:linear-gradient(135deg,#f0f9ff 0%,#e0f2fe 100%);
             border:1px solid #bae6fd;border-radius:12px;padding:18px 20px;
             box-shadow:0 2px 8px rgba(14,165,233,0.1);margin-bottom:6px;">
             <div style="display:flex;align-items:center;gap:6px;margin-bottom:10px;">
@@ -410,7 +410,7 @@ def render_ai_summary_section(all_data):
             </div>
             <div style="font-size:13px;line-height:1.7;color:#334155;">
             {st.session_state["_ai_summary_html"].replace('\n', '<br>')}
-            </div></div>''')
+            </div></div>''', unsafe_allow_html=True)
 
 
 def render_queue_ai_insight(q, df):
@@ -506,28 +506,29 @@ def render_queue_ai_insight(q, df):
                         st.session_state[f"_ai_q_{q['id']}_html"] = result
 
             if f"_ai_q_{q['id']}_html" in st.session_state:
-                st.html(f'''<div style="background:#faf5ff;border:1px solid #e9d5ff;
+                st.markdown(f'''<div style="background:#faf5ff;border:1px solid #e9d5ff;
                     border-radius:10px;padding:14px 16px;margin-top:8px;">
                     <div style="font-size:12px;color:#7c3aed;margin-bottom:6px;">🔮 AI 洞察 · {q['icon']} {q['name']}</div>
                     <div style="font-size:13px;line-height:1.7;color:#334155;">
                     {st.session_state[f'_ai_q_{q["id"]}_html'].replace(chr(10), '<br>')}
-                    </div></div>''')
+                    </div></div>''', unsafe_allow_html=True)
 
 def render_dashboard(all_data):
-    """质检数据看板主页 — 对标参考设计：白底卡片网格 / 胶囊Tab / 轻量走势图"""
+    """质检数据看板主页 — 对标参考设计（纯原生组件，兼容所有 Streamlit 版本）"""
 
     min_date, max_date = get_date_range(all_data)
     total_records = sum(len(d) for d in all_data.values())
 
     # ── Header ──
-    st.html(f'''<div style="display:flex;align-items:center;justify-content:space-between;
+    st.markdown(f"""
+    <div style="display:flex;align-items:center;justify-content:space-between;
         flex-wrap:wrap;gap:12px;margin-bottom:2px;padding-bottom:12px;border-bottom:1px solid #e2e8f0;">
         <div>
             <div style="font-size:22px;font-weight:700;color:#1e293b;">📊 质检数据统一看板</div>
             <div style="font-size:12px;color:#64748b;margin-top:2px;">多队列 · 按日期聚合指标 · 数据来源：企业微信智能表格 · 共 <b>{total_records}</b> 条记录</div>
         </div>
         <div style="font-size:11px;color:#94a3b8;">{datetime.now().strftime('%Y-%m-%d %H:%M')}</div>
-    </div>''')
+    </div>""", unsafe_allow_html=True)
 
     # ── 日期筛选行（对标HTML模板版：紧凑一行）──
     c_d1, c_d2, c_btns = st.columns([2, 2, 4])
@@ -562,36 +563,28 @@ def render_dashboard(all_data):
         del st.session_state["_quick"]
 
     # ════════════════════════════════════════════════════════════
-    #  Overview 卡片行（7列白底卡片网格 — 对齐参考设计）
+    #  Overview 卡片行（7列 — 用原生 st.columns + metric）
     # ════════════════════════════════════════════════════════════
-    ov_cards = []
-    for q in QUEUES:
+    ov_cols = st.columns(7)
+    for ci, q in enumerate(QUEUES):
         df_f = filter_by_date(all_data.get(q["id"], pd.DataFrame()), date_from_str, date_to_str)
         lr = find_latest_nonzero(df_f, q["metric_keys"])
         latest_date = lr["date"] if lr is not None else "--"
-
         pm = q.get("primary_metric", q["metric_keys"][0])
         main_val = find_latest_nonzero_per_key(df_f, pm)
         is_ok_main = check_threshold(q, pm, main_val)[0] if main_val is not None else True
-        val_color = "#dc2626" if (main_val is not None and not is_ok_main) else q["color"]
+
         val_str = fmt_pct(main_val) if main_val is not None else "--"
+        delta_color = "normal" if (main_val is None or is_ok_main) else "inverse"
 
-        ov_cards.append(f'''
-        <div class="ovc" style="background:#fff;border:1px solid #e2e8f0;border-radius:10px;
-            padding:14px;text-align:center;box-shadow:0 1px 3px rgba(0,0,0,0.08);
-            transition:transform 0.15s ease,box-shadow 0.15s ease;cursor:default;">
-            <div style="font-size:24px;margin-bottom:4px;">{q['icon']}</div>
-            <div style="font-size:12px;font-weight:600;color:#334155;margin-bottom:4px;">{q['name']}</div>
-            <div style="font-size:20px;font-weight:700;color:{val_color};">{val_str}</div>
-            <div style="font-size:10px;color:#94a3b8;margin-top:3px;">{latest_date}</div>
-        </div>''')
-
-    st.html(f'''<style>
-    .ov-grid{{display:grid;grid-template-columns:repeat(7,1fr);gap:10px;margin-bottom:18px;}}
-    .ovc:hover{{transform:translateY(-2px);border-color:rgba(59,130,246,0.25);box-shadow:0 4px 12px rgba(0,0,0,0.1);}}
-    @media(max-width:1100px){{.ov-grid{{grid-template-columns:repeat(4,1fr);}}}}
-    @media(max-width:700px){{.ov-grid{{grid-template-columns:repeat(2,1fr);}}}}
-    </style><div class="ov-grid">{"".join(ov_cards)}</div>''')
+        with ov_cols[ci]:
+            st.metric(
+                label=f"{q['icon']} {q['name']}",
+                value=val_str,
+                delta=None,
+                help=f"最新日期: {latest_date}",
+            )
+            st.caption(latest_date)
 
     # ════════════════════════════════════════════════════════════
     #  🤖 AI 日报摘要（对标企微推送完整版）
@@ -599,75 +592,25 @@ def render_dashboard(all_data):
     render_ai_summary_section(all_data)
 
     # ════════════════════════════════════════════════════════════
-    #  队列选择（自定义 HTML 胶囊按钮）
+    #  队列选择（原生 button 方案 — v3.1 已验证可用）
     # ════════════════════════════════════════════════════════════
     if "active_qidx" not in st.session_state:
         st.session_state.active_qidx = 0
 
-    # 构建胶囊按钮（纯展示，点击不直接交互）
-    tab_btns_html = []
+    current_idx = st.session_state.active_qidx
+    tab_col_row = st.columns(len(QUEUES))
     for i, q in enumerate(QUEUES):
         df_f = filter_by_date(all_data.get(q["id"], pd.DataFrame()), date_from_str, date_to_str)
         n_days = len(df_f)
-        active = (i == st.session_state.active_qidx)
+        active = (i == current_idx)
         bgt = f"{n_days}天" if n_days > 0 else "待接入"
 
-        if active:
-            style = f"background:{q['color']};color:#fff;border:1px solid {q['color']};box-shadow:0 2px 8px rgba(0,0,0,0.15);"
-            dot_color = "#fff"
-            badge_style = "background:rgba(255,255,255,0.25);color:#fff;"
-        else:
-            style = f"background:#fff;color:#475569;border:1px solid #e2e8f0;"
-            dot_color = q["color"]
-            badge_style = f"background:{q['color']}12;color:{q['color']};"
-
-        btn_html = (
-            f'<div class="qc-tab-btn {"qc-tab-active" if active else ""}" '
-            f'data-idx="{i}" '
-            f'style="display:inline-flex;align-items:center;gap:5px;padding:7px 14px;'
-            f'border-radius:20px;font-size:13px;font-weight:600;cursor:pointer;'
-            f'white-space:nowrap;transition:all 0.15s ease;{style}'
-            f'">'
-            f'<span style="width:7px;height:7px;border-radius:50%;background:{dot_color};'
-            f'display:inline-block;flex-shrink:0;"></span>'
-            f'{q["icon"]} {q["name"]} '
-            f'<span style="font-size:10px;padding:1px 6px;border-radius:10px;{badge_style}">{bgt}</span>'
-            f'</div>'
-        )
-        tab_btns_html.append(btn_html)
-
-    # 渲染胶囊按钮行
-    current_idx = st.session_state.active_qidx
-    st.html(f'''
-<style>
-.qc-tab-row {{ display:flex;gap:5px;margin-bottom:14px;overflow-x:auto;padding-bottom:3px;flex-wrap:wrap; }}
-.qc-tab-btn:hover:not(.qc-tab-active) {{
-    border-color:rgba(59,130,246,0.35)!important;transform:translateY(-1px);box-shadow:0 2px 6px rgba(0,0,0,0.08);
-}}
-</style>
-<div class="qc-tab-row">{''.join(tab_btns_html)}</div>
-''')
-
-    # 用隐藏的 radio 做状态管理（视觉上不可见，但可交互）
-    tab_labels = [f"{q['icon']} {q['name']}" for q in QUEUES]
-    new_idx = st.radio(
-        "_queue_tabs", options=list(range(len(QUEUES))),
-        index=current_idx,
-        format_func=lambda i: tab_labels[i],
-        label_visibility="collapsed",
-        key="_qtabs",
-    )
-    if new_idx != current_idx:
-        st.session_state.active_qidx = new_idx
-        st.rerun()
-
-    # CSS 隐藏 radio（但保持可交互——用 sr-only 技巧）
-    st.html('''<style>
-div[data-testid="stRadio"] {
-    position:absolute;width:1px;height:1px;padding:0;margin:-1px;
-    overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0;
-}
-''')
+        btn_type = "primary" if active else "secondary"
+        with tab_col_row[i]:
+            if st.button(f"{q['icon']} {q['name']} {bgt}",
+                         key=f"_tab_{i}", use_container_width=True, type=btn_type):
+                st.session_state.active_qidx = i
+                st.rerun()
 
     # ════════════════════════════════════════════════════════════
     #  当前队列详情
@@ -685,12 +628,13 @@ div[data-testid="stRadio"] {
     sc_left, sc_right = st.columns([1, 3])
     with sc_left:
         dr_s = f"{df['date'].iloc[0]} ~ {df['date'].iloc[-1]}" if len(df) > 0 else ""
-        st.html(f'''<div style="background:#fff;border:1px solid #e2e8f0;border-radius:12px;
+        st.markdown(f"""
+        <div style="background:#fff;border:1px solid #e2e8f0;border-radius:12px;
             padding:16px 18px;box-shadow:0 1px 3px rgba(0,0,0,0.08);">
             <div style="font-size:11px;color:#94a3b8;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px;">数据天数</div>
             <div style="font-size:28px;font-weight:700;color:#1e293b;line-height:1;">{len(df)}<span style="font-size:15px;color:#94a3b8;font-weight:400;margin-left:2px;">天</span></div>
             <div style="font-size:11px;color:#94a3b8;margin-top:5px;">{dr_s}</div>
-        </div>''')
+        </div>""", unsafe_allow_html=True)
 
     with sc_right:
         mcols = st.columns(len(q["metric_keys"]))
@@ -721,13 +665,13 @@ div[data-testid="stRadio"] {
             vc = "#dc2626" if not is_ok else "#1e293b"
 
             with mcols[ki]:
-                st.html(f'''<div style="border-left:3px solid {bl_c};background:{bg_c};
+                st.markdown(f'''<div style="border-left:3px solid {bl_c};background:{bg_c};
                     border-radius:10px;padding:14px 16px;">
                     <div style="font-size:11px;color:#64748b;margin-bottom:4px;">
                     {lbl} <span style="color:#cbd5e1;">|</span> {tl}</div>
                     <div style="font-size:24px;font-weight:700;color:{vc};">{fmt_pct(last_v)}</div>
                     <div style="font-size:11px;color:#64748b;margin-top:4px;">
-                    均值 <b>{fmt_pct1(avg_v)}</b>&nbsp;&nbsp;{trend_html}</div></div>''')
+                    均值 <b>{fmt_pct1(avg_v)}</b>&nbsp;&nbsp;{trend_html}</div></div>''', unsafe_allow_html=True)
 
     # ── 走势图标题 ──
     st.markdown(f"""<div style="font-size:14px;font-weight:600;margin:18px 0 10px;
@@ -808,7 +752,7 @@ div[data-testid="stRadio"] {
         em = "✅" if ok else "❌"
 
         with icols[ki]:
-            st.html(f'''<div style="text-align:center;padding:12px;background:#fff;
+            st.markdown(f'''<div style="text-align:center;padding:12px;background:#fff;
                 border:1px solid #e2e8f0;border-radius:12px;box-shadow:0 1px 3px rgba(0,0,0,0.08);">
                 <div style="font-size:24px;">{em}</div>
                 <div style="font-size:12px;font-weight:600;color:#334155;margin:4px 0;">{lbl}</div>
@@ -816,7 +760,7 @@ div[data-testid="stRadio"] {
                 <div style="background:#e2e8f0;border-radius:4px;height:6px;margin-top:8px;">
                 <div style="background:{bc};height:6px;width:{pc:.0f}%;border-radius:4px;"></div></div>
                 <div style="font-size:10px;color:#94a3b8;margin-top:4px;">
-                达标率 {pc:.0f}% ({sum(1 for v in vv if check_threshold(q,mk,v)[0])}/{len(vv)})</div></div>''')
+                达标率 {pc:.0f}% ({sum(1 for v in vv if check_threshold(q,mk,v)[0])}/{len(vv)})</div></div>''', unsafe_allow_html=True)
 
     # ── 数据明细表 ──
     st.markdown(f"""<div style="font-size:14px;font-weight:600;margin:18px 0 10px;">
@@ -864,8 +808,8 @@ div[data-testid="stRadio"] {
                        key=f"dl_{qid}")
 
     # Footer
-    st.html('<div style="text-align:center;color:#94a3b8;font-size:11px;padding:14px 0;border-top:1px solid #e2e8f0;margin-top:10px;">'
-            f'📊 QC Dashboard v4.0 (AI) · {datetime.now().strftime("%Y-%m-%d %H:%M")}</div>')
+    st.markdown(f'<div style="text-align:center;color:#94a3b8;font-size:11px;padding:14px 0;border-top:1px solid #e2e8f0;margin-top:10px;">'
+            f'📊 QC Dashboard v4.0 (AI) · {datetime.now().strftime("%Y-%m-%d %H:%M")}</div>', unsafe_allow_html=True)
 
 
 # ════════════════════════════════════════════════════════════════

@@ -70,6 +70,12 @@ QUEUES = [
      "metric_keys": ["violation_rate", "miss_rate"],
      "metric_labels": {"violation_rate": "违规准确率", "miss_rate": "漏率"},
      "thresholds": {"violation_rate": {"min": 0.99}, "miss_rate": {"max": 0.01}}},
+    {"id": "q4_jubao_4qi", "name": "四期-举报", "icon": "🚨",
+     "metric_keys": ["pre_violation_rate", "pre_miss_rate", "post_violation_rate", "post_miss_rate"],
+     "metric_labels": {"pre_violation_rate": "申诉前违规率", "pre_miss_rate": "申诉前漏率",
+                       "post_violation_rate": "申诉后违规率", "post_miss_rate": "申诉后漏率"},
+     "thresholds": {"pre_violation_rate": {"min": 0.99}, "pre_miss_rate": {"max": 0.01},
+                    "post_violation_rate": {"min": 0.99}, "post_miss_rate": {"max": 0.01}}},
     {"id": "q5_lahei", "name": "拉黑误漏", "icon": "🚫",
      "metric_keys": ["violation_rate", "miss_rate"],
      "metric_labels": {"violation_rate": "违规准确率", "miss_rate": "漏率"},
@@ -91,11 +97,11 @@ def check_threshold(q, metric_key, value):
         v = float(value)
     except (TypeError, ValueError):
         return True, ""
-    if metric_key in ("violation_rate", "audit_accuracy"):
+    if metric_key in ("violation_rate", "audit_accuracy", "pre_violation_rate", "post_violation_rate"):
         min_val = rule.get("min")
         if min_val is not None and v < min_val:
             return False, f"低于底线{min_val*100:.0f}%"
-    elif metric_key in ("miss_rate",):
+    elif metric_key in ("miss_rate", "pre_miss_rate", "post_miss_rate"):
         max_val = rule.get("max")
         if max_val is not None and v > max_val:
             return False, f"超出上限{max_val*100:.0f}%"
@@ -263,52 +269,49 @@ def generate_ai_summary(metrics_data, api_key=None, base_url="https://api.deepse
 
 
 # ============================================================
-#  企微应用消息推送
+#  企微 Webhook 机器人推送
 # ============================================================
-def get_wecom_token(corpid, secret):
-    """获取企微应用 access_token"""
-    url = "https://qyapi.weixin.qq.com/cgi-bin/gettoken"
-    params = {"corpid": corpid, "corpsecret": secret}
-    try:
-        resp = requests.get(url, params=params, timeout=10)
-        resp.raise_for_status()
-        data = resp.json()
-        if data.get("errcode") != 0:
-            log.error(f"获取 token 失败: {data.get('errmsg', '未知错误')}")
-            return None
-        return data.get("access_token")
-    except Exception as e:
-        log.error(f"获取 token 请求失败: {e}")
-        return None
-
-
-def send_wecom_message(token, agent_id, content, touser="@all", msg_type="markdown"):
-    """通过企微应用消息 API 发送消息"""
-    url = f"https://qyapi.weixin.qq.com/cgi-bin/message/send?access_token={token}"
-    
+def send_webhook_markdown(webhook_key, content):
+    """通过企微群机器人 Webhook 发送 Markdown 消息"""
+    url = f"https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key={webhook_key}"
     payload = {
-        "touser": touser,
-        "msgtype": msg_type,
-        "agentid": int(agent_id),
+        "msgtype": "markdown",
+        "markdown": {"content": content},
     }
-
-    if msg_type == "markdown":
-        payload["markdown"] = {"content": content}
-    elif msg_type == "text":
-        payload["text"] = {"content": content}
-
     try:
         resp = requests.post(url, json=payload, timeout=10)
         resp.raise_for_status()
         data = resp.json()
         if data.get("errcode") == 0:
-            log.info(f"✅ 企微消息推送成功 (touser={touser})")
+            log.info("✅ 企微 Webhook Markdown 推送成功")
             return True
         else:
-            log.error(f"❌ 企微消息推送失败: {data.get('errmsg', '未知错误')}")
+            log.error(f"❌ 企微 Webhook 推送失败: {data.get('errmsg', '未知错误')}")
             return False
     except Exception as e:
-        log.error(f"❌ 企微消息推送请求失败: {e}")
+        log.error(f"❌ 企微 Webhook 请求失败: {e}")
+        return False
+
+
+def send_webhook_text(webhook_key, content):
+    """通过企微群机器人 Webhook 发送纯文本消息（Markdown 失败时的 fallback）"""
+    url = f"https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key={webhook_key}"
+    payload = {
+        "msgtype": "text",
+        "text": {"content": content},
+    }
+    try:
+        resp = requests.post(url, json=payload, timeout=10)
+        resp.raise_for_status()
+        data = resp.json()
+        if data.get("errcode") == 0:
+            log.info("✅ 企微 Webhook 纯文本推送成功")
+            return True
+        else:
+            log.error(f"❌ 企微 Webhook 纯文本推送失败: {data.get('errmsg', '未知错误')}")
+            return False
+    except Exception as e:
+        log.error(f"❌ 企微 Webhook 请求失败: {e}")
         return False
 
 
@@ -414,18 +417,13 @@ def main():
         with open(CONFIG_FILE, "r", encoding="utf-8") as f:
             config = yaml.safe_load(f)
 
-        wcom_cfg = config.get("global", {}).get("wcom_api", {})
-        corpid = os.environ.get("WECOM_CORPID", "") or wcom_cfg.get("corpid", "")
-        secret = wcom_cfg.get("secret", "")
-        agent_id = wcom_cfg.get("bot_id", "")
+        webhook_cfg = config.get("global", {}).get("wecom_webhook", {})
+        webhook_key = os.environ.get("WECOM_WEBHOOK_KEY", "") or webhook_cfg.get("key", "")
 
         # DeepSeek 配置
         ds_cfg = config.get("global", {}).get("deepseek", {})
         deepseek_key = os.environ.get("DEEPSEEK_API_KEY", "") or ds_cfg.get("api_key", "")
         deepseek_url = os.environ.get("DEEPSEEK_BASE_URL", "") or ds_cfg.get("base_url", "https://api.deepseek.com")
-
-        # 推送目标用户
-        touser = user_override or os.environ.get("WECOM_TOUSER", "") or wcom_cfg.get("touser", "@all")
 
         # ── Step 2: 读取最新数据 ──
         log.info("📊 [1/4] 读取最新指标数据...")
@@ -467,27 +465,18 @@ def main():
             return 0
 
         # ── Step 5: 推送 ──
-        log.info(f"📤 [4/4] 推送企微消息 (touser={touser})...")
+        log.info("📤 [4/4] 推送企微 Webhook 消息...")
 
-        if not corpid:
-            log.error("❌ 缺少企微 CorpID！请设置环境变量 WECOM_CORPID 或在 config.yaml 中配置")
-            log.info("💡 获取方式：企微管理后台 → 我的企业 → 企业信息 → 企业ID")
-            return 1
-
-        if not secret or not agent_id:
-            log.error("❌ 缺少企微应用 Secret 或 AgentID！请检查 config.yaml")
-            return 1
-
-        # 获取 access_token
-        token = get_wecom_token(corpid, secret)
-        if not token:
+        if not webhook_key:
+            log.error("❌ 缺少企微 Webhook Key！请设置环境变量 WECOM_WEBHOOK_KEY 或在 config.yaml 中配置 wecom_webhook.key")
+            log.info("💡 获取方式：企微群 → 添加群机器人 → 复制 Webhook 地址中的 key 参数")
             return 1
 
         # 优先发 Markdown，失败 fallback 到文本
-        success = send_wecom_message(token, agent_id, md_content, touser, "markdown")
+        success = send_webhook_markdown(webhook_key, md_content)
         if not success:
             log.info("   尝试 fallback 纯文本格式...")
-            success = send_wecom_message(token, agent_id, text_content, touser, "text")
+            success = send_webhook_text(webhook_key, text_content)
 
         if success:
             log.info("=" * 60)

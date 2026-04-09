@@ -30,3 +30,7 @@ scroll_top.py
 sheet_*.png
 wecom-*.png
 wecom-sheet-report.md
+
+# 敏感凭证
+.env
+config.local.yaml

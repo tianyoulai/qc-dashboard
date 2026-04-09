@@ -11,20 +11,17 @@ global:
   collector_mode: wcom-api
 
   # ============================================================
-  # ⚠️  凭证配置（同事拿到后只需修改这里！）
+  # ⚠️  企微推送配置（同事拿到后只需修改这里！）
   # ============================================================
-  # 从企微管理后台获取 → 应用管理 → 智能机器人 → 复制以下两项：
-  #   参考文档：https://open.work.weixin.qq.com/help2/pc/cat?doc_id=21677
+  # 使用群机器人 Webhook 推送，只需一个 key
+  # 获取方式：企微群 → 添加群机器人 → 复制 Webhook 地址中的 key 参数
   # ============================================================
-  wcom_api:
-    bot_id: "aibPedOZviPGWaHccnaHZFSMGYej_hsEcas"      # ← 填你的机器人 ID（AgentId）
-    secret: "CCiKjQ4Iu7CGue4F4XDRtRs3aOfnYmaLBQzvDshRNNb"       # ← 填你的应用密钥（Secret）
-    corpid: ""       # ← 企微企业ID（管理后台 → 我的企业 → 企业信息 → 企业ID）
-    touser: "@all"   # ← 推送目标用户（@all=全员 / 用户ID / 多个用|分隔）
+  wecom_webhook:
+    key: ""               # ← 留空，通过环境变量 WECOM_WEBHOOK_KEY 传入
 
   # DeepSeek AI 配置（可选，用于生成日报摘要）
   deepseek:
-    api_key: ""           # ← DeepSeek API Key（留空则不生成 AI 摘要）
+    api_key: ""           # ← 留空，通过环境变量 DEEPSEEK_API_KEY 传入
     base_url: "https://api.deepseek.com"  # API 地址
 
   # 每日推送配置
