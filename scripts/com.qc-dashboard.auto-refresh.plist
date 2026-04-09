@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <!-- 标签：唯一标识此定时任务 -->
+    <key>Label</key>
+    <string>com.qc-dashboard.auto-refresh</string>
+
+    <!-- 执行的命令 -->
+    <key>ProgramArguments</key>
+    <array>
+        <string>/usr/bin/python3</string>
+        <string>/Users/laitianyou/WorkBuddy/20260408163242/qc-dashboard/scripts/auto_refresh.py</string>
+    </array>
+
+    <!-- 工作目录 -->
+    <key>WorkingDirectory</key>
+    <string>/Users/laitianyou/WorkBuddy/20260408163242/qc-dashboard</string>
+
+    <!-- 每天上午 9:10 执行 -->
+    <key>StartCalendarInterval</key>
+    <dict>
+        <key>Hour</key>
+        <integer>9</integer>
+        <key>Minute</key>
+        <integer>10</integer>
+    </dict>
+
+    <!-- 如果电脑在指定时间关机，开机后立即补偿执行（关键！解决周末/离线补数） -->
+    <key>StartInterval</key>
+    <integer>0</integer>
+
+    <!-- 掉线后是否补执行 -->
+    <key>ToleratedDelay</key>
+    <integer>300</integer>
+
+    <!-- 标准输出日志 -->
+    <key>StandardOutPath</key>
+    <string>/Users/laitianyou/WorkBuddy/20260408163242/qc-dashboard/data/logs/launchd-stdout.log</string>
+
+    <!-- 错误输出日志 -->
+    <key>StandardErrorPath</key>
+    <string>/Users/laitianyou/WorkBuddy/20260408163242/qc-dashboard/data/logs/launchd-stderr.log</string>
+
+    <!-- 环境变量 -->
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>PATH</key>
+        <string>/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:/opt/homebrew/bin:/Users/laitianyou/.local/bin</string>
+        <key>PYTHONPATH</key>
+        <string>/Users/laitianyou/WorkBuddy/20260408163242/qc-dashboard/src</string>
+        <key>HOME</key>
+        <string>/Users/laitianyou</string>
+    </dict>
+
+    <!-- 运行用户 -->
+    <key>UserName</key>
+    <string>laitianyou</string>
+</dict>
+</plist>
