@@ -1,6 +1,6 @@
 """
 ============================================================
-QC Dashboard — Streamlit 独立看板
+QC Dashboard — Streamlit 独立看板  v1.1
 ============================================================
 用法:  cd qc-dashboard && streamlit run streamlit_app.py
 依赖: streamlit, plotly, pandas (pip install -r requirements.txt)
