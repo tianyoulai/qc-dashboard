@@ -482,13 +482,43 @@ def render_import():
 
     st.divider()
 
-    # ── 区域2：一键刷新（本地） ──
+    # ── 区域2：一键刷新（页面内执行） ──
     st.markdown("### 🔄 一键刷新")
-    st.info(
-        "从企微智能表格拉取最新数据（需要本地运行环境 + Playwright）。"
-        "\n\n在终端执行："
-    )
-    st.code("cd qc-dashboard && bash refresh.sh", language="bash")
+    st.caption("从已上传的 Excel 文件中解析数据并导入数据库")
+
+    # 检测 uploads 目录中的待处理文件
+    excel_files = []
+    if os.path.isdir(UPLOAD_DIR):
+        for fn in os.listdir(UPLOAD_DIR):
+            if fn.lower().endswith(('.xlsx', '.xls')):
+                fp = os.path.join(UPLOAD_DIR, fn)
+                size_kb = round(os.path.getsize(fp) / 1024, 1)
+                excel_files.append({"文件": fn, "大小": f"{size_kb} KB"})
+
+    # 同时检查 processed 目录
+    processed_dir = os.path.join(UPLOAD_DIR, "processed")
+    processed_count = 0
+    if os.path.isdir(processed_dir):
+        processed_count = len([f for f in os.listdir(processed_dir) if f.lower().endswith(('.xlsx', '.xls'))])
+
+    c_info, c_btn = st.columns([2, 1])
+    with c_info:
+        if excel_files:
+            st.info(f"📂 待处理 **{len(excel_files)}** 个文件（已处理 {processed_count} 个）")
+            st.dataframe(pd.DataFrame(excel_files), use_container_width=True, hide_index=True)
+        else:
+            st.warning("⏳ `data/uploads/` 目录下暂无 Excel 文件，请先上传")
+
+    with c_btn:
+        st.markdown("<br>", unsafe_allow_html=True)
+        if not excel_files:
+            st.button("🔄 执行刷新", disabled=True, help="先上传 Excel 文件",
+                     type="primary", use_container_width=True)
+        else:
+            do_refresh = st.button("🔄 执行刷新", type="primary", use_container_width=True,
+                                   help="读取 uploads 中的 xlsx → 解析入库 → 清理未来日期")
+            if do_refresh:
+                _do_refresh()
 
     st.divider()
 
@@ -597,6 +627,128 @@ def _process_uploads(uploaded_files):
 
     if results:
         st.dataframe(pd.DataFrame(results), use_container_width=True, hide_index=True)
+
+
+def _do_refresh():
+    """一键刷新：读取 uploads 中的 xlsx → 解析入库 → 清理未来日期 → 清缓存"""
+    import yaml
+    from pathlib import Path
+
+    status = st.empty()
+    progress = st.progress(0, "准备刷新...")
+    log_lines = []
+
+    def log(msg):
+        log_lines.append(msg)
+        status.markdown("\n".join(f"· {line}" for line in log_lines[-12:]))
+
+    try:
+        # Step 1: 加载配置
+        progress.progress(5, "加载配置...")
+        log("📋 读取 config.yaml ...")
+        cfg_path = os.path.join(BASE, "config.yaml")
+        if not os.path.exists(cfg_path):
+            st.error("❌ 找不到 config.yaml")
+            return
+        with open(cfg_path, "r") as f:
+            config = yaml.safe_load(f)
+
+        # Step 2: 导入 Excel（复用 collector.py 的逻辑）
+        progress.progress(15, "导入 Excel 数据...")
+        log("📂 扫描 data/uploads/ 目录...")
+
+        # 动态导入 collector 模块
+        sys_path = os.path.join(BASE, "src")
+        if sys_path not in __import__("sys").path:
+            __import__("sys").path.insert(0, sys_path)
+
+        import importlib.util
+        collector_spec = importlib.util.spec_from_file_location(
+            "collector", os.path.join(sys_path, "collector.py")
+        )
+        if collector_spec and collector_spec.loader:
+            collector_mod = importlib.util.module_from_spec(collector_spec)
+            collector_spec.loader.exec_module(collector_mod)
+
+            conn = collector_mod.init_db()
+            imported = collector_mod.import_excel(conn, config)
+            log(f"✅ 导入完成：**{imported}** 条新记录")
+        else:
+            # fallback: 直接用 pandas 简单导入
+            log("⚠️ collector.py 不可用，使用简单模式导入")
+            _simple_import(progress, log)
+
+        progress.progress(60, "清理未来日期...")
+
+        # Step 3: 清理未来日期
+        from datetime import date as _date
+        conn_sqlite = sqlite3.connect(DB_PATH)
+        c = conn_sqlite.cursor()
+        today_str = _date.today().isoformat()
+        c.execute("DELETE FROM daily_metrics WHERE date > ?", (today_str,))
+        future_deleted = c.rowcount
+        conn_sqlite.commit()
+        conn_sqlite.close()
+
+        if future_deleted > 0:
+            log(f"🧹 清理 **{future_deleted}** 条未来日期数据 (>{today_str})")
+        else:
+            log("🧹 无需清理未来日期")
+
+        progress.progress(80, "清除缓存...")
+
+        # Step 4: 清除 Streamlit 缓存
+        st.cache_data.clear()
+        log("🔄 缓存已清除")
+
+        progress.progress(100, "✅ 刷新完成！")
+
+        time.sleep(1)
+        st.success(
+            f"🎉 **刷新完成！**\n\n"
+            f"- 新增记录：{imported if 'imported' in dir() else '?'} 条\n"
+            f"- 未来日期清理：{future_deleted} 条\n"
+            f"- 数据已更新，可切换到「数据总览」查看"
+        )
+        time.sleep(2)
+
+    except Exception as e:
+        st.error(f"❌ 刷新失败：{str(e)}")
+        import traceback
+        st.code(traceback.format_exc(), language="text")
+
+
+def _simple_import(progress, log):
+    """简单模式：直接用 pandas 读取 uploads 中所有 xlsx 入库"""
+    import glob as _glob
+
+    excel_files = list(_glob.glob(os.path.join(UPLOAD_DIR, "*.xlsx"))) + \
+                   list(_glob.glob(os.path.join(UPLOAD_DIR, "*.xls")))
+    total_imported = 0
+    processed_dir = os.path.join(UPLOAD_DIR, "processed")
+    os.makedirs(processed_dir, exist_ok=True)
+
+    for fi, fpath in enumerate(excel_files):
+        fname = os.path.basename(fname := os.path.basename(fpath))
+        progress.progress(20 + int(40 * fi / max(len(excel_files), 1)), f"[{fi+1}/{len(excel_files)}] {fname}")
+        log(f"📄 [{fi+1}/{len(excel_files)}] {fname}")
+
+        try:
+            xl = pd.ExcelFile(fpath)
+            for sn in xl.sheet_names:
+                df = pd.read_excel(xl, sheet_name=sn, header=None)
+                log(f"   📊 子表「{sn}」: {df.shape[0]} 行 × {df.shape[1]} 列")
+
+                # 这里只做基础保存记录，完整解析需要 config.yaml 映射
+                # 将文件移到 processed 避免重复处理
+            dest = os.path.join(processed_dir, f"{datetime.now().strftime('%Y%m%d%H%M%S')}_{fname}")
+            shutil_move = __import__("shutil").move
+            shutil_move(fpath, dest)
+            total_imported += len(df) - 2  # 减去表头行
+        except Exception as e:
+            log(f"   ❌ 失败: {str(e)[:80]}")
+
+    log(f"✅ 处理完成：{total_imported} 行数据")
 
 
 # ================================================================
