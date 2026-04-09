@@ -1,9 +1,8 @@
 """
 ============================================================
-QC Dashboard — Streamlit 独立看板  v2.0
+QC Dashboard — Streamlit 独立看板  v2.1
 ============================================================
-UI重构：顶部标签导航 + 上传/清洗/导出功能
-标签页：质检数据 | 一键刷新 | 上传记录 | 清除缓存 | 清除数据
+侧边栏导航：数据总览 | 数据导入
 用法:  cd qc-dashboard && streamlit run app.py
 依赖: streamlit, plotly, pandas, xlsxwriter (pip install -r requirements.txt)
 数据源: data/metrics.db (SQLite) + 用户上传 xlsx
@@ -11,7 +10,6 @@ UI重构：顶部标签导航 + 上传/清洗/导出功能
 
 import os
 import io
-import json
 import sqlite3
 import time
 from datetime import datetime, timedelta
@@ -80,58 +78,6 @@ QUEUES = [
 ]
 
 QUEUE_MAP = {q["id"]: q for q in QUEUES}
-
-# ── 页面配置 ──────────────────────────────────────────────
-st.set_page_config(
-    page_title="QC 质检数据看板",
-    page_icon="📊",
-    layout="wide",
-    initial_sidebar_state="collapsed",
-)
-
-st.markdown("""
-<style>
-    /* 顶部导航 tab 样式 */
-    .nav-tabs [data-baseweb="tab-list"] {
-        gap: 0;
-        border-bottom: 1px solid #e2e8f0;
-    }
-    .nav-tabs [data-baseweb="tab"] {
-        font-size: 14px !important;
-        font-weight: 500 !important;
-        padding: 10px 18px !important;
-        border-radius: 0 !important;
-        border-bottom: 2px solid transparent !important;
-        color: #64748b !important;
-        height: auto !important;
-    }
-    .nav-tabs [data-baseweb="tab"][aria-selected="true"] {
-        color: #ef4444 !important;
-        border-bottom-color: #ef4444 !important;
-        font-weight: 600 !important;
-    }
-
-    /* 统计卡片 */
-    [data-testid="stMetric"] {
-        background-color: #ffffff;
-        border: 1px solid #e2e8f0;
-        border-radius: 12px;
-        padding: 8px !important;
-        box-shadow: 0 1px 3px rgba(0,0,0,0.08);
-    }
-    /* 主标题 */
-    h1 { font-size: 24px !important; font-weight: 700 !important; margin-bottom: 8px !important; }
-    .subtitle { color: #64748b; font-size: 13px; }
-    /* 上传区域 */
-    [data-testid="stFileUploader"] {
-        border: 2px dashed #cbd5e1 !important;
-        border-radius: 12px !important;
-        padding: 20px !important;
-    }
-    /* 表格样式 */
-    [data-testid="stDataFrame"] { border-radius: 12px; overflow: hidden; }
-</style>
-""", unsafe_allow_html=True)
 
 
 # ================================================================
@@ -216,11 +162,11 @@ def fmt_pct1(val):
 
 
 # ================================================================
-#  页面函数
+#  页面：数据总览
 # ================================================================
 
 def render_dashboard(all_data):
-    """质检数据看板主页（保留原有完整逻辑，去掉 q4 申诉）"""
+    """质检数据看板主页"""
 
     min_date, max_date = get_date_range(all_data)
 
@@ -228,36 +174,40 @@ def render_dashboard(all_data):
     st.markdown("### 📊 QC 质检数据统一看板")
     total_records = sum(len(d) for d in all_data.values())
     st.caption(
-        f"多队列 · 按日期聚合指标 · 数据来源：企业微信智能表格 / 上传Excel · "
+        f"多队列 · 按日期聚合指标 · 数据来源：企业微信智能表格 · "
         f"共 **{total_records}** 条记录 · 更新于 `{datetime.now().strftime('%Y-%m-%d %H:%M')}`"
     )
 
-    # ── 侧边栏：日期筛选 ──
-    with st.sidebar:
-        st.subheader("📅 日期筛选")
-        col_a, col_b = st.columns(2)
-        with col_a:
-            d_from = st.date_input("起始日期", value=None, key="df", label_visibility="collapsed")
-        with col_b:
-            d_to = st.date_input("截止日期", value=None, key="dt", label_visibility="collapsed")
+    # ── 日期筛选区 ──
+    date_from_str, date_to_str = None, None
+
+    with st.expander("📅 日期筛选", expanded=False):
+        f_cols = st.columns([1, 1, 1, 1, 1, 1])
+        with f_cols[0]:
+            d_from = st.date_input("起始日期", value=None, key="df")
+        with f_cols[1]:
+            d_to = st.date_input("截止日期", value=None, key="dt")
+        with f_cols[2]:
+            if st.button("近7天", use_container_width=True):
+                if max_date:
+                    st.session_state["_quick"] = ("week", max_date)
+                    st.rerun()
+        with f_cols[3]:
+            if st.button("近30天", use_container_width=True):
+                if max_date:
+                    st.session_state["_quick"] = ("month", max_date)
+                    st.rerun()
+        with f_cols[4]:
+            if st.button("全部", use_container_width=True):
+                st.session_state["_quick"] = ("all", None)
+                st.rerun()
+        with f_cols[5]:
+            if st.button("清除缓存", use_container_width=True):
+                st.cache_data.clear()
+                st.rerun()
 
         date_from_str = d_from.strftime("%Y-%m-%d") if d_from else None
         date_to_str = d_to.strftime("%Y-%m-%d") if d_to else None
-
-        st.markdown("---")
-        st.subheader("⏱️ 快捷范围")
-        quick_cols = st.columns(3)
-        if quick_cols[0].button("📅 近7天", use_container_width=True):
-            if max_date:
-                st.session_state["_quick"] = ("week", max_date)
-                st.rerun()
-        if quick_cols[1].button("📅 近30天", use_container_width=True):
-            if max_date:
-                st.session_state["_quick"] = ("month", max_date)
-                st.rerun()
-        if quick_cols[2].button("📅 全部", use_container_width=True):
-            st.session_state["_quick"] = ("all", None)
-            st.rerun()
 
         if "_quick" in st.session_state:
             mode, ref = st.session_state["_quick"]
@@ -273,11 +223,7 @@ def render_dashboard(all_data):
                 date_from_str, date_to_str = None, None
             del st.session_state["_quick"]
 
-        st.markdown("---")
-        st.info(
-            f"💡 数据范围：`{min_date}` ~ `{max_date}`"
-            if min_date else "暂无数据"
-        )
+        st.caption(f"数据范围：`{min_date}` ~ `{max_date}`" if min_date else "暂无数据")
 
     # ── Overview 卡片行 ──
     st.markdown("#### 📋 全局概览")
@@ -456,7 +402,7 @@ def render_dashboard(all_data):
                 rename_map[mk] = q["metric_labels"].get(mk, mk)
             disp_df.rename(columns=rename_map, inplace=True)
 
-            def highlight_cells(s):
+            def _highlight(s):
                 result = [""] * len(s)
                 for i, v in enumerate(s):
                     if isinstance(v, str) and v.endswith("%"):
@@ -470,7 +416,7 @@ def render_dashboard(all_data):
                             pass
                 return result
 
-            styled_df = disp_df.style.apply(highlight_cells, axis=0)
+            styled_df = disp_df.style.apply(_highlight, axis=0)
             st.dataframe(styled_df, use_container_width=True, hide_index=True,
                          height=min(max(40 * len(disp_df), 200), 500))
 
@@ -496,21 +442,28 @@ def render_dashboard(all_data):
     st.divider()
     st.markdown(
         '<div style="text-align:center;color:#94a3b8;font-size:11px;padding:10px 0">'
-        '📊 QC Dashboard v2.0 · Powered by Streamlit + Plotly · '
+        '📊 QC Dashboard v2.1 · Powered by Streamlit + Plotly · '
         f'<span style="opacity:0.7">{datetime.now().strftime("%Y-%m-%d %H:%M:%S")}</span></div>',
         unsafe_allow_html=True,
     )
 
 
-def render_upload():
-    """上传质检 Excel 页面"""
+# ================================================================
+#  页面：数据导入
+# ================================================================
 
-    st.markdown("# 上传质检 Excel")
-    st.caption("支持 `.xlsx` / `.xls` 格式。可拖拽多个文件批量上传。")
+def render_import():
+    """数据导入页面：上传 + 清洗 + 一键刷新 + 清除缓存 + 清除数据"""
 
-    # 文件上传区域
+    st.markdown("# 📥 数据导入")
+    st.caption("上传质检 Excel 文件、管理缓存和数据")
+
+    # ── 区域1：上传文件 ──
+    st.markdown("### 📤 上传质检 Excel")
+    st.caption("支持 `.xlsx` / `.xls` 格式，可拖拽多选批量上传")
+
     uploaded_files = st.file_uploader(
-        "选择质检文件（支持拖拽多选）",
+        "选择质检文件",
         type=["xlsx", "xls"],
         accept_multiple_files=True,
         help="支持 .xlsx 和 .xls 格式，可同时选择多个文件",
@@ -524,259 +477,181 @@ def render_upload():
             file_info.append(f"- **{uf.name}** ({size_kb} KB)")
         st.markdown("\n".join(file_info))
 
+        if st.button("⬆️ 批量导入", type="primary", use_container_width=True):
+            _process_uploads(uploaded_files)
+
     st.divider()
 
-    # 批量导入按钮
-    if uploaded_files and st.button("⬆️ 批量导入质检数据", type="primary", use_container_width=True):
-        process_uploads(uploaded_files)
+    # ── 区域2：一键刷新（本地） ──
+    st.markdown("### 🔄 一键刷新")
+    st.info(
+        "从企微智能表格拉取最新数据（需要本地运行环境 + Playwright）。"
+        "\n\n在终端执行："
+    )
+    st.code("cd qc-dashboard && bash refresh.sh", language="bash")
+
+    st.divider()
+
+    # ── 区域3：已上传文件 ──
+    st.markdown("### 📂 已上传文件")
+    upload_files = sorted(os.listdir(UPLOAD_DIR)) if os.path.isdir(UPLOAD_DIR) else []
+
+    if upload_files:
+        records = []
+        for fn in upload_files:
+            fp = os.path.join(UPLOAD_DIR, fn)
+            stat = os.stat(fp)
+            size_kb = round(stat.st_size / 1024, 1)
+            mtime = datetime.fromtimestamp(stat.st_mtime).strftime("%Y-%m-%d %H:%M:%S")
+            records.append({"文件名": fn, "大小(KB)": size_kb, "上传时间": mtime})
+        st.dataframe(pd.DataFrame(records), use_container_width=True, hide_index=True)
+
+        if st.button("🗑️ 清空上传记录"):
+            import shutil
+            shutil.rmtree(UPLOAD_DIR)
+            os.makedirs(UPLOAD_DIR, exist_ok=True)
+            st.success("已清空")
+            st.rerun()
+    else:
+        st.caption("暂无上传文件")
+
+    st.divider()
+
+    # ── 区域4：缓存 & 数据管理 ──
+    c_cache, c_data = st.columns(2)
+
+    with c_cache:
+        st.markdown("### 🧹 清除缓存")
+        st.caption("清除 Streamlit 数据缓存，不删除数据库")
+        if st.button("清除缓存", use_container_width=True):
+            st.cache_data.clear()
+            st.success("✅ 缓存已清除")
+            time.sleep(1)
+            st.rerun()
+
+    with c_data:
+        st.markdown("### ⚠️ 清除数据")
+        st.caption("永久删除数据库中所有质检数据，不可恢复")
+        confirm = st.text_input("输入 CONFIRM 确认删除", key="_confirm_del", placeholder="CONFIRM")
+        if confirm and confirm.strip().upper() == "CONFIRM":
+            if st.button("确认清除全部数据", type="primary", use_container_width=True):
+                conn = sqlite3.connect(DB_PATH)
+                cursor = conn.cursor()
+                cursor.execute("DELETE FROM daily_metrics")
+                deleted = cursor.rowcount
+                conn.commit()
+                conn.close()
+                st.success(f"已删除 **{deleted}** 条记录")
+                st.cache_data.clear()
+                time.sleep(1)
+                st.rerun()
 
 
-def process_uploads(uploaded_files):
-    """处理用户上传的文件并导入数据库"""
-    import yaml
-
+def _process_uploads(uploaded_files):
+    """处理上传文件"""
     progress_bar = st.progress(0, "准备导入...")
     status_text = st.empty()
     results = []
-
-    config_path = os.path.join(BASE, "config.yaml")
-    with open(config_path, "r") as cf:
-        config = yaml.safe_load(cf)
-    queue_configs = {qc["id"]: qc for qc in config.get("queues", [])}
-
     total = len(uploaded_files)
     success_count = 0
-    skip_count = 0
     error_count = 0
 
     for i, uf in enumerate(uploaded_files):
         try:
-            status_text.text(f"[{i+1}/{total}] 正在处理: **{uf.name}** ...")
+            status_text.text(f"[{i+1}/{total}] 处理: **{uf.name}** ...")
             progress_bar.progress((i + 0.5) / total)
 
-            # 保存到 uploads 目录
             save_path = os.path.join(UPLOAD_DIR, f"{datetime.now().strftime('%Y%m%d%H%M%S')}_{uf.name}")
             with open(save_path, "wb") as f:
                 f.write(uf.getvalue())
 
-            # 尝试读取 Excel
             bytes_io = io.BytesIO(uf.getvalue())
             xl_sheets = pd.ExcelFile(bytes_io)
             first_sheet = xl_sheets.sheet_names[0]
             df = pd.read_excel(bytes_io, sheet_name=first_sheet)
 
-            # 预览信息
             results.append({
-                "file": uf.name,
-                "status": "✅ 已读取",
-                "rows": len(df),
-                "cols": len(df.columns),
-                "sheet": first_sheet,
+                "文件": uf.name,
+                "状态": "✅ 已读取",
+                "行数": len(df),
+                "列数": len(df.columns),
+                "子表": first_sheet,
             })
             success_count += 1
 
         except Exception as e:
             results.append({
-                "file": uf.name,
-                "status": f"❌ 失败: {str(e)[:80]}",
-                "rows": 0,
-                "cols": 0,
-                "sheet": "-",
+                "文件": uf.name,
+                "状态": f"❌ 失败: {str(e)[:60]}",
+                "行数": 0, "列数": 0, "子表": "-",
             })
             error_count += 1
 
     progress_bar.progress(1.0, "完成！")
     status_text.text("导入完成")
 
-    # 结果汇总
-    st.divider()
     st.subheader("📊 导入结果")
-    c_ok, c_skip, c_err = st.columns(3)
+    c_ok, c_err = st.columns(2)
     c_ok.metric("成功", success_count)
-    c_skip.metric("跳过", skip_count)
     c_err.metric("失败", error_count)
 
     if results:
-        res_df = pd.DataFrame(results)
-        st.dataframe(res_df, use_container_width=True, hide_index=True)
-
-    if success_count > 0:
-        st.info(
-            "💡 **提示**: 文件已保存至 `data/uploads/` 目录。"
-            "如需将数据正式写入数据库的 `daily_metrics` 表，请使用「一键刷新」功能运行 refresh.sh 脚本。"
-        )
-
-
-def render_refresh():
-    """一键刷新页面"""
-    st.markdown("# 一键刷新")
-
-    st.markdown("### 🔄 从企微智能表格拉取最新数据")
-
-    st.info(
-        "此功能需要本地运行环境（含 Playwright 浏览器 profile）。"
-        "\n\n在 Streamlit Cloud 上不可用，请在本机终端执行:"
-    )
-
-    st.code(
-        "cd qc-dashboard && bash refresh.sh",
-        language="bash",
-    )
-
-    st.markdown("---")
-    st.markdown("### 📂 从上传文件导入数据库")
-
-    # 列出已有上传文件
-    upload_files = sorted(os.listdir(UPLOAD_DIR)) if os.path.isdir(UPLOAD_DIR) else []
-    if upload_files:
-        st.caption(f"`{UPLOAD_DIR}` 中有 **{len(upload_files)}** 个已上传文件:")
-        st.dataframe(pd.DataFrame({"文件名": upload_files}), hide_index=True)
-    else:
-        st.info("暂无已上传文件。请先在「上传记录」页面上传 Excel 文件。")
-
-
-def render_history():
-    """上传记录页面"""
-    st.markdown("# 上传记录")
-
-    upload_files = sorted(os.listdir(UPLOAD_DIR)) if os.path.isdir(UPLOAD_DIR) else []
-
-    if not upload_files:
-        st.info("暂无上传记录。请在「质检数据」→「上传」页面上传文件。")
-        return
-
-    records = []
-    for fn in upload_files:
-        fp = os.path.join(UPLOAD_DIR, fn)
-        stat = os.stat(fp)
-        size_kb = round(stat.st_size / 1024, 1)
-        mtime = datetime.fromtimestamp(stat.st_mtime).strftime("%Y-%m-%d %H:%M:%S")
-        records.append({
-            "文件名": fn,
-            "大小 (KB)": size_kb,
-            "上传时间": mtime,
-            "路径": fp,
-        })
-
-    df_rec = pd.DataFrame(records)
-    st.dataframe(df_rec, use_container_width=True, hide_index=True)
-
-    st.divider()
-    if st.button("🗑️ 清空所有上传记录", type="secondary"):
-        import shutil
-        shutil.rmtree(UPLOAD_DIR)
-        os.makedirs(UPLOAD_DIR, exist_ok=True)
-        st.success("已清空所有上传记录。")
-        st.rerun()
-
-
-def render_clear_cache():
-    """清除缓存页面"""
-    st.markdown("# 清除缓存")
-
-    st.warning("这将清除所有 Streamlit 数据缓存（@st.cache_data），不会删除数据库中的数据。")
-
-    if st.button("🧹 清除缓存", type="primary", use_container_width=True):
-        st.cache_data.clear()
-        st.success("✅ 缓存已清除！页面将在 3 秒后自动刷新...")
-        time.sleep(3)
-        st.rerun()
-
-    st.divider()
-    st.markdown("### 当前缓存状态")
-    st.json({
-        "cached_functions": [
-            "load_all_queue_data() — TTL: 60s",
-        ],
-        "tip": "清除缓存后下次访问会重新从 SQLite 加载数据。",
-    })
-
-
-def render_clear_data():
-    """清除数据页面"""
-    st.markdown("# ⚠️ 清除数据")
-
-    st.error("**危险操作！** 此操作将永久删除数据库中的所有质检数据，且不可恢复。")
-
-    st.divider()
-
-    # 显示当前数据统计
-    conn = sqlite3.connect(DB_PATH)
-    count_df = pd.read_sql_query(
-        "SELECT queue_id, COUNT(*) as cnt, MIN(date) as min_d, MAX(date) as max_d FROM daily_metrics GROUP BY queue_id",
-        conn,
-    )
-    conn.close()
-
-    if not count_df.empty:
-        st.markdown("#### 当前数据库内容:")
-        for _, row in count_df.iterrows():
-            q = QUEUE_MAP.get(row["queue_id"])
-            name = q["name"] if q else row["queue_id"]
-            st.write(f"- **{name}**: {row['cnt']} 条 (`{row['min_d']}` ~ `{row['max_d']}`)")
-    else:
-        st.info("数据库为空。")
-
-    st.divider()
-
-    confirm_text = st.text_input(
-        "请输入 **CONFIRM** 以确认删除全部数据:",
-        placeholder="CONFIRM",
-    )
-
-    if confirm_text.strip().upper() == "CONFIRM":
-        if st.button("🗑️ 确认清除全部数据", type="primary", use_container_width=True):
-            # 备份后再删？
-            conn = sqlite3.connect(DB_PATH)
-            cursor = conn.cursor()
-            cursor.execute("DELETE FROM daily_metrics")
-            deleted = cursor.rowcount
-            conn.commit()
-            conn.close()
-
-            st.success(f"已删除 **{deleted}** 条记录。")
-            st.cache_data.clear()
-            time.sleep(2)
-            st.rerun()
-    elif confirm_text:
-        st.warning("请输入正确的确认文字: CONFIRM")
+        st.dataframe(pd.DataFrame(results), use_container_width=True, hide_index=True)
 
 
 # ================================================================
-#  主程序 — 顶部标签导航
+#  主程序 — 侧边栏导航
 # ================================================================
 
-PAGES = [
-    ("dashboard",   "质检数据"),
-    ("upload",      "上传记录"),
-    ("refresh",     "一键刷新"),
-    ("clear_cache", "清除缓存"),
-    ("clear_data",  "清除数据"),
-]
+st.set_page_config(
+    page_title="QC 质检数据看板",
+    page_icon="📊",
+    layout="wide",
+    initial_sidebar_state="expanded",
+)
 
-page_names = [p[1] for p in PAGES]
-page_keys = [p[0] for p in PAGES]
+st.markdown("""
+<style>
+    /* 统计卡片 */
+    [data-testid="stMetric"] {
+        background-color: #ffffff;
+        border: 1px solid #e2e8f0;
+        border-radius: 12px;
+        padding: 8px !important;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+    }
+    h1 { font-size: 24px !important; font-weight: 700 !important; margin-bottom: 8px !important; }
+    h3 { font-size: 20px !important; font-weight: 600 !important; }
+    /* 上传区域 */
+    [data-testid="stFileUploader"] {
+        border: 2px dashed #cbd5e1 !important;
+        border-radius: 12px !important;
+        padding: 16px !important;
+    }
+    /* 表格样式 */
+    [data-testid="stDataFrame"] { border-radius: 12px; overflow: hidden; }
+</style>
+""", unsafe_allow_html=True)
 
-# 顶部标签导航
-tab_idx = st.tabs(page_names)
+# ── 侧边栏导航 ──
+page = st.sidebar.radio(
+    "📌 导航",
+    ["📊 数据总览", "📥 数据导入"],
+    index=0,
+    label_visibility="collapsed",
+)
 
-for idx, tab in enumerate(tab_idx):
-    with tab:
-        page_key = page_keys[idx]
+# 侧边栏底部信息
+st.sidebar.divider()
+st.sidebar.caption(
+    f"📅 {datetime.now().strftime('%Y-%m-%d')}\n"
+    f"📊 QC Dashboard v2.1"
+)
 
-        if page_key == "dashboard":
-            with st.spinner("加载中..."):
-                all_data = load_all_queue_data()
-            render_dashboard(all_data)
-
-        elif page_key == "upload":
-            render_upload()
-
-        elif page_key == "refresh":
-            render_refresh()
-
-        elif page_key == "clear_cache":
-            render_clear_cache()
-
-        elif page_key == "clear_data":
-            render_clear_data()
+# ── 渲染对应页面 ──
+if page == "📊 数据总览":
+    with st.spinner("加载中..."):
+        all_data = load_all_queue_data()
+    render_dashboard(all_data)
+elif page == "📥 数据导入":
+    render_import()
