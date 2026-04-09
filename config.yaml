@@ -19,6 +19,18 @@ global:
   wcom_api:
     bot_id: "aibPedOZviPGWaHccnaHZFSMGYej_hsEcas"      # ← 填你的机器人 ID（AgentId）
     secret: "CCiKjQ4Iu7CGue4F4XDRtRs3aOfnYmaLBQzvDshRNNb"       # ← 填你的应用密钥（Secret）
+    corpid: ""       # ← 企微企业ID（管理后台 → 我的企业 → 企业信息 → 企业ID）
+    touser: "@all"   # ← 推送目标用户（@all=全员 / 用户ID / 多个用|分隔）
+
+  # DeepSeek AI 配置（可选，用于生成日报摘要）
+  deepseek:
+    api_key: ""           # ← DeepSeek API Key（留空则不生成 AI 摘要）
+    base_url: "https://api.deepseek.com"  # API 地址
+
+  # 每日推送配置
+  push:
+    enabled: true         # 是否在自动刷新后推送
+    msg_type: "markdown"  # 消息格式: markdown | text
 
   # CDP 模式配置（备选，如使用 CDP 模式需填写）
   cdp:

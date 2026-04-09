@@ -209,6 +209,30 @@ def main(dry_run=False):
         log.info("=" * 60)
         log.info("🎉 自动刷新完成！")
         log.info("=" * 60)
+
+        # ── Step 5: 自动推送（可选）──
+        push_cfg = config.get("global", {}).get("push", {})
+        if push_cfg.get("enabled", False):
+            log.info("📤 触发每日数据推送...")
+            try:
+                import subprocess
+                push_script = PROJECT_ROOT / "scripts" / "daily_push.py"
+                if push_script.exists():
+                    result = subprocess.run(
+                        [sys.executable, str(push_script)],
+                        capture_output=True, text=True, timeout=60,
+                    )
+                    if result.returncode == 0:
+                        log.info("   ✅ 推送完成")
+                    else:
+                        log.warning(f"   ⚠️ 推送失败: {result.stderr[:200] if result.stderr else '未知'}")
+                else:
+                    log.warning(f"   ⚠️ 推送脚本不存在: {push_script}")
+            except Exception as e:
+                log.warning(f"   ⚠️ 推送异常: {e}")
+        else:
+            log.info("📤 每日推送未启用 (push.enabled=false)")
+
         return 0
 
     except Exception as e:
