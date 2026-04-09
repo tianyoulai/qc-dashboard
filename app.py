@@ -1,35 +1,39 @@
 """
 ============================================================
-QC Dashboard — Streamlit 独立看板  v1.1
+QC Dashboard — Streamlit 独立看板  v2.0
 ============================================================
-用法:  cd qc-dashboard && streamlit run streamlit_app.py
-依赖: streamlit, plotly, pandas (pip install -r requirements.txt)
-数据源: data/metrics.db (SQLite)
+UI重构：顶部标签导航 + 上传/清洗/导出功能
+标签页：质检数据 | 一键刷新 | 上传记录 | 清除缓存 | 清除数据
+用法:  cd qc-dashboard && streamlit run app.py
+依赖: streamlit, plotly, pandas, xlsxwriter (pip install -r requirements.txt)
+数据源: data/metrics.db (SQLite) + 用户上传 xlsx
 """
 
 import os
+import io
 import json
 import sqlite3
+import time
 from datetime import datetime, timedelta
 
 import pandas as pd
 import plotly.graph_objects as go
-from plotly.subplots import make_subplots
 import plotly.express as px
 import streamlit as st
 
 # ── 路径 ──
 BASE = os.path.dirname(os.path.abspath(__file__))
 DB_PATH = os.path.join(BASE, "data", "metrics.db")
+UPLOAD_DIR = os.path.join(BASE, "data", "uploads")
+os.makedirs(UPLOAD_DIR, exist_ok=True)
 
-# ── 队列配置（与 _dashboard_logic.js 保持一致）─────────
+# ── 队列配置 ──────────────────────────────────────────────
 QUEUES = [
     {
         "id": "q1_toufang",
         "name": "投放误漏",
         "full_name": "【供应商】投放误漏case",
-        "icon": "📢",
-        "color": "#3b82f6",
+        "icon": "📢", "color": "#3b82f6",
         "metric_keys": ["violation_rate", "miss_rate"],
         "metric_labels": {"violation_rate": "违规准确率", "miss_rate": "漏率"},
     },
@@ -37,8 +41,7 @@ QUEUES = [
         "id": "q2_erjiansimple",
         "name": "简单二审",
         "full_name": "【供应商】简单二审误漏case",
-        "icon": "📋",
-        "color": "#22c55e",
+        "icon": "📋", "color": "#22c55e",
         "metric_keys": ["violation_rate", "miss_rate"],
         "metric_labels": {"violation_rate": "违规准确率", "miss_rate": "漏率"},
     },
@@ -46,8 +49,7 @@ QUEUES = [
         "id": "q3_erjian_4qi_gt",
         "name": "四期-二审GT",
         "full_name": "【四期供应商】二审周推质检分歧单（二审GT）",
-        "icon": "🔄",
-        "color": "#f97316",
+        "icon": "🔄", "color": "#f97316",
         "metric_keys": ["violation_rate", "miss_rate"],
         "metric_labels": {"violation_rate": "违规准确率", "miss_rate": "漏率"},
     },
@@ -55,33 +57,15 @@ QUEUES = [
         "id": "q3b_erjian_4qi_qiepian",
         "name": "四期-切片GT",
         "full_name": "【四期供应商】二审周推质检分歧单（二审切片GT）",
-        "icon": "🔪",
-        "color": "#f59e0b",
+        "icon": "🔪", "color": "#f59e0b",
         "metric_keys": ["violation_rate", "miss_rate"],
         "metric_labels": {"violation_rate": "违规准确率", "miss_rate": "漏率"},
-    },
-    {
-        "id": "q4_jubao_4qi",
-        "name": "四期-举报",
-        "full_name": "【四期供应商】举报周推质检分歧单",
-        "icon": "🚨",
-        "color": "#a855f7",
-        "has_pre_post": True,
-        "metric_keys": [
-            "pre_violation_rate", "pre_miss_rate", "pre_accuracy",
-            "post_violation_rate", "post_miss_rate", "post_accuracy",
-        ],
-        "metric_labels": {
-            "pre_violation_rate": "申诉前-违规准确率", "pre_miss_rate": "申诉前-漏率", "pre_accuracy": "申诉前-准确率",
-            "post_violation_rate": "申诉后-违规准确率", "post_miss_rate": "申诉后-漏率", "post_accuracy": "申诉后-准确率",
-        },
     },
     {
         "id": "q5_lahei",
         "name": "拉黑误漏",
         "full_name": "【供应商】拉黑误漏case",
-        "icon": "🚫",
-        "color": "#ef4444",
+        "icon": "🚫", "color": "#ef4444",
         "metric_keys": ["violation_rate", "miss_rate"],
         "metric_labels": {"violation_rate": "违规准确率", "miss_rate": "漏率"},
     },
@@ -89,8 +73,7 @@ QUEUES = [
         "id": "q6_shangqiang",
         "name": "上墙文本",
         "full_name": "上墙文本申诉-云雀",
-        "icon": "📝",
-        "color": "#06b6d4",
+        "icon": "📝", "color": "#06b6d4",
         "metric_keys": ["audit_accuracy"],
         "metric_labels": {"audit_accuracy": "审核准确率"},
     },
@@ -98,40 +81,88 @@ QUEUES = [
 
 QUEUE_MAP = {q["id"]: q for q in QUEUES}
 
+# ── 页面配置 ──────────────────────────────────────────────
+st.set_page_config(
+    page_title="QC 质检数据看板",
+    page_icon="📊",
+    layout="wide",
+    initial_sidebar_state="collapsed",
+)
 
-# ── 数据加载 ──
+st.markdown("""
+<style>
+    /* 顶部导航 tab 样式 */
+    .nav-tabs [data-baseweb="tab-list"] {
+        gap: 0;
+        border-bottom: 1px solid #e2e8f0;
+    }
+    .nav-tabs [data-baseweb="tab"] {
+        font-size: 14px !important;
+        font-weight: 500 !important;
+        padding: 10px 18px !important;
+        border-radius: 0 !important;
+        border-bottom: 2px solid transparent !important;
+        color: #64748b !important;
+        height: auto !important;
+    }
+    .nav-tabs [data-baseweb="tab"][aria-selected="true"] {
+        color: #ef4444 !important;
+        border-bottom-color: #ef4444 !important;
+        font-weight: 600 !important;
+    }
+
+    /* 统计卡片 */
+    [data-testid="stMetric"] {
+        background-color: #ffffff;
+        border: 1px solid #e2e8f0;
+        border-radius: 12px;
+        padding: 8px !important;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+    }
+    /* 主标题 */
+    h1 { font-size: 24px !important; font-weight: 700 !important; margin-bottom: 8px !important; }
+    .subtitle { color: #64748b; font-size: 13px; }
+    /* 上传区域 */
+    [data-testid="stFileUploader"] {
+        border: 2px dashed #cbd5e1 !important;
+        border-radius: 12px !important;
+        padding: 20px !important;
+    }
+    /* 表格样式 */
+    [data-testid="stDataFrame"] { border-radius: 12px; overflow: hidden; }
+</style>
+""", unsafe_allow_html=True)
+
+
+# ================================================================
+#  数据层
+# ================================================================
+
 @st.cache_data(ttl=60)
 def load_all_queue_data():
     """从 SQLite 加载全部队列数据，返回 {qid: DataFrame}"""
     conn = sqlite3.connect(DB_PATH)
     all_data = {}
-
     for q in QUEUES:
         qid = q["id"]
         df = pd.read_sql_query(
             "SELECT date, metric_key, metric_value FROM daily_metrics WHERE queue_id=? ORDER BY date",
-            conn,
-            params=(qid,),
+            conn, params=(qid,),
         )
         if df.empty:
             all_data[qid] = pd.DataFrame(columns=["date"] + q["metric_keys"])
             continue
-
-        # pivot: date × metric_key → wide DataFrame
         df_wide = df.pivot(index="date", columns="metric_key", values="metric_value").reset_index()
-        # 确保所有 metric_key 列都存在
         for mk in q["metric_keys"]:
             if mk not in df_wide.columns:
                 df_wide[mk] = None
         df_wide["date"] = pd.to_datetime(df_wide["date"]).dt.strftime("%Y-%m-%d")
         all_data[qid] = df_wide
-
     conn.close()
     return all_data
 
 
 def get_date_range(all_data):
-    """获取所有队列的日期范围"""
     all_dates = []
     for df in all_data.values():
         if not df.empty and "date" in df.columns:
@@ -143,7 +174,6 @@ def get_date_range(all_data):
 
 
 def filter_by_date(df, date_from, date_to):
-    """按日期范围过滤"""
     if df.empty:
         return df
     mask = pd.Series([True] * len(df), index=df.index)
@@ -155,7 +185,7 @@ def filter_by_date(df, date_from, date_to):
 
 
 def find_latest_nonzero(df, keys):
-    """倒序查找最新非零行（避免周末零值问题）"""
+    """倒序查找最新非零行"""
     if df.empty:
         return None
     for idx in range(len(df) - 1, -1, -1):
@@ -168,7 +198,6 @@ def find_latest_nonzero(df, keys):
 
 
 def fmt_pct(val):
-    """格式化为百分比字符串"""
     if val is None or (isinstance(val, float) and (val != val)):
         return "--"
     try:
@@ -178,7 +207,6 @@ def fmt_pct(val):
 
 
 def fmt_pct1(val):
-    """百分比，1位小数（用于统计卡片大数字）"""
     if val is None or (isinstance(val, float) and (val != val)):
         return "--"
     try:
@@ -187,228 +215,161 @@ def fmt_pct1(val):
         return str(val)
 
 
-# ── 页面配置 ──
-st.set_page_config(
-    page_title="QC 质检数据看板",
-    page_icon="📊",
-    layout="wide",
-    initial_sidebar_state="expanded",
-)
+# ================================================================
+#  页面函数
+# ================================================================
 
-st.markdown("""
-<style>
-    /* 队列 tab 样式 */
-    .queue-tab-btn button {
-        font-size: 13px !important;
-        font-weight: 600 !important;
-        padding: 10px 20px !important;
-        border-radius: 10px !important;
-    }
-    /* 统计卡片 */
-    [data-testid="stMetric"] {
-        background-color: #ffffff;
-        border: 1px solid #e2e8f0;
-        border-radius: 12px;
-        padding: 8px !important;
-        box-shadow: 0 1px 3px rgba(0,0,0,0.08);
-    }
-    /* 主标题 */
-    h1 { font-size: 26px !important; font-weight: 700 !important; margin-bottom: 4px !important; }
-    .subtitle { color: #64748b; font-size: 13px; }
-    /* 表格样式 */
-    [data-testid="stDataFrame"] { border-radius: 12px; overflow: hidden; }
-</style>
-""", unsafe_allow_html=True)
+def render_dashboard(all_data):
+    """质检数据看板主页（保留原有完整逻辑，去掉 q4 申诉）"""
 
-# ── 加载数据 ──
-with st.spinner("加载中..."):
-    all_data = load_all_queue_data()
+    min_date, max_date = get_date_range(all_data)
 
-min_date, max_date = get_date_range(all_data)
+    # ── Header ──
+    st.markdown("### 📊 QC 质检数据统一看板")
+    total_records = sum(len(d) for d in all_data.values())
+    st.caption(
+        f"多队列 · 按日期聚合指标 · 数据来源：企业微信智能表格 / 上传Excel · "
+        f"共 **{total_records}** 条记录 · 更新于 `{datetime.now().strftime('%Y-%m-%d %H:%M')}`"
+    )
 
-# ── Header ──
-st.markdown("### 📊 QC 质检数据统一看板")
-st.caption(f"多队列 · 按日期聚合指标 · 数据来源：企业微信智能表格 · 共 **{sum(len(d) for d in all_data.values())}** 条记录 · 更新于 `{datetime.now().strftime('%Y-%m-%d %H:%M')}`")
+    # ── 侧边栏：日期筛选 ──
+    with st.sidebar:
+        st.subheader("📅 日期筛选")
+        col_a, col_b = st.columns(2)
+        with col_a:
+            d_from = st.date_input("起始日期", value=None, key="df", label_visibility="collapsed")
+        with col_b:
+            d_to = st.date_input("截止日期", value=None, key="dt", label_visibility="collapsed")
 
-# ── 侧边栏：日期筛选 + 快捷按钮 ──
-with st.sidebar:
-    st.subheader("📅 日期筛选")
-    col_a, col_b = st.columns(2)
-    with col_a:
-        d_from = st.date_input("起始日期", value=None, min_value=None, max_value=None, key="df", label_visibility="collapsed")
-    with col_b:
-        d_to = st.date_input("截止日期", value=None, min_value=None, max_value=None, key="dt", label_visibility="collapsed")
+        date_from_str = d_from.strftime("%Y-%m-%d") if d_from else None
+        date_to_str = d_to.strftime("%Y-%m-%d") if d_to else None
 
-    date_from_str = d_from.strftime("%Y-%m-%d") if d_from else None
-    date_to_str = d_to.strftime("%Y-%m-%d") if d_to else None
-
-    st.markdown("---")
-    st.subheader("⏱️ 快捷范围")
-    quick_cols = st.columns(3)
-    if quick_cols[0].button("📅 近7天", use_container_width=True):
-        if max_date:
-            st.session_state["_quick"] = ("week", max_date)
+        st.markdown("---")
+        st.subheader("⏱️ 快捷范围")
+        quick_cols = st.columns(3)
+        if quick_cols[0].button("📅 近7天", use_container_width=True):
+            if max_date:
+                st.session_state["_quick"] = ("week", max_date)
+                st.rerun()
+        if quick_cols[1].button("📅 近30天", use_container_width=True):
+            if max_date:
+                st.session_state["_quick"] = ("month", max_date)
+                st.rerun()
+        if quick_cols[2].button("📅 全部", use_container_width=True):
+            st.session_state["_quick"] = ("all", None)
             st.rerun()
-    if quick_cols[1].button("📅 近30天", use_container_width=True):
-        if max_date:
-            st.session_state["_quick"] = ("month", max_date)
-            st.rerun()
-    if quick_cols[2].button("📅 全部", use_container_width=True):
-        st.session_state["_quick"] = ("all", None)
-        st.rerun()
 
-    # 处理快捷选择
-    if "_quick" in st.session_state:
-        mode, ref = st.session_state["_quick"]
-        if mode == "week" and ref:
-            dt = datetime.strptime(ref, "%Y-%m-%d")
-            date_from_str = (dt - timedelta(days=6)).strftime("%Y-%m-%d")
-            date_to_str = ref
-        elif mode == "month" and ref:
-            dt = datetime.strptime(ref, "%Y-%m-%d")
-            date_from_str = (dt - timedelta(days=29)).strftime("%Y-%m-%d")
-            date_to_str = ref
-        else:
-            date_from_str, date_to_str = None, None
-        del st.session_state["_quick"]
+        if "_quick" in st.session_state:
+            mode, ref = st.session_state["_quick"]
+            if mode == "week" and ref:
+                dt = datetime.strptime(ref, "%Y-%m-%d")
+                date_from_str = (dt - timedelta(days=6)).strftime("%Y-%m-%d")
+                date_to_str = ref
+            elif mode == "month" and ref:
+                dt = datetime.strptime(ref, "%Y-%m-%d")
+                date_from_str = (dt - timedelta(days=29)).strftime("%Y-%m-%d")
+                date_to_str = ref
+            else:
+                date_from_str, date_to_str = None, None
+            del st.session_state["_quick"]
 
-    st.markdown("---")
-    st.info(f"💡 数据范围：`{min_date}` ~ `{max_date}`" if min_date else "暂无数据")
-
-
-# ── Overview 卡片行（所有队列概览）──
-st.markdown("#### 📋 全局概览")
-ov_cols = st.columns(len(QUEUES))
-for i, q in enumerate(QUEUES):
-    df_raw = all_data.get(q["id"], pd.DataFrame())
-    df_f = filter_by_date(df_raw, date_from_str, date_to_str)
-    lr = find_latest_nonzero(df_f, q["metric_keys"])
-
-    first_mk = q["metric_keys"][0]
-    display_val = fmt_pct1(lr[first_mk]) if lr is not None and first_mk in lr.index else "--"
-    latest_date = lr["date"] if lr is not None else "--"
-
-    with ov_cols[i]:
-        st.metric(
-            label=f"{q['icon']} {q['name']}",
-            value=display_val,
-            delta=f"{len(df_f)} 天 | {latest_date}",
-            delta_color="off",
+        st.markdown("---")
+        st.info(
+            f"💡 数据范围：`{min_date}` ~ `{max_date}`"
+            if min_date else "暂无数据"
         )
 
-st.divider()
+    # ── Overview 卡片行 ──
+    st.markdown("#### 📋 全局概览")
+    ov_cols = st.columns(len(QUEUES))
+    for i, q in enumerate(QUEUES):
+        df_raw = all_data.get(q["id"], pd.DataFrame())
+        df_f = filter_by_date(df_raw, date_from_str, date_to_str)
+        lr = find_latest_nonzero(df_f, q["metric_keys"])
 
+        first_mk = q["metric_keys"][0]
+        display_val = fmt_pct1(lr[first_mk]) if lr is not None and first_mk in lr.index else "--"
+        latest_date = lr["date"] if lr is not None else "--"
 
-# ── 主内容区：Queue Tabs ──
-tab_labels = [f"{q['icon']} {q['name']}" for q in QUEUES]
-tab_ids = [q["id"] for q in QUEUES]
-tabs = st.tabs(tab_labels)
-
-for tab_idx, tab in enumerate(tabs):
-    q = QUEUES[tab_idx]
-    qid = q["id"]
-    df_raw = all_data.get(qid, pd.DataFrame())
-
-    with tab:
-        df = filter_by_date(df_raw, date_from_str, date_to_str)
-
-        if df.empty:
-            st.info(f"😴 **{q['name']}** 在选定日期范围内暂无数据")
-            continue
-
-        # ── 统计卡片 ──
-        st.markdown("##### 📌 核心指标")
-        n_metrics = len(q["metric_keys"]) + 1  # +1 for data count card
-        stat_cols = st.columns(min(n_metrics, 5))
-
-        # 第一个卡片：数据天数
-        with stat_cols[0]:
-            date_range_str = (
-                f"`{df['date'].iloc[0]} ~ {df['date'].iloc[-1]}"
-                if len(df) > 0 else ""
+        with ov_cols[i]:
+            st.metric(
+                label=f"{q['icon']} {q['name']}",
+                value=display_val,
+                delta=f"{len(df_f)} 天 | {latest_date}",
+                delta_color="off",
             )
-            st.metric(label="📅 数据天数", value=f"{len(df)} 天", delta=date_range_str)
 
-        # 各指标卡片：最新非零值、均值、趋势
-        for ki, mk in enumerate(q["metric_keys"]):
-            if ki + 1 < len(stat_cols):
-                sc = stat_cols[ki + 1]
-            else:
-                sc = st.column_config
+    st.divider()
 
-            # 收集所有有效值
-            valid_vals = []
-            for _, r in df.iterrows():
-                v = r.get(mk) if mk in r.index else None
-                if v is not None and isinstance(v, (int, float)) and not (v != v):
-                    valid_vals.append(v)
+    # ── 队列 Tabs ──
+    tab_labels = [f"{q['icon']} {q['name']}" for q in QUEUES]
+    tabs = st.tabs(tab_labels)
 
-            if not valid_vals:
+    for tab_idx, tab in enumerate(tabs):
+        q = QUEUES[tab_idx]
+        qid = q["id"]
+        df_raw = all_data.get(qid, pd.DataFrame())
+
+        with tab:
+            df = filter_by_date(df_raw, date_from_str, date_to_str)
+
+            if df.empty:
+                st.info(f"😴 **{q['name']}** 在选定日期范围内暂无数据")
                 continue
 
-            # 最新非零值
-            lr_nz = find_latest_nonzero(df, [mk])
-            last_val = lr_nz[mk] if (lr_nz is not None and mk in lr_nz.index) else valid_vals[-1]
+            # 统计卡片
+            st.markdown("##### 📌 核心指标")
+            n_metrics = len(q["metric_keys"]) + 1
+            stat_cols = st.columns(min(n_metrics, 5))
 
-            # 均值
-            avg_val = sum(valid_vals) / len(valid_vals)
-
-            # 趋势（对比上一个非零值）
-            trend_str = ""
-            non_zero_indices = [i for i, v in enumerate(valid_vals) if v != 0]
-            if len(non_zero_indices) >= 2:
-                prev_i = non_zero_indices[-2]
-                curr_i = non_zero_indices[-1]
-                prev_v = valid_vals[prev_i]
-                curr_v = valid_vals[curr_i]
-                if prev_v != 0:
-                    chg = ((curr_v - prev_v) / abs(prev_v)) * 100
-                    arrow = "↑" if chg > 0 else ("↓" if chg < 0 else "→")
-                    trend_str = f"{arrow} {abs(chg):.1f}%"
-
-            lbl = q["metric_labels"].get(mk, mk)
-            with (stat_cols[ki + 1] if ki + 1 < len(stat_cols) else st.columns(1)[0]):
-                st.metric(
-                    label=lbl,
-                    value=fmt_pct(last_val),
-                    delta=f"均{fmt_pct1(avg_val)} {trend_str}" if trend_str else f"均值 {fmt_pct1(avg_val)}",
+            with stat_cols[0]:
+                date_range_str = (
+                    f"`{df['date'].iloc[0]} ~ {df['date'].iloc[-1]}"
+                    if len(df) > 0 else ""
                 )
+                st.metric(label="📅 数据天数", value=f"{len(df)} 天", delta=date_range_str)
 
-        # ── 图表区 ──
-        has_pp = q.get("has_pre_post", False)
+            for ki, mk in enumerate(q["metric_keys"]):
+                valid_vals = []
+                for _, r in df.iterrows():
+                    v = r.get(mk) if mk in r.index else None
+                    if v is not None and isinstance(v, (int, float)) and not (v != v):
+                        valid_vals.append(v)
 
-        c1, c2 = st.columns([2, 1])
+                if not valid_vals:
+                    continue
 
-        with c1:
-            st.markdown("##### 📈 指标走势")
-            fig_trend = go.Figure()
+                lr_nz = find_latest_nonzero(df, [mk])
+                last_val = lr_nz[mk] if (lr_nz is not None and mk in lr_nz.index) else valid_vals[-1]
+                avg_val = sum(valid_vals) / len(valid_vals)
 
-            if has_pp:
-                pre_keys = [k for k in q["metric_keys"] if k.startswith("pre_")]
-                post_keys = [k for k in q["metric_keys"] if k.startswith("post_")]
+                trend_str = ""
+                non_zero_indices = [i for i, v in enumerate(valid_vals) if v != 0]
+                if len(non_zero_indices) >= 2:
+                    prev_i = non_zero_indices[-2]
+                    curr_i = non_zero_indices[-1]
+                    prev_v = valid_vals[prev_i]
+                    curr_v = valid_vals[curr_i]
+                    if prev_v != 0:
+                        chg = ((curr_v - prev_v) / abs(prev_v)) * 100
+                        arrow = "↑" if chg > 0 else ("↓" if chg < 0 else "→")
+                        trend_str = f"{arrow} {abs(chg):.1f}%"
 
-                for pk in pre_keys:
-                    lbl = q["metric_labels"].get(pk, pk)
-                    vals = df[pk].tolist() if pk in df.columns else []
-                    fig_trend.add_trace(go.Scatter(
-                        x=df["date"].tolist(), y=vals,
-                        name=f"申诉前·{lbl.replace('申诉前-', '')}",
-                        line=dict(color="#ef4444", dash="dot"),
-                        mode="lines+markers",
-                        marker=dict(size=4),
-                    ))
+                lbl = q["metric_labels"].get(mk, mk)
+                with (stat_cols[ki + 1] if ki + 1 < len(stat_cols) else st.columns(1)[0]):
+                    st.metric(
+                        label=lbl,
+                        value=fmt_pct(last_val),
+                        delta=f"均{fmt_pct1(avg_val)} {trend_str}" if trend_str else f"均值 {fmt_pct1(avg_val)}",
+                    )
 
-                for pk in post_keys:
-                    lbl = q["metric_labels"].get(pk, pk)
-                    vals = df[pk].tolist() if pk in df.columns else []
-                    fig_trend.add_trace(go.Scatter(
-                        x=df["date"].tolist(), y=vals,
-                        name=f"申诉后·{lbl.replace('申诉后-', '')}",
-                        line=dict(color="#22c55e"),
-                        mode="lines+markers",
-                        marker=dict(size=4),
-                    ))
-            else:
+            # 图表区
+            c1, c2 = st.columns([2, 1])
+
+            with c1:
+                st.markdown("##### 📈 指标走势")
+                fig_trend = go.Figure()
+
                 chart_colors = ["#3b82f6", "#22c55e", "#ef4444", "#f97316", "#eab308", "#a855f7", "#06b6d4"]
                 for ki, mk in enumerate(q["metric_keys"]):
                     if mk not in df.columns:
@@ -425,148 +386,397 @@ for tab_idx, tab in enumerate(tabs):
                         marker=dict(size=3 if len(vals) > 15 else 5),
                     ))
 
-            fig_trend.update_layout(
-                height=380,
-                margin=dict(l=40, r=30, t=20, b=50),
-                legend=dict(font_size=11, orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
-                xaxis=dict(tickangle=-45, tickfont=dict(size=10)),
-                yaxis=dict(ticksuffix="", tickformat=".0%", range=[0, 1.05]),
-                hovermode="x unified",
-                template="plotly_white",
-            )
-            fig_trend.update_yaxes(tickformat=".0%")
-            st.plotly_chart(fig_trend, use_container_width=True)
+                fig_trend.update_layout(
+                    height=380,
+                    margin=dict(l=40, r=30, t=20, b=50),
+                    legend=dict(font_size=11, orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+                    xaxis=dict(tickangle=-45, tickfont=dict(size=10)),
+                    yaxis=dict(tickformat=".0%", range=[0, 1.05]),
+                    hovermode="x unified",
+                    template="plotly_white",
+                )
+                fig_trend.update_yaxes(tickformat=".0%")
+                st.plotly_chart(fig_trend, use_container_width=True)
 
-        # ── 辅助图表 ──
-        with c2:
-            lr_nz = find_latest_nonzero(df, q["metric_keys"])
+            # 辅助图表 — 环形图
+            with c2:
+                lr_nz = find_latest_nonzero(df, q["metric_keys"])
+                if lr_nz is not None:
+                    st.markdown("##### 🍩 最新指标构成")
+                    dk = [mk for mk in q["metric_keys"] if mk in lr_nz.index and pd.notna(lr_nz.get(mk))]
+                    dl = [q["metric_labels"].get(k, k) for k in dk]
+                    dv = [float(lr_nz[k]) for k in dk]
+                    if dv:
+                        fig_donut = go.Figure(go.Pie(
+                            labels=dl, values=dv,
+                            hole=0.55,
+                            textinfo="label+percent",
+                            textfont=dict(size=11),
+                            marker=dict(colors=[q["color"]] + px.colors.qualitative.Set2[:len(dv)-1]),
+                        ))
+                        fig_donut.update_layout(height=300, margin=dict(t=20, b=10, l=10, r=10), showlegend=True)
+                        st.plotly_chart(fig_donut, use_container_width=True)
 
-            if has_pp and lr_nz is not None:
-                try:
-                    st.markdown("##### ⚖️ 申诉效果对比")
-                    _pre_cats = ["违规准", "漏率", "准确率"]
-                    _pre_vals = [
-                        float(lr_nz.get("pre_violation_rate") or 0),
-                        float(lr_nz.get("pre_miss_rate") or 0),
-                        float(lr_nz.get("pre_accuracy") or 0),
-                    ]
-                    _post_vals = [
-                        float(lr_nz.get("post_violation_rate") or 0),
-                        float(lr_nz.get("post_miss_rate") or 0),
-                        float(lr_nz.get("post_accuracy") or 0),
-                    ]
-                    fig_bar = go.Figure()
-                    fig_bar.add_trace(go.Bar(
-                        name="申诉前", x=_pre_cats, y=_pre_vals,
-                        marker_color="rgba(239,68,68,0.6)", text=[fmt_pct(v) for v in _pre_vals],
-                        textposition="outside", textfont=dict(size=10),
-                    ))
-                    fig_bar.add_trace(go.Bar(
-                        name="申诉后", x=_pre_cats, y=_post_vals,
-                        marker_color="rgba(34,197,94,0.6)", text=[fmt_pct(v) for v in _post_vals],
-                        textposition="outside", textfont=dict(size=10),
-                    ))
-                    fig_bar.update_layout(
-                        height=300, barmode="group", legend_orientation="h",
-                        yaxis=dict(tickformat=".0%", range=[0, 1.05]),
-                        margin=dict(l=40, r=30, t=20, b=40), template="plotly_white",
-                    )
-                    st.plotly_chart(fig_bar, use_container_width=True)
-                except Exception as e:
-                    st.warning(f"⚠️ 申诉对比图生成失败: {e}")
+            # 雷达图
+            if len(q["metric_keys"]) >= 2:
+                st.markdown("##### 🎯 指标雷达（均值）")
+                avgs = []
+                for mk in q["metric_keys"]:
+                    if mk not in df.columns:
+                        avgs.append(0)
+                        continue
+                    vals = df[mk].dropna().tolist()
+                    avgs.append(sum(vals) / len(vals) if vals else 0)
 
-            elif lr_nz is not None:
-                st.markdown("##### 🍩 最新指标构成")
-                dk = [mk for mk in q["metric_keys"] if mk in lr_nz.index and pd.notna(lr_nz.get(mk))]
-                dl = [q["metric_labels"].get(k, k) for k in dk]
-                dv = [float(lr_nz[k]) for k in dk]
-                if dv:
-                    fig_donut = go.Figure(go.Pie(
-                        labels=dl, values=dv,
-                        hole=0.55,
-                        textinfo="label+percent",
-                        textfont=dict(size=11),
-                        marker=dict(colors=[q["color"]] + px.colors.qualitative.Set2[:len(dv)-1]),
-                    ))
-                    fig_donut.update_layout(height=300, margin=dict(t=20, b=10, l=10, r=10), showlegend=True)
-                    st.plotly_chart(fig_donut, use_container_width=True)
+                radar_labels = [q["metric_labels"].get(k, k) for k in q["metric_keys"]]
+                fig_radar = go.Figure(go.Scatterpolar(
+                    r=avgs, theta=radar_labels, fill="toself", name="均值",
+                    line=dict(color="#3b82f6"), marker=dict(color="#3b82f6", size=8),
+                ))
+                fig_radar.update_layout(
+                    height=280,
+                    polar=dict(radialaxis=dict(visible=True, tickformat=".0%", range=[0, 1])),
+                    template="plotly_white", margin=dict(t=20, b=10),
+                )
+                st.plotly_chart(fig_radar, use_container_width=True)
 
-        # ── 雷达图（仅当 metrics ≥ 2）──
-        if len(q["metric_keys"]) >= 2 and not has_pp:
-            st.markdown("##### 🎯 指标雷达（均值）")
-            avgs = []
+            # 数据明细表
+            st.divider()
+            st.markdown(f"##### 📋 **{q['name']}** 数据明细 ({len(df)} 条)")
+
+            disp_cols = ["date"] + q["metric_keys"]
+            disp_df = df[disp_cols].copy().sort_values("date", ascending=False).reset_index(drop=True)
+
             for mk in q["metric_keys"]:
-                if mk not in df.columns:
-                    avgs.append(0)
-                    continue
-                vals = df[mk].dropna().tolist()
-                avgs.append(sum(vals) / len(vals) if vals else 0)
+                if mk in disp_df.columns:
+                    disp_df[mk] = disp_df[mk].apply(fmt_pct)
 
-            radar_labels = [q["metric_labels"].get(k, k) for k in q["metric_keys"]]
-            fig_radar = go.Figure(go.Scatterpolar(
-                r=avgs, theta=radar_labels, fill="toself", name="均值",
-                line=dict(color="#3b82f6"), marker=dict(color="#3b82f6", size=8),
-            ))
-            fig_radar.update_layout(
-                height=280, polar=dict(radialaxis=dict(visible=True, tickformat=".0%", range=[0, 1])),
-                template="plotly_white", margin=dict(t=20, b=10),
+            rename_map = {"date": "📅 日期"}
+            for mk in q["metric_keys"]:
+                rename_map[mk] = q["metric_labels"].get(mk, mk)
+            disp_df.rename(columns=rename_map, inplace=True)
+
+            def highlight_cells(s):
+                result = [""] * len(s)
+                for i, v in enumerate(s):
+                    if isinstance(v, str) and v.endswith("%"):
+                        try:
+                            num = float(v.rstrip("%")) / 100
+                            if num < 0.9:
+                                result[i] = "background-color: #fef2f2; color: #dc2626; font-weight:600;"
+                            elif num >= 0.98:
+                                result[i] = "background-color: #f0fdf4; color: #16a34a; font-weight:600;"
+                        except (ValueError, TypeError):
+                            pass
+                return result
+
+            styled_df = disp_df.style.apply(highlight_cells, axis=0)
+            st.dataframe(styled_df, use_container_width=True, hide_index=True,
+                         height=min(max(40 * len(disp_df), 200), 500))
+
+            # 导出 Excel
+            to_excel = io.BytesIO()
+            raw_df = df[disp_cols].copy().sort_values("date", ascending=False).reset_index(drop=True)
+            raw_rename = {"date": "📅 日期"}
+            for mk in q["metric_keys"]:
+                raw_rename[mk] = q["metric_labels"].get(mk, mk)
+            raw_df.rename(columns=raw_rename, inplace=True)
+            raw_df.to_excel(to_excel, index=False, engine='xlsxwriter')
+            to_excel.seek(0)
+
+            st.download_button(
+                label=f"📥 导出 {q['name']} 数据 (.xlsx)",
+                data=to_excel,
+                file_name=f"{q['name']}_质检数据_{datetime.now().strftime('%Y%m%d')}.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                key=f"dl_{qid}",
             )
-            st.plotly_chart(fig_radar, use_container_width=True)
 
-        # ── 数据明细表 ──
-        st.divider()
-        st.markdown(f"##### 📋 **{q['name']}** 数据明细 ({len(df)} 条)")
+    # Footer
+    st.divider()
+    st.markdown(
+        '<div style="text-align:center;color:#94a3b8;font-size:11px;padding:10px 0">'
+        '📊 QC Dashboard v2.0 · Powered by Streamlit + Plotly · '
+        f'<span style="opacity:0.7">{datetime.now().strftime("%Y-%m-%d %H:%M:%S")}</span></div>',
+        unsafe_allow_html=True,
+    )
 
-        # 准备展示用的 DataFrame
-        disp_cols = ["date"] + q["metric_keys"]
-        disp_df = df[disp_cols].copy().sort_values("date", ascending=False).reset_index(drop=True)
 
-        # 格式化百分比
-        for mk in q["metric_keys"]:
-            if mk in disp_df.columns:
-                disp_df[mk] = disp_df[mk].apply(fmt_pct)
+def render_upload():
+    """上传质检 Excel 页面"""
 
-        # 重命名列
-        rename_map = {"date": "📅 日期"}
-        for mk in q["metric_keys"]:
-            rename_map[mk] = q["metric_labels"].get(mk, mk)
-        disp_df.rename(columns=rename_map, inplace=True)
+    st.markdown("# 上传质检 Excel")
+    st.caption("支持 `.xlsx` / `.xls` 格式。可拖拽多个文件批量上传。")
 
-        # 高亮颜色函数
-        def highlight_cells(s):
-            """<90% 红色，≥98% 绿色"""
-            result = [""] * len(s)
-            for i, v in enumerate(s):
-                if isinstance(v, str) and v.endswith("%"):
-                    try:
-                        num = float(v.rstrip("%")) / 100
-                        if num < 0.9:
-                            result[i] = "background-color: #fef2f2; color: #dc2626; font-weight:600;"
-                        elif num >= 0.98:
-                            result[i] = "background-color: #f0fdf4; color: #16a34a; font-weight:600;"
-                    except (ValueError, TypeError):
-                        pass
-            return result
+    # 文件上传区域
+    uploaded_files = st.file_uploader(
+        "选择质检文件（支持拖拽多选）",
+        type=["xlsx", "xls"],
+        accept_multiple_files=True,
+        help="支持 .xlsx 和 .xls 格式，可同时选择多个文件",
+    )
 
-        styled_df = disp_df.style.apply(highlight_cells, axis=0)
-        st.dataframe(styled_df, use_container_width=True, hide_index=True, height=min(max(40 * len(disp_df), 200), 500))
+    if uploaded_files:
+        st.success(f"已选择 **{len(uploaded_files)}** 个文件：")
+        file_info = []
+        for uf in uploaded_files:
+            size_kb = round(len(uf.getvalue()) / 1024, 1)
+            file_info.append(f"- **{uf.name}** ({size_kb} KB)")
+        st.markdown("\n".join(file_info))
 
-        # ── 导出 CSV ──
-        csv_data = disp_df.to_csv(index=False, encoding="utf-8-sig").encode("utf-8-sig")
-        st.download_button(
-            label="📥 导出 CSV（Excel 兼容）",
-            data=csv_data,
-            file_name=f"{q['name']}_质检数据_{datetime.now().strftime('%Y%m%d')}.csv",
-            mime="text/csv",
-            key=f"dl_{qid}",
+    st.divider()
+
+    # 批量导入按钮
+    if uploaded_files and st.button("⬆️ 批量导入质检数据", type="primary", use_container_width=True):
+        process_uploads(uploaded_files)
+
+
+def process_uploads(uploaded_files):
+    """处理用户上传的文件并导入数据库"""
+    import yaml
+
+    progress_bar = st.progress(0, "准备导入...")
+    status_text = st.empty()
+    results = []
+
+    config_path = os.path.join(BASE, "config.yaml")
+    with open(config_path, "r") as cf:
+        config = yaml.safe_load(cf)
+    queue_configs = {qc["id"]: qc for qc in config.get("queues", [])}
+
+    total = len(uploaded_files)
+    success_count = 0
+    skip_count = 0
+    error_count = 0
+
+    for i, uf in enumerate(uploaded_files):
+        try:
+            status_text.text(f"[{i+1}/{total}] 正在处理: **{uf.name}** ...")
+            progress_bar.progress((i + 0.5) / total)
+
+            # 保存到 uploads 目录
+            save_path = os.path.join(UPLOAD_DIR, f"{datetime.now().strftime('%Y%m%d%H%M%S')}_{uf.name}")
+            with open(save_path, "wb") as f:
+                f.write(uf.getvalue())
+
+            # 尝试读取 Excel
+            bytes_io = io.BytesIO(uf.getvalue())
+            xl_sheets = pd.ExcelFile(bytes_io)
+            first_sheet = xl_sheets.sheet_names[0]
+            df = pd.read_excel(bytes_io, sheet_name=first_sheet)
+
+            # 预览信息
+            results.append({
+                "file": uf.name,
+                "status": "✅ 已读取",
+                "rows": len(df),
+                "cols": len(df.columns),
+                "sheet": first_sheet,
+            })
+            success_count += 1
+
+        except Exception as e:
+            results.append({
+                "file": uf.name,
+                "status": f"❌ 失败: {str(e)[:80]}",
+                "rows": 0,
+                "cols": 0,
+                "sheet": "-",
+            })
+            error_count += 1
+
+    progress_bar.progress(1.0, "完成！")
+    status_text.text("导入完成")
+
+    # 结果汇总
+    st.divider()
+    st.subheader("📊 导入结果")
+    c_ok, c_skip, c_err = st.columns(3)
+    c_ok.metric("成功", success_count)
+    c_skip.metric("跳过", skip_count)
+    c_err.metric("失败", error_count)
+
+    if results:
+        res_df = pd.DataFrame(results)
+        st.dataframe(res_df, use_container_width=True, hide_index=True)
+
+    if success_count > 0:
+        st.info(
+            "💡 **提示**: 文件已保存至 `data/uploads/` 目录。"
+            "如需将数据正式写入数据库的 `daily_metrics` 表，请使用「一键刷新」功能运行 refresh.sh 脚本。"
         )
 
 
-# ── Footer ──
-st.divider()
-st.markdown(
-    '<div style="text-align:center;color:#94a3b8;font-size:11px;padding:10px 0">'
-    '📊 QC Dashboard · 7 队列 · Powered by Streamlit + Plotly · '
-    f'<span style="opacity:0.7">{datetime.now().strftime("%Y-%m-%d %H:%M:%S")}</span></div>',
-    unsafe_allow_html=True,
-)
+def render_refresh():
+    """一键刷新页面"""
+    st.markdown("# 一键刷新")
+
+    st.markdown("### 🔄 从企微智能表格拉取最新数据")
+
+    st.info(
+        "此功能需要本地运行环境（含 Playwright 浏览器 profile）。"
+        "\n\n在 Streamlit Cloud 上不可用，请在本机终端执行:"
+    )
+
+    st.code(
+        "cd qc-dashboard && bash refresh.sh",
+        language="bash",
+    )
+
+    st.markdown("---")
+    st.markdown("### 📂 从上传文件导入数据库")
+
+    # 列出已有上传文件
+    upload_files = sorted(os.listdir(UPLOAD_DIR)) if os.path.isdir(UPLOAD_DIR) else []
+    if upload_files:
+        st.caption(f"`{UPLOAD_DIR}` 中有 **{len(upload_files)}** 个已上传文件:")
+        st.dataframe(pd.DataFrame({"文件名": upload_files}), hide_index=True)
+    else:
+        st.info("暂无已上传文件。请先在「上传记录」页面上传 Excel 文件。")
+
+
+def render_history():
+    """上传记录页面"""
+    st.markdown("# 上传记录")
+
+    upload_files = sorted(os.listdir(UPLOAD_DIR)) if os.path.isdir(UPLOAD_DIR) else []
+
+    if not upload_files:
+        st.info("暂无上传记录。请在「质检数据」→「上传」页面上传文件。")
+        return
+
+    records = []
+    for fn in upload_files:
+        fp = os.path.join(UPLOAD_DIR, fn)
+        stat = os.stat(fp)
+        size_kb = round(stat.st_size / 1024, 1)
+        mtime = datetime.fromtimestamp(stat.st_mtime).strftime("%Y-%m-%d %H:%M:%S")
+        records.append({
+            "文件名": fn,
+            "大小 (KB)": size_kb,
+            "上传时间": mtime,
+            "路径": fp,
+        })
+
+    df_rec = pd.DataFrame(records)
+    st.dataframe(df_rec, use_container_width=True, hide_index=True)
+
+    st.divider()
+    if st.button("🗑️ 清空所有上传记录", type="secondary"):
+        import shutil
+        shutil.rmtree(UPLOAD_DIR)
+        os.makedirs(UPLOAD_DIR, exist_ok=True)
+        st.success("已清空所有上传记录。")
+        st.rerun()
+
+
+def render_clear_cache():
+    """清除缓存页面"""
+    st.markdown("# 清除缓存")
+
+    st.warning("这将清除所有 Streamlit 数据缓存（@st.cache_data），不会删除数据库中的数据。")
+
+    if st.button("🧹 清除缓存", type="primary", use_container_width=True):
+        st.cache_data.clear()
+        st.success("✅ 缓存已清除！页面将在 3 秒后自动刷新...")
+        time.sleep(3)
+        st.rerun()
+
+    st.divider()
+    st.markdown("### 当前缓存状态")
+    st.json({
+        "cached_functions": [
+            "load_all_queue_data() — TTL: 60s",
+        ],
+        "tip": "清除缓存后下次访问会重新从 SQLite 加载数据。",
+    })
+
+
+def render_clear_data():
+    """清除数据页面"""
+    st.markdown("# ⚠️ 清除数据")
+
+    st.error("**危险操作！** 此操作将永久删除数据库中的所有质检数据，且不可恢复。")
+
+    st.divider()
+
+    # 显示当前数据统计
+    conn = sqlite3.connect(DB_PATH)
+    count_df = pd.read_sql_query(
+        "SELECT queue_id, COUNT(*) as cnt, MIN(date) as min_d, MAX(date) as max_d FROM daily_metrics GROUP BY queue_id",
+        conn,
+    )
+    conn.close()
+
+    if not count_df.empty:
+        st.markdown("#### 当前数据库内容:")
+        for _, row in count_df.iterrows():
+            q = QUEUE_MAP.get(row["queue_id"])
+            name = q["name"] if q else row["queue_id"]
+            st.write(f"- **{name}**: {row['cnt']} 条 (`{row['min_d']}` ~ `{row['max_d']}`)")
+    else:
+        st.info("数据库为空。")
+
+    st.divider()
+
+    confirm_text = st.text_input(
+        "请输入 **CONFIRM** 以确认删除全部数据:",
+        placeholder="CONFIRM",
+    )
+
+    if confirm_text.strip().upper() == "CONFIRM":
+        if st.button("🗑️ 确认清除全部数据", type="primary", use_container_width=True):
+            # 备份后再删？
+            conn = sqlite3.connect(DB_PATH)
+            cursor = conn.cursor()
+            cursor.execute("DELETE FROM daily_metrics")
+            deleted = cursor.rowcount
+            conn.commit()
+            conn.close()
+
+            st.success(f"已删除 **{deleted}** 条记录。")
+            st.cache_data.clear()
+            time.sleep(2)
+            st.rerun()
+    elif confirm_text:
+        st.warning("请输入正确的确认文字: CONFIRM")
+
+
+# ================================================================
+#  主程序 — 顶部标签导航
+# ================================================================
+
+PAGES = [
+    ("dashboard",   "质检数据"),
+    ("upload",      "上传记录"),
+    ("refresh",     "一键刷新"),
+    ("clear_cache", "清除缓存"),
+    ("clear_data",  "清除数据"),
+]
+
+page_names = [p[1] for p in PAGES]
+page_keys = [p[0] for p in PAGES]
+
+# 顶部标签导航
+tab_idx = st.tabs(page_names)
+
+for idx, tab in enumerate(tab_idx):
+    with tab:
+        page_key = page_keys[idx]
+
+        if page_key == "dashboard":
+            with st.spinner("加载中..."):
+                all_data = load_all_queue_data()
+            render_dashboard(all_data)
+
+        elif page_key == "upload":
+            render_upload()
+
+        elif page_key == "refresh":
+            render_refresh()
+
+        elif page_key == "clear_cache":
+            render_clear_cache()
+
+        elif page_key == "clear_data":
+            render_clear_data()
