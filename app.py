@@ -442,35 +442,38 @@ for tab_idx, tab in enumerate(tabs):
             lr_nz = find_latest_nonzero(df, q["metric_keys"])
 
             if has_pp and lr_nz is not None:
-                st.markdown("##### ⚖️ 申诉效果对比")
-                pre_cats = ["违规准", "漏率", "准确率"]
-                pre_vals = [
-                    float(lr_nz.get("pre_violation_rate") or 0),
-                    float(lr_nz.get("pre_miss_rate") or 0),
-                    float(lr_nz.get("pre_accuracy") or 0),
-                ]
-                post_vals = [
-                    float(lr_nz.get("post_violation_rate") or 0),
-                    float(lr_nz.get("post_miss_rate") or 0),
-                    float(lr_nz.get("post_accuracy") or 0),
-                ]
-                fig_bar = go.Figure()
-                fig_bar.add_trace(go.Bar(
-                    name="申诉前", x=pre_cats, y=pre_vals,
-                    marker_color="rgba(239,68,68,0.6)", text=[fmt_pct(v) for v in pre_vals],
-                    textposition="outside", textfont=dict(size=10),
-                ))
-                fig_bar.add_trace(go.Bar(
-                    name="申诉后", x=post_cats, y=post_vals,
-                    marker_color="rgba(34,197,94,0.6)", text=[fmt_pct(v) for v in post_vals],
-                    textposition="outside", textfont=dict(size=10),
-                ))
-                fig_bar.update_layout(
-                    height=300, barmode="group", legend_orientation="h",
-                    yaxis=dict(tickformat=".0%", range=[0, 1.05]),
-                    margin=dict(l=40, r=30, t=20, b=40), template="plotly_white",
-                )
-                st.plotly_chart(fig_bar, use_container_width=True)
+                try:
+                    st.markdown("##### ⚖️ 申诉效果对比")
+                    _pre_cats = ["违规准", "漏率", "准确率"]
+                    _pre_vals = [
+                        float(lr_nz.get("pre_violation_rate") or 0),
+                        float(lr_nz.get("pre_miss_rate") or 0),
+                        float(lr_nz.get("pre_accuracy") or 0),
+                    ]
+                    _post_vals = [
+                        float(lr_nz.get("post_violation_rate") or 0),
+                        float(lr_nz.get("post_miss_rate") or 0),
+                        float(lr_nz.get("post_accuracy") or 0),
+                    ]
+                    fig_bar = go.Figure()
+                    fig_bar.add_trace(go.Bar(
+                        name="申诉前", x=_pre_cats, y=_pre_vals,
+                        marker_color="rgba(239,68,68,0.6)", text=[fmt_pct(v) for v in _pre_vals],
+                        textposition="outside", textfont=dict(size=10),
+                    ))
+                    fig_bar.add_trace(go.Bar(
+                        name="申诉后", x=_pre_cats, y=_post_vals,
+                        marker_color="rgba(34,197,94,0.6)", text=[fmt_pct(v) for v in _post_vals],
+                        textposition="outside", textfont=dict(size=10),
+                    ))
+                    fig_bar.update_layout(
+                        height=300, barmode="group", legend_orientation="h",
+                        yaxis=dict(tickformat=".0%", range=[0, 1.05]),
+                        margin=dict(l=40, r=30, t=20, b=40), template="plotly_white",
+                    )
+                    st.plotly_chart(fig_bar, use_container_width=True)
+                except Exception as e:
+                    st.warning(f"⚠️ 申诉对比图生成失败: {e}")
 
             elif lr_nz is not None:
                 st.markdown("##### 🍩 最新指标构成")
