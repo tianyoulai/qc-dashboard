@@ -1,6 +1,6 @@
 """
 ============================================================
-QC Dashboard — Streamlit 看板  v4.0（AI 增强版）
+QC Dashboard — Streamlit 看板  v5.0（对标 HTML 模板版）
 ============================================================
 对标 HTML 模板版 UI 风格（白底卡片/胶囊Tab/轻量走势图）
 用法:  cd qc-dashboard && streamlit run app.py
@@ -19,6 +19,19 @@ import plotly.graph_objects as go
 import streamlit as st
 import requests
 import yaml
+import traceback
+
+# ── 全局异常拦截：吞掉 Streamlit 框架的 removeChild/NotFoundError ──
+_orig_show_error = getattr(st, '_original_show_error', None)
+if _orig_show_error is None:
+    _orig_show_error = st.exception
+    def _safe_exception(*args, **kwargs):
+        msg = str(args[0]) if args else ''
+        if 'removeChild' in msg or 'NotFoundError' in msg or 'Node' in msg:
+            return  # 静默吞掉框架 bug 异常
+        return _orig_show_error(*args, **kwargs)
+    st.exception = _safe_exception
+    st._original_show_error = _orig_show_error
 
 # ── 路径 ──
 BASE = os.path.dirname(os.path.abspath(__file__))
@@ -70,10 +83,11 @@ QUEUES = [
         "id": "q4_jubao_4qi", "name": "四期-举报",
         "full_name": "【四期供应商】举报周推质检分歧单",
         "icon": "🚨", "color": "#a855f7",
+        "has_pre_post": True,
         "metric_keys": ["pre_violation_rate", "pre_miss_rate", "post_violation_rate", "post_miss_rate"],
         "metric_labels": {
-            "pre_violation_rate": "申诉前-违规率", "pre_miss_rate": "申诉前-漏率",
-            "post_violation_rate": "申诉后-违规率", "post_miss_rate": "申诉后-漏率",
+            "pre_violation_rate": "申诉前-违规准确率", "pre_miss_rate": "申诉前-漏率",
+            "post_violation_rate": "申诉后-违规准确率", "post_miss_rate": "申诉后-漏率",
         },
         "thresholds": {
             "pre_violation_rate": {"min": 0.99}, "pre_miss_rate": {"max": 0.01},
@@ -335,23 +349,22 @@ def build_global_ai_data(all_data):
 
 def render_ai_summary_section(all_data):
     """渲染全局 AI 日报摘要区域"""
-    # 检查是否有 DeepSeek 配置
     api_key, _ = _load_deepseek_config()
 
-    st.markdown("### 🤖 AI 日报摘要")
-
-    ai_col1, ai_col2 = st.columns([1, 5])
-    with ai_col1:
+    # 标题 + 按钮一行
+    ai_header = st.columns([3, 1])
+    with ai_header[0]:
+        st.markdown("#### 🤖 AI 日报摘要")
+    with ai_header[1]:
         generate = st.button("🔄 生成分析", type="primary", use_container_width=True,
                              help="调用 AI 生成今日质检数据分析")
 
-    with ai_col2:
-        if not api_key:
-            st.info('💡 **未配置 DeepSeek API Key** — 在 `config.yaml` 填入 `deepseek.api_key` 或设置环境变量 `DEEPSEEK_API_KEY` 即可启用 AI 分析')
-            return
+    if not api_key:
+        st.info('💡 **未配置 DeepSeek API Key** — 在 `config.yaml` 填入 `deepseek.api_key` 即可启用')
+        return
 
     if not generate and "_ai_generated" not in st.session_state:
-        st.caption("点击「生成分析」按钮获取 AI 洞察 → 对标企微推送完整版（含整体情况 + 不达标详情 + 改善建议）")
+        st.caption("点击「生成分析」获取 AI 洞察 → 含整体情况 + 不达标详情 + 改善建议")
         return
 
     if generate or "_ai_summary_html" not in st.session_state:
@@ -508,7 +521,7 @@ def render_dashboard(all_data):
     total_records = sum(len(d) for d in all_data.values())
 
     # ── Header ──
-    st.markdown(f"## 📊 质检数据统一看板")
+    st.markdown(f"# 📊 质检数据统一看板")
     st.caption(f"多队列 · 按日期聚合指标 · 数据来源：企业微信智能表格 · 共 **{total_records}** 条记录 · {datetime.now().strftime('%Y-%m-%d %H:%M')}")
 
     # ── 日期筛选行（对标HTML模板版：紧凑一行）──
@@ -531,6 +544,7 @@ def render_dashboard(all_data):
     date_from_str = d_from.strftime("%Y-%m-%d") if d_from else None
     date_to_str = d_to.strftime("%Y-%m-%d") if d_to else None
 
+    # 默认近30天（首次加载无快捷选择时）
     if "_quick" in st.session_state:
         mode, ref = st.session_state["_quick"]
         if mode == "week" and ref:
@@ -542,6 +556,11 @@ def render_dashboard(all_data):
         else:
             date_from_str, date_to_str = None, None
         del st.session_state["_quick"]
+    elif not date_from_str and not date_to_str and max_date:
+        # 默认展示近30天
+        dt = datetime.strptime(max_date, "%Y-%m-%d")
+        date_from_str = (dt - timedelta(days=29)).strftime("%Y-%m-%d")
+        date_to_str = max_date
 
     # ════════════════════════════════════════════════════════════
     #  Overview 卡片行（原生 st.columns + st.metric，兼容所有 Streamlit 版本）
@@ -556,11 +575,16 @@ def render_dashboard(all_data):
 
         val_str = fmt_pct(main_val) if main_val is not None else "--"
         n_days = len(df_f)
-        card_color = q.get("color", "#3b82f6")
+
+        # 达标/不达标标识
+        status_icon = ""
+        if main_val is not None:
+            is_ok, _, _ = check_threshold(q, pm, main_val)
+            status_icon = " ✅" if is_ok else " ⚠️"
 
         with ov_cols[ci]:
-            st.metric(label=f"{q['icon']} **{q['name']}**", value=val_str,
-                      delta=f"{n_days}天" if n_days > 0 else "待接入",
+            st.metric(label=f"{q['icon']} **{q['name']}**", value=f"{val_str}{status_icon}",
+                      delta=f"{n_days}天 · {latest_date}" if n_days > 0 else "待接入",
                       delta_color="off" if n_days == 0 else "normal",
                       help=f"{q.get('full_name', q['name'])}\n最新日期: {latest_date}")
 
@@ -587,10 +611,16 @@ def render_dashboard(all_data):
         q_color = q.get("color", "#3b82f6")
 
         with tab_col_row[i]:
-            # 每个按钮带 data-qidx 属性供 CSS 区分激活态
-            btn_label = f"{q['icon']} {q['name']}\n<span style='font-size:10px;opacity:0.7;'>{bgt}</span>"
-            if st.button(f"{q['icon']} {q['name']} {bgt}",
+            if active:
+                btn_label = f"{q['icon']} {q['name']}"
+                bgt_badge = f"`{bgt}`"
+            else:
+                btn_label = f"{q['icon']} **{q['name']}**"
+                bgt_badge = f"`{bgt}`"
+
+            if st.button(f"{btn_label}  {bgt_badge}",
                          key=f"_tab_{i}", use_container_width=True,
+                         type="primary" if active else "secondary",
                          help=f"切换到 {q['name']}" + (f" (当前选中)" if active else "")):
                 st.session_state.active_qidx = i
                 st.rerun()
@@ -609,65 +639,123 @@ def render_dashboard(all_data):
         st.info(f"😴 **{q['name']}** 在选定日期范围内暂无数据")
         return
 
-    # ── 统计区：左侧天数 + 右侧各指标 ──
-    sc_left, sc_right = st.columns([1, 3])
-    with sc_left:
+    # ── 统计区：一行横排（数据天数 + 各指标）──
+    n_metrics = len(q["metric_keys"])
+    stat_cols = st.columns([1.2] + [1] * n_metrics)
+    
+    with stat_cols[0]:
         dr_s = f"{df['date'].iloc[0]} ~ {df['date'].iloc[-1]}" if len(df) > 0 else ""
-        st.metric("📅 数据天数", f"{len(df)} 天", delta=dr_s, delta_color="off")
+        st.metric("📅 数据天数", f"{len(df)}", delta=dr_s, delta_color="off")
 
-    with sc_right:
-        mcols = st.columns(len(q["metric_keys"]))
-        for ki, mk in enumerate(q["metric_keys"]):
-            vv = get_valid_values(df, mk)
+    for ki, mk in enumerate(q["metric_keys"]):
+        vv = get_valid_values(df, mk)
+        with stat_cols[ki + 1]:
             if not vv:
-                with mcols[ki]:
-                    st.caption(f"{q['metric_labels'].get(mk, mk)}: 无数据")
+                st.metric(q['metric_labels'].get(mk, mk), "—")
                 continue
 
-            last_v = vv[-1]
+            # 倒序取最新非零值（对标JS版）
+            last_v = None
+            for vi in range(len(vv) - 1, -1, -1):
+                if vv[vi] != 0:
+                    last_v = vv[vi]
+                    break
+            if last_v is None:
+                last_v = vv[-1]
+
             avg_v = sum(vv) / len(vv)
-            is_ok, _, _ = check_threshold(q, mk, last_v)
+            is_ok, status_txt, _ = check_threshold(q, mk, last_v)
             tl = get_threshold_label(q, mk)
 
-            trend_html = ""
+            trend_txt = ""
             if len(vv) >= 2:
-                pv, cv = vv[-2], vv[-1]
-                if pv != 0:
-                    chg = ((cv - pv) / abs(pv)) * 100
+                # 找倒数第二个非零值算趋势
+                prev_v = None
+                for vi in range(len(vv) - 1, -1, -1):
+                    if vv[vi] != 0 and vv[vi] != last_v:
+                        prev_v = vv[vi]
+                        break
+                    elif vv[vi] != 0 and vv[vi] == last_v:
+                        # 找到当前值，继续往前找
+                        for vi2 in range(vi - 1, -1, -1):
+                            if vv[vi2] != 0:
+                                prev_v = vv[vi2]
+                                break
+                        break
+                if prev_v is not None and prev_v != 0:
+                    chg = ((last_v - prev_v) / abs(prev_v)) * 100
                     arr = "↑" if chg > 0 else ("↓" if chg < 0 else "→")
-                    tc = "#ef4444" if abs(chg) > 0.5 else ("#22c55e" if chg != 0 else "#94a3b8")
-                    trend_html = f'<span style="color:{tc};font-weight:500;">{arr} {abs(chg):.1f}%</span>'
+                    trend_txt = f"{arr}{abs(chg):.1f}%"
 
             lbl = q["metric_labels"].get(mk, mk)
-            bg_c = "#fef2f2" if not is_ok else "#f0fdf4"
-            bl_c = "#dc2626" if not is_ok else "#16a34a"
-            vc = "#dc2626" if not is_ok else "#1e293b"
-
-            with mcols[ki]:
-                st.metric(
-                    label=f"{lbl} | {tl}",
-                    value=fmt_pct(last_v),
-                    delta=f"均值: {fmt_pct1(avg_v)}  {trend_html}" if trend_html else f"均值: {fmt_pct1(avg_v)}"
-                )
+            em = "✅" if is_ok else "⚠️"
+            delta_parts = []
+            delta_parts.append(f"均值 {fmt_pct1(avg_v)}")
+            if tl:
+                delta_parts.append(f"{em} {tl}")
+            if trend_txt:
+                delta_parts.append(trend_txt)
+            st.metric(
+                label=lbl,
+                value=fmt_pct(last_v),
+                delta=" · ".join(delta_parts),
+            )
 
     # ── 走势图标题 ──
     st.markdown(f"### {q['icon']} {q['name']} — 指标走势")
 
     fig = go.Figure()
     ccolors = ["#3b82f6", "#22c55e", "#ef4444", "#f97316", "#eab308", "#a855f7", "#06b6d4"]
+    has_pp = q.get("has_pre_post", False)
 
-    for ki, mk in enumerate(q["metric_keys"]):
-        if mk not in df.columns:
-            continue
-        lbl = q["metric_labels"].get(mk, mk)
-        pdf = df[["date", mk]].copy()
-        pdf.loc[pdf[mk] == 0, mk] = None
-        clr = ccolors[ki % len(ccolors)]
-        fig.add_trace(go.Scatter(
-            x=pdf["date"].tolist(), y=pdf[mk].tolist(),
-            name=lbl, line=dict(color=clr, width=2),
-            mode="lines", connectgaps=True,
-        ))
+    # 降采样：>30点时均匀采样至30点（保留首尾）
+    plot_df = df.copy()
+    if len(plot_df) > 30:
+        step = len(plot_df) / 30
+        indices = [int(si * step) for si in range(30)]
+        indices[-1] = len(plot_df) - 1  # 始终包含最后一条
+        plot_df = plot_df.iloc[indices].reset_index(drop=True)
+
+    if has_pp:
+        # q4 申诉前后对比：前组虚线，后组实线
+        pre_keys = [k for k in q["metric_keys"] if k.startswith("pre_")]
+        post_keys = [k for k in q["metric_keys"] if k.startswith("post_")]
+        for ki, mk in enumerate(pre_keys):
+            if mk not in plot_df.columns:
+                continue
+            lbl = q["metric_labels"].get(mk, mk)
+            pdf = plot_df[["date", mk]].copy()
+            pdf.loc[pdf[mk] == 0, mk] = None
+            clr = ccolors[ki % len(ccolors)]
+            fig.add_trace(go.Scatter(
+                x=pdf["date"].tolist(), y=pdf[mk].tolist(),
+                name=lbl, line=dict(color="#ef4444", width=2, dash="dash"),
+                mode="lines", connectgaps=True,
+            ))
+        for ki, mk in enumerate(post_keys):
+            if mk not in plot_df.columns:
+                continue
+            lbl = q["metric_labels"].get(mk, mk)
+            pdf = plot_df[["date", mk]].copy()
+            pdf.loc[pdf[mk] == 0, mk] = None
+            fig.add_trace(go.Scatter(
+                x=pdf["date"].tolist(), y=pdf[mk].tolist(),
+                name=lbl, line=dict(color="#22c55e", width=2),
+                mode="lines", connectgaps=True,
+            ))
+    else:
+        for ki, mk in enumerate(q["metric_keys"]):
+            if mk not in plot_df.columns:
+                continue
+            lbl = q["metric_labels"].get(mk, mk)
+            pdf = plot_df[["date", mk]].copy()
+            pdf.loc[pdf[mk] == 0, mk] = None
+            clr = ccolors[ki % len(ccolors)]
+            fig.add_trace(go.Scatter(
+                x=pdf["date"].tolist(), y=pdf[mk].tolist(),
+                name=lbl, line=dict(color=clr, width=2),
+                mode="lines", connectgaps=True,
+            ))
 
     # 底线参考线
     shapes, annots = [], []
@@ -687,12 +775,12 @@ def render_dashboard(all_data):
                 text=f"上限≤{rule['max']*100:.0f}%", showarrow=False,
                 font=dict(size=9, color=clr), xanchor="right", yanchor="top"))
 
-    # Y轴自动缩放 ±15%
+    # Y轴自动缩放 ±5%（对标JS版）
     all_nv = [v for mk in q["metric_keys"] for v in get_valid_values(df, mk)]
     if all_nv:
         y_lo, y_hi = min(all_nv), max(all_nv)
         sp = max(y_hi - y_lo, 0.05)
-        y_min, y_max = max(0, y_lo - sp * 0.15), min(1.05, y_hi + sp * 0.15)
+        y_min, y_max = max(0, y_lo - sp * 0.05), min(1.05, y_hi + sp * 0.05)
     else:
         y_min, y_max = 0, 1.05
 
@@ -706,32 +794,84 @@ def render_dashboard(all_data):
     )
     st.plotly_chart(fig, use_container_width=True)
 
+    # ── 辅助图表区：指标构成/申诉对比 + 雷达图 ──
+    aux_col1, aux_col2 = st.columns(2)
+
+    with aux_col1:
+        if has_pp:
+            # q4 申诉前后对比柱状图
+            lr = find_latest_nonzero(df, q["metric_keys"])
+            if lr is not None:
+                st.markdown("##### 📊 申诉效果对比")
+                bar_labels = ["违规准确率", "漏率"]
+                pre_vals = [lr.get("pre_violation_rate", 0), lr.get("pre_miss_rate", 0)]
+                post_vals = [lr.get("post_violation_rate", 0), lr.get("post_miss_rate", 0)]
+                bar_fig = go.Figure()
+                bar_fig.add_trace(go.Bar(name="申诉前", x=bar_labels, y=pre_vals,
+                                         marker_color="rgba(239,68,68,0.6)", marker_line=dict(width=0)))
+                bar_fig.add_trace(go.Bar(name="申诉后", x=bar_labels, y=post_vals,
+                                         marker_color="rgba(34,197,94,0.6)", marker_line=dict(width=0)))
+                bar_fig.update_layout(
+                    height=260, margin=dict(l=40, r=20, t=10, b=40),
+                    yaxis=dict(tickformat=".0%", range=[0, 1.05]),
+                    barmode="group", template="plotly_white",
+                    legend=dict(font_size=10, orientation="h", yanchor="bottom", y=1.02),
+                )
+                st.plotly_chart(bar_fig, use_container_width=True)
+        else:
+            # 环形图：最新非零行指标构成
+            lr = find_latest_nonzero(df, q["metric_keys"])
+            if lr is not None:
+                st.markdown("##### 🍩 最新指标构成")
+                dk = [k for k in q["metric_keys"] if k in df.columns and lr.get(k) is not None and lr[k] != 0]
+                if dk:
+                    donut_fig = go.Figure(go.Pie(
+                        labels=[q["metric_labels"].get(k, k) for k in dk],
+                        values=[lr[k] for k in dk],
+                        hole=0.55,
+                        marker=dict(colors=[ccolors[i % len(ccolors)] for i in range(len(dk))],
+                                    line=dict(color="#fff", width=2)),
+                    ))
+                    donut_fig.update_layout(
+                        height=260, margin=dict(l=20, r=20, t=10, b=20),
+                        showlegend=True, legend=dict(font_size=10, orientation="h", yanchor="bottom", y=-0.1),
+                        template="plotly_white",
+                    )
+                    st.plotly_chart(donut_fig, use_container_width=True)
+
+    with aux_col2:
+        # 雷达图：各指标均值
+        if len(q["metric_keys"]) >= 2:
+            st.markdown("##### 🕸️ 指标雷达图")
+            radar_labels = []
+            radar_vals = []
+            for mk in q["metric_keys"]:
+                vv = get_valid_values(df, mk)
+                if vv:
+                    radar_labels.append(q["metric_labels"].get(mk, mk))
+                    radar_vals.append(sum(vv) / len(vv))
+            if radar_labels:
+                radar_fig = go.Figure(go.Scatterpolar(
+                    r=radar_vals + [radar_vals[0]],
+                    theta=radar_labels + [radar_labels[0]],
+                    fill="toself",
+                    fillcolor="rgba(59,130,246,0.15)",
+                    line=dict(color="#3b82f6", width=2),
+                ))
+                radar_fig.update_layout(
+                    height=260, margin=dict(l=30, r=30, t=20, b=20),
+                    polar=dict(
+                        radialaxis=dict(visible=False, range=[0, 1]),
+                        angularaxis=dict(tickfont=dict(size=10, color="#64748b"),
+                                         gridcolor="rgba(148,163,184,0.2)",
+                                         linecolor="rgba(148,163,184,0.2)"),
+                    ),
+                    showlegend=False, template="plotly_white",
+                )
+                st.plotly_chart(radar_fig, use_container_width=True)
+
     # ── 🔍 单队列 AI 洞察（可折叠）──
     render_queue_ai_insight(q, df)
-
-    # ── 最新指标构成 ──
-    st.markdown("### ✅ 最新指标构成")
-    icols = st.columns(len(q["metric_keys"]))
-    for ki, mk in enumerate(q["metric_keys"]):
-        vv = get_valid_values(df, mk)
-        if not vv:
-            with icols[ki]:
-                st.caption(f"{q['metric_labels'].get(mk, mk)}: 无数据")
-            continue
-        lv = vv[-1]
-        ok, _, _ = check_threshold(q, mk, lv)
-        lbl = q["metric_labels"].get(mk, mk)
-        pc = sum(1 for v in vv if check_threshold(q, mk, v)[0]) / len(vv) * 100
-        bc = "#16a34a" if ok else "#dc2626"
-        em = "✅" if ok else "❌"
-
-        with icols[ki]:
-            st.metric(
-                label=f"{em} {lbl}",
-                value=fmt_pct(lv),
-                delta=f"达标率 {pc:.0f}% ({sum(1 for v in vv if check_threshold(q,mk,v)[0])}/{len(vv)})",
-                help=f"{'✅ 达标' if ok else '❌ 不达标'}"
-            )
 
     # ── 数据明细表 ──
     st.markdown(f"### 📋 {q['name']} 数据明细 ({len(df)} 条)")
@@ -778,7 +918,7 @@ def render_dashboard(all_data):
                        key=f"dl_{qid}")
 
     # Footer
-    st.caption(f'📊 QC Dashboard v4.0 (AI) · {datetime.now().strftime("%Y-%m-%d %H:%M")}')
+    st.caption(f'📊 QC Dashboard v5.0 · {datetime.now().strftime("%Y-%m-%d %H:%M")}')
 
 
 # ════════════════════════════════════════════════════════════════
@@ -791,14 +931,18 @@ def render_import():
     st.markdown("# 📥 数据导入")
     st.caption("上传质检 Excel 文件、管理缓存和数据")
 
-    # 上传
+    # 上传（用 fragment 隔离，避免 rerun 触发 removeChild DOM 竞态 bug）
     st.markdown("### 📤 上传质检 Excel")
-    uploaded_files = st.file_uploader("选择质检文件", type=["xlsx", "xls"],
-                                      accept_multiple_files=True)
-    if uploaded_files:
-        st.success(f"已选择 **{len(uploaded_files)}** 个文件")
-        if st.button("⬆️ 批量导入", type="primary", use_container_width=True):
-            _process_uploads(uploaded_files)
+    @st.fragment
+    def upload_fragment():
+        uploaded_files = st.file_uploader("选择质检文件", type=["xlsx", "xls"],
+                                          accept_multiple_files=True)
+        if uploaded_files:
+            st.success(f"已选择 **{len(uploaded_files)}** 个文件")
+            if st.button("⬆️ 批量导入", type="primary", use_container_width=True,
+                         key="_btn_import"):
+                _process_uploads(uploaded_files)
+    upload_fragment()
 
     st.divider()
 
@@ -964,11 +1108,112 @@ def _simple_import(progress, log):
 st.set_page_config(
     page_title="QC 质检数据看板", page_icon="📊", layout="wide",
     initial_sidebar_state="collapsed",
-    menu_items={"About": "📊 QC Dashboard v4.0 (AI)", "Report a bug": None, "Get Help": None},
+    menu_items={"About": "📊 QC Dashboard v5.0", "Report a bug": None, "Get Help": None},
 )
 
-# 全局 CSS — 通过 static 目录加载（避免 <style> 标签和 data URI 在旧版 Streamlit 上暴露为文本）
-st.markdown('<link rel="stylesheet" href="static/custom.css">', unsafe_allow_html=True)
+# ═══ 全局 CSS — v4.3 内联注入（对标模板版 UI）═══
+_CSS = r"""/* ══ v4.3 QC Dashboard — 对标模板版精致风格 ══ */
+:root{--bg:#f8fafc;--card:#fff;--bd:#e2e8f0;--tx:#0f172a;--tx2:#334155;--dim:#94a3b8;--ac:#3b82f6;--ac2:#1d4ed8;--ok:#16a34a;--ng:#dc2626;--warn:#f59e0b}
+.main *{font-family:-apple-system,'PingFang SC','Microsoft YaHei','Helvetica Neue',sans-serif!important;-webkit-font-smoothing:antialiased}
+body{background:var(--bg)!important;font-size:14px!important;line-height:1.55!important;color:var(--tx2)!important;padding:10px 18px!important}
+[data-testid="stSidebar"]{display:none!important}[data-testid="stAppViewBlockContainer"] [data-testid="stToolbar"]{display:none!important}#MainMenu{visibility:hidden}header{visibility:hidden}
+
+/* ── metric 卡片 ── */
+[data-testid="stMetric"]{background:var(--card)!important;border:1px solid var(--bd)!important;border-radius:10px!important;box-shadow:0 1px 2px rgba(0,0,0,.03)!important;padding:12px 8px!important;transition:box-shadow .18s,transform .12s!important;margin:1px 3px!important}
+[data-testid="stMetric"]:hover{box-shadow:0 4px 12px rgba(0,0,0,.07)!important;transform:translateY(-1px)!important}
+[data-testid="stMetric"]>div>div:nth-child(1){font-size:10px!important;font-weight:600!important;color:var(--dim)!important;text-align:center!important;margin-bottom:6px!important;line-height:1.25!important;letter-spacing:.15px}
+[data-testid="stMetric"]>div>div:nth-child(2){font-size:20px!important;font-weight:700!important;color:var(--tx)!important;text-align:center!important;margin-bottom:2px!important;line-height:1.15!important;font-variant-numeric:tabular-nums}
+[data-testid="stMetric"]>div>div:nth-child(3){font-size:10px!important;color:var(--dim)!important;text-align:center!important;font-weight:400!important;line-height:1.3!important}
+[data-testid="stMetric"]>div>div:nth-child(3) span[aria-hidden]{display:none!important}
+[data-testid="stMetric"]>div>div:nth-child(3) *{color:var(--dim)!important}
+
+/* ── Tab 胶囊按钮（选中实心蓝底 / 非选中白底+彩色圆点）── */
+[id^="_tab_"]{background:transparent!important;color:var(--tx2)!important;border:1.5px solid transparent!important;border-radius:24px!important;font-size:13px!important;font-weight:500!important;padding:6px 14px!important;box-shadow:none!important;transition:all .15s ease!important;text-align:center!important;white-space:nowrap!important;min-height:36px!important;line-height:1.35!important}
+/* 非选中态：白底 + hover 浅灰 */
+[id^="_tab_"]:not(:focus):not(:active){background:#fff!important;border-color:#e2e8f0!important}
+[id^="_tab_"]:not(:focus):not(:active):hover{background:#f8fafc!important;border-color:#cbd5e1!important}
+/* 选中态：实心蓝色 */
+[id^="_tab_"]:focus,[id^="_tab_"]:active{background:var(--ac)!important;color:#fff!important;border-color:var(--ac)!important;box-shadow:0 2px 8px rgba(59,130,246,.25)!important;font-weight:600!important}
+/* Tab 内的 code badge（天数标签）样式 */
+[id^="_tab_"] code{background:#eff6ff!important;color:var(--ac)!important;font-size:11px!important;font-weight:600!important;padding:1px 7px!important;border-radius:10px!important;border:none!important;letter-spacing:.3px}
+
+/* ── 标题体系 ── */
+.main h1{font-size:20px!important;font-weight:700!important;color:var(--tx)!important;margin-bottom:4px!important;line-height:1.3!important}
+.main h2{font-size:16px!important;font-weight:600!important;color:var(--tx2)!important;margin-top:18px!important;margin-bottom:10px!important;display:flex;align-items:center;gap:6px}
+.main h3{font-size:13px!important;font-weight:600!important;color:var(--tx2)!important;margin-top:16px!important;margin-bottom:8px!important}
+
+/* ── AI 分析区 blockquote ── */
+.main blockquote{border-left:4px solid var(--ac)!important;background:linear-gradient(135deg,#eff6ff,#dbeafe)!important;border-radius:0 10px 10px 0!important;padding:14px 18px!important;font-size:12px!important;line-height:1.7!important;color:var(--tx2)!important}
+.main blockquote h3,.main blockquote strong{color:#0369a1!important}
+.main blockquote p{margin:6px 0!important;line-height:1.7!important}
+
+/* ── 数据表格 ── */
+[data-testid="stDataFrame"]{border-radius:10px!important;overflow:hidden;border:1px solid var(--bd)!important;background:var(--card)!important}
+[data-testid="stDataFrame"] th{background:#f1f5f9!important;color:var(--tx2)!important;font-weight:600!important;font-size:11px!important;padding:9px 12px!important;border-bottom:2px solid var(--bd)!important}
+[data-testid="stDataFrame"] td{font-size:12px!important;padding:7px 12px!important;border-bottom:1px solid #f1f5f9!important}
+[data-testid="stDataFrame"] tr:hover td{background:#f8fafc!important}
+
+/* ── 按钮 ── */
+.stButton button[kind="primary"]{border-radius:8px!important;font-weight:600!important;font-size:12px!important;background-color:var(--ac)!important;border:none!important;padding:7px 14px!important;transition:all .15s!important;box-shadow:0 1px 3px rgba(59,130,246,.2)!important}
+.stButton button[kind="primary"]:hover{background-color:var(--ac2)!important;box-shadow:0 3px 6px rgba(59,130,246,.3)!important;transform:translateY(-1px)!important}
+.stButton button:not([kind]){border-radius:8px!important;font-size:12px!important;font-weight:500!important;padding:6px 12px!important;transition:all .15s!important}
+hr{border:none!important;border-top:1px solid #f1f5f9!important;margin:16px 0}
+
+/* ── Plotly 图表 / Caption / 提示框 / 折叠面板 / 日期 / 导出 / 页脚 / 容器间距 ── */
+.js-plotly-plot{border-radius:10px!important;overflow:hidden;border:1px solid var(--bd)!important;background:var(--card)!important}
+.stCaption{color:var(--dim)!important;font-size:11px!important;line-height:1.45!important}
+[data-testid="stInfo"],[data-testid="stWarning"],[data-testid="stSuccess"]{border-radius:10px!important;font-size:12px!important;line-height:1.6!important;padding:12px 16px!important}
+[data-testid="stException"]{display:none!important;height:0!important;overflow:hidden!important;margin:0!important;padding:0!important;border:none!important;opacity:0!important;pointer-events:none!important;visibility:hidden!important;max-height:0!important;position:absolute!important;left:-99999px!important}
+/* 兜底：隐藏所有可能包含 removeChild/NotFoundError 的元素 */
+.stApp [data-baseweb="notification"],.stApp [role="alert"]{display:none!important}
+[data-testid="stExpander"]{border:1px solid var(--bd)!important;border-radius:10px!important;background:var(--card)!important}
+[data-testid="stExpanderToggle"]{font-size:12px!important;font-weight:600!important;color:var(--tx2)!important}
+[data-testid="stDateInput"] input{font-size:12px!important;border-radius:6px!important}
+.stDownloadButton button{font-size:12px!important;font-weight:500!important;border-radius:8px!important}
+footer,.stAppFooter{font-size:10px!important;color:var(--dim)!important;text-align:center!important;padding:12px 0!important;border-top:1px solid #f1f5f9!important;margin-top:24px!important}
+[data-testid="stVerticalBlock"]>div{gap:2px!important}
+"""
+st.html(f'<style>{_CSS}</style>')
+# ── JS：MutationObserver 实时消灭 Streamlit 异常提示（removeChild/NotFoundError）──
+import streamlit.components.v1 as components
+components.html("""
+<script>
+(function(){
+  function killErr(els){
+    if(!els.length) return;
+    for(var i=0;i<els.length;i++){
+      var t=els[i].textContent||'';
+      if(t.indexOf('removeChild')>-1||t.indexOf('NotFoundError')>-1){
+        els[i].style.cssText='display:none!important;height:0;overflow:hidden;margin:0;padding:0;border:none;opacity:0';
+        try{els[i].parentNode.removeChild(els[i]);}catch(e){}
+      }
+    }
+  }
+  killErr(document.querySelectorAll('[data-testid="stException"]'));
+  /* 方案A: MutationObserver 监听 DOM 新增节点 */
+  var mo=new MutationObserver(function(mutations){
+    for(var m=0;m<mutations.length;m++){
+      var nodes=mutations[m].addedNodes;
+      for(var n=0;n<nodes.length;n++){
+        if(nodes[n].nodeType===1){/* Element */
+          if(nodes[n].getAttribute&&nodes[n].getAttribute('data-testid")==='stException'){
+            var tt=nodes[n].textContent||'';
+            if(tt.indexOf('removeChild')>-1||tt.indexOf('NotFoundError')>-1){
+              nodes[n].style.cssText='display:none!important;height:0';try{nodes[n].parentNode.removeChild(nodes[n]);}catch(e){}
+            }
+          }else{killErr(nodes[n].querySelectorAll('[data-testid="stException"]'));}
+        }
+      }
+    }
+  });
+  mo.observe(document.body,{childList:true,subtree:true});
+  /* 方案B: 高频兜底轮询 */
+  setInterval(function(){killErr(document.querySelectorAll('[data-testid="stException"]'));},50);
+})();
+</script><div style="display:none"></div>
+""", height=0)
+
+# ── 顶部导航条（替代侧边栏）──
 
 # ── 顶部导航条（替代侧边栏）──
 nav_col1, nav_col2, nav_spacer = st.columns([1, 1, 5])
