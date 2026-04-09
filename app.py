@@ -563,28 +563,31 @@ def render_dashboard(all_data):
         del st.session_state["_quick"]
 
     # ════════════════════════════════════════════════════════════
-    #  Overview 卡片行（7列 — 用原生 st.columns + metric）
+    #  Overview 卡片行（HTML 卡片 — 对标模板版的 overview-card 样式）
     # ════════════════════════════════════════════════════════════
-    ov_cols = st.columns(7)
+    ov_cards_html = []
     for ci, q in enumerate(QUEUES):
         df_f = filter_by_date(all_data.get(q["id"], pd.DataFrame()), date_from_str, date_to_str)
         lr = find_latest_nonzero(df_f, q["metric_keys"])
         latest_date = lr["date"] if lr is not None else "--"
         pm = q.get("primary_metric", q["metric_keys"][0])
         main_val = find_latest_nonzero_per_key(df_f, pm)
-        is_ok_main = check_threshold(q, pm, main_val)[0] if main_val is not None else True
 
         val_str = fmt_pct(main_val) if main_val is not None else "--"
-        delta_color = "normal" if (main_val is None or is_ok_main) else "inverse"
+        card_color = q.get("color", "#3b82f6")
 
-        with ov_cols[ci]:
-            st.metric(
-                label=f"{q['icon']} {q['name']}",
-                value=val_str,
-                delta=None,
-                help=f"最新日期: {latest_date}",
-            )
-            st.caption(latest_date)
+        ov_cards_html.append(f'''
+        <div style="background:#fff;border:1px solid #e2e8f0;border-radius:10px;
+            padding:14px;text-align:center;cursor:default;transition:all 0.2s;
+            box-shadow:0 1px 3px rgba(0,0,0,0.08),0 1px 2px rgba(0,0,0,0.06);">
+            <div style="font-size:24px;margin-bottom:6px;">{q['icon']}</div>
+            <div style="font-size:12px;font-weight:600;color:#334155;margin-bottom:4px;">{q['name']}</div>
+            <div style="font-size:20px;font-weight:700;color:{card_color};">{val_str}</div>
+            <div style="font-size:10px;color:#94a3b8;margin-top:3px;">{latest_date}</div>
+        </div>''')
+
+    st.markdown(f'''<div style="display:grid;grid-template-columns:repeat(7,1fr);gap:10px;margin-bottom:16px;">
+        {''.join(ov_cards_html)}</div>''', unsafe_allow_html=True)
 
     # ════════════════════════════════════════════════════════════
     #  🤖 AI 日报摘要（对标企微推送完整版）
@@ -592,7 +595,7 @@ def render_dashboard(all_data):
     render_ai_summary_section(all_data)
 
     # ════════════════════════════════════════════════════════════
-    #  队列选择（原生 button 方案 — v3.1 已验证可用）
+    #  队列选择（胶囊 Tab 按钮 — CSS 美化成模板版外观）
     # ════════════════════════════════════════════════════════════
     if "active_qidx" not in st.session_state:
         st.session_state.active_qidx = 0
@@ -604,13 +607,50 @@ def render_dashboard(all_data):
         n_days = len(df_f)
         active = (i == current_idx)
         bgt = f"{n_days}天" if n_days > 0 else "待接入"
+        q_color = q.get("color", "#3b82f6")
 
-        btn_type = "primary" if active else "secondary"
         with tab_col_row[i]:
-            if st.button(f"{q['icon']} {q['name']} {bgt}",
-                         key=f"_tab_{i}", use_container_width=True, type=btn_type):
-                st.session_state.active_qidx = i
-                st.rerun()
+            if active:
+                st.markdown(f'''<div style="padding:9px 18px;border-radius:10px;font-size:13px;font-weight:600;
+                    text-align:center;white-space:nowrap;pointer-events:none;
+                    background:{q_color};color:#fff;border:none;
+                    box-shadow:0 4px 12px rgba(0,0,0,0.15);">
+                    {q['icon']} {q['name']}
+                    <span style="font-size:10px;padding:1px 6px;border-radius:8px;opacity:0.7;background:rgba(255,255,255,0.25);margin-left:4px;">{bgt}</span>
+                </div>''', unsafe_allow_html=True)
+            else:
+                if st.button(f"{q['icon']} {q['name']} **{bgt}**",
+                             key=f"_tab_{i}", use_container_width=True,
+                             help=f"切换到 {q['name']}"):
+                    st.session_state.active_qidx = i
+                    st.rerun()
+
+    # 胶囊 Tab 全局美化 CSS（非激活按钮 → 白底+描边+圆角）
+    st.markdown('''<style>
+    /* 胶囊 Tab 美化 — 只对 _tab_ 按钮生效 */
+    div[data-testid="stHorizontalBlock"] button[data-testid*="_tab_"] {
+        background: #fff !important;
+        color: #64748b !important;
+        border: 1px solid #e2e8f0 !important;
+        border-radius: 10px !important;
+        font-size: 13px !important;
+        font-weight: 600 !important;
+        padding: 9px 12px !important;
+        box-shadow: none !important;
+        transition: all 0.2s !important;
+        text-align: center !important;
+    }
+    div[data-testid="stHorizontalBlock"] button[data-testid*="_tab_"]:hover {
+        border-color: rgba(59,130,246,0.3) !important;
+        transform: translateY(-1px) !important;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.08) !important;
+    }
+    /* Tab 行容器 — 横向排列紧凑 */
+    div[data-testid="stHorizontalBlock"]:has(> div > button[id^="_tab_"]) {
+        gap: 6px !important;
+        margin-bottom: 18px !important;
+    }
+    </style>''', unsafe_allow_html=True)
 
     # ════════════════════════════════════════════════════════════
     #  当前队列详情
