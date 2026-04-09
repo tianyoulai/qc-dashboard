@@ -1,4 +1,5 @@
-/* ═══ QC Dashboard 全局样式（v4.0.6 — 全 class 方案） ═══ */
+/* ═══ QC Dashboard v4.0.7 — Streamlit 原生组件美化 CSS ═══ */
+/* 目标：在 st.columns() + st.metric() 原生方案下，对标 HTML 模板版视觉效果 */
 
 /* ── 隐藏 Streamlit 原生元素 ── */
 [data-testid="stSidebar"] { display: none !important; }
@@ -6,151 +7,70 @@
 #MainMenu { visibility: hidden; }
 header { visibility: hidden; }
 
-/* ── 通用组件美化 ── */
-.main blockquote { border-left: 4px solid #3b82f6 !important; background: #f0f9ff !important;
-    border-radius: 0 8px 8px 0 !important; padding: 12px 16px !important; }
-[data-testid="stMetric"] { background: #fff; border: 1px solid #e2e8f0; border-radius: 10px; box-shadow: 0 1px 3px rgba(0,0,0,0.06); }
-[data-testid="stDataFrame"] { border-radius: 10px; overflow: hidden; border: 1px solid #e2e8f0 !important; }
-[data-testid="stDataFrame"] th { background: #f8fafc !important; color: #475569 !important; font-weight: 600; font-size: 12px; }
-[data-testid="stDataFrame"] td { font-size: 13px; padding: 7px 10px; }
-[data-testid="stFileUploader"] { border: 2px dashed #cbd5e1 !important; border-radius: 12px !important; padding: 20px !important; }
-.stButton button[kind="primary"] { border-radius: 8px !important; font-weight: 600; }
-hr { border: none !important; border-top: 1px solid #f1f5f9 !important; margin: 16px 0; }
-.js-plotly-plot { border-radius: 10px !important; overflow: hidden; }
+/* ══════════════════════════════════════
+   st.metric() 深度美化 — 核心样式
+   ══════════════════════════════════════ */
 
-/* ═══ Overview 卡片网格 ═══ */
-.qc-ov-grid {
-    display: grid;
-    grid-template-columns: repeat(7, 1fr);
-    gap: 10px;
-    margin-bottom: 16px;
-}
-.qc-ov-card {
-    background: #fff;
-    border: 1px solid #e2e8f0;
-    border-radius: 10px;
-    padding: 14px;
-    text-align: center;
-    cursor: default;
-    transition: all 0.2s;
-    box-shadow: 0 1px 3px rgba(0,0,0,0.08), 0 1px 2px rgba(0,0,0,0.06);
-}
-.qc-ov-icon { font-size: 24px; margin-bottom: 6px; }
-.qc-ov-name { font-size: 12px; font-weight: 600; color: #334155; margin-bottom: 4px; }
-.qc-ov-val { font-size: 20px; font-weight: 700; }
-.qc-ov-date { font-size: 10px; color: #94a3b8; margin-top: 3px; }
+/* Overview 行的 metric — 白底卡片、居中布局（对标模板版 overview-card）*/
+/* 用父容器 .stColumns 区分 Overview 行 vs 其他行 */
 
-/* ═══ 区块标题 ═══ */
-.qc-section-title {
-    font-size: 14px;
-    font-weight: 600;
-    margin: 18px 0 10px;
-    display: flex;
-    align-items: center;
-    gap: 7px;
-}
-.qc-section-title-simple {
-    font-size: 14px;
-    font-weight: 600;
-    margin: 18px 0 10px;
+/* 所有 metric 统一基础样式 */
+[data-testid="stMetric"] {
+    background: #ffffff !important;
+    border: 1px solid #e2e8f0 !important;
+    border-radius: 10px !important;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04) !important;
+    padding: 14px 12px !important;
 }
 
-/* ═══ AI 分析结果卡片 ═══ */
-.qc-ai-result {
-    background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
-    border: 1px solid #bae6fd;
-    border-radius: 12px;
-    padding: 18px 20px;
-    box-shadow: 0 2px 8px rgba(14,165,233,0.1);
-    margin-bottom: 6px;
-}
-.qc-ai-header {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    margin-bottom: 10px;
-}
-.qc-ai-icon { font-size: 18px; }
-.qc-ai-title { font-size: 14px; font-weight: 700; color: #0369a1; }
-.qc-ai-time { font-size: 10px; color: #94a3b8; margin-left: auto; }
-.qc-ai-body { font-size: 13px; line-height: 1.7; color: #334155; }
-
-/* ═══ 统计数字卡片区（左侧天数） ═══ */
-.qc-stats-card {
-    background: #fff;
-    border: 1px solid #e2e8f0;
-    border-radius: 12px;
-    padding: 16px 18px;
-    box-shadow: 0 1px 3px rgba(0,0,0,0.08);
-}
-.qc-stats-label { font-size: 11px; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px; }
-.qc-stats-num { font-size: 28px; font-weight: 700; color: #1e293b; line-height: 1; }
-.qc-stats-unit { font-size: 15px; color: #94a3b8; font-weight: 400; margin-left: 2px; }
-.qc-stats-daterange { font-size: 11px; color: #94a3b8; margin-top: 5px; }
-
-/* ═══ 指标卡片（右侧各指标） ═══ */
-.qc-metric-card {
-    border-left: 3px solid;
-    border-radius: 10px;
-    padding: 14px 16px;
-}
-.qc-metric-card-label { font-size: 11px; color: #64748b; margin-bottom: 4px; }
-.qc-metric-card-val { font-size: 24px; font-weight: 700; }
-.qc-metric-card-sub { font-size: 11px; color: #64748b; margin-top: 4px; }
-.qc-sep { color: #cbd5e1; }
-
-/* ═══ 指标构成卡片（底部） ═══ */
-.qc-indicator-card {
-    text-align: center;
-    padding: 12px;
-    background: #fff;
-    border: 1px solid #e2e8f0;
-    border-radius: 12px;
-    box-shadow: 0 1px 3px rgba(0,0,0,0.08);
-}
-.qc-indicator-icon { font-size: 24px; }
-.qc-indicator-label { font-size: 12px; font-weight: 600; color: #334155; margin: 4px 0; }
-.qc-indicator-val { font-size: 20px; font-weight: 700; }
-
-/* ═══ 进度条 ═══ */
-.qc-bar-track { background: #e2e8f0; border-radius: 4px; height: 6px; margin-top: 8px; }
-.qc-bar-fill { height: 6px; border-radius: 4px; }
-.qc-indicator-rate { font-size: 10px; color: #94a3b8; margin-top: 4px; }
-
-/* ═══ 圆点装饰 ═══ */
-.qc-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
-
-/* ═══ 页脚 ═══ */
-.qc-footer {
-    text-align: center;
-    color: #94a3b8;
-    font-size: 11px;
-    padding: 14px 0;
-    border-top: 1px solid #e2e8f0;
-    margin-top: 10px;
+/* metric label（队列名称）— 小字加粗 */
+[data-testid="stMetric"] > div > div:nth-child(1) {
+    font-size: 11px !important;
+    font-weight: 600 !important;
+    color: #475569 !important;
+    text-align: center !important;
+    margin-bottom: 6px !important;
 }
 
-/* ═══ 胶囊 Tab 按钮 ═══ */
-.qc-tab-row {
-    display: flex !important;
-    gap: 6px !important;
-    margin-bottom: 18px !important;
-    flex-wrap: nowrap !important;
+/* metric value（数值）— 大号彩色 */
+[data-testid="stMetric"] > div > div:nth-child(2) {
+    font-size: 20px !important;
+    font-weight: 700 !important;
+    color: #1e293b !important;
+    text-align: center !important;
+    margin-bottom: 2px !important;
 }
-.qc-tab-row > div {
-    padding: 0 !important;
-    min-width: 0 !important;
+
+/* metric delta（天数/均值）— 灰色小字，去掉绿色箭头 */
+[data-testid="stMetric"] > div > div:nth-child(3) {
+    font-size: 10px !important;
+    color: #94a3b8 !important;
+    text-align: center !important;
+    font-weight: 400 !important;
 }
+
+/* 隐藏 delta 的箭头图标 */
+[data-testid="stMetric"] > div > div:nth-child(3) span[aria-hidden] {
+    display: none !important;
+}
+/* delta 文字颜色不随正负变化 */
+[data-testid="stMetric"] > div > div:nth-child(3) * {
+    color: #94a3b8 !important;
+}
+
+/* ══════════════════════════════════════
+   胶囊 Tab 按钮（st.button 美化）
+   ══════════════════════════════════════ */
 [id^="_tab_"] {
     background: #ffffff !important;
     color: #64748b !important;
     border: 1px solid #e2e8f0 !important;
     border-radius: 10px !important;
-    font-size: 12px !important;
+    font-size: 11px !important;
     font-weight: 600 !important;
     padding: 8px 4px !important;
     box-shadow: none !important;
-    transition: all 0.2s !important;
+    transition: all 0.15s ease !important;
     text-align: center !important;
     white-space: nowrap !important;
     overflow: hidden !important;
@@ -158,7 +78,53 @@ hr { border: none !important; border-top: 1px solid #f1f5f9 !important; margin: 
     min-height: 36px !important;
 }
 [id^="_tab_"]:hover {
-    border-color: rgba(59,130,246,0.35) !important;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.08) !important;
+    border-color: #93c5fd !important;
+    box-shadow: 0 2px 6px rgba(59,130,246,0.12) !important;
     transform: translateY(-1px) !important;
 }
+
+/* ══════════════════════════════════════
+   通用组件美化
+   ══════════════════════════════════════ */
+.main blockquote {
+    border-left: 4px solid #3b82f6 !important;
+    background: linear-gradient(135deg, #f0f9ff, #e0f2fe) !important;
+    border-radius: 0 10px 10px 0 !important;
+    padding: 16px 18px !important;
+    font-size: 13px !important;
+    line-height: 1.7 !important;
+}
+.main blockquote h3,
+.main blockdown strong {
+    color: #0369a1 !important;
+}
+[data-testid="stDataFrame"] {
+    border-radius: 10px !important;
+    overflow: hidden;
+    border: 1px solid #e2e8f0 !important;
+}
+[data-testid="stDataFrame"] th {
+    background: #f8fafc !important;
+    color: #475569 !important;
+    font-weight: 600;
+    font-size: 12px;
+}
+[data-testid="stDataFrame"] td { font-size: 13px; padding: 7px 10px; }
+[data-testid="stFileUploader"] {
+    border: 2px dashed #cbd5e1 !important;
+    border-radius: 12px !important;
+    padding: 20px !important;
+}
+.stButton button[kind="primary"] {
+    border-radius: 8px !important;
+    font-weight: 600;
+    background-color: #3b82f6 !important;
+}
+hr { border: none !important; border-top: 1px solid #f1f5f9 !important; margin: 16px 0; }
+.js-plotly-plot { border-radius: 10px !important; overflow: hidden; }
+
+/* st.caption / 小字 */
+.stCaption { color: #94a3b8 !important; font-size: 12px !important; }
+
+/* 标题 */
+h3 { font-size: 14px !important; font-weight: 600 !important; color: #334155 !important; margin-top: 18px !important; margin-bottom: 10px !important; }
