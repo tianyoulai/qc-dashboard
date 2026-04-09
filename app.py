@@ -595,12 +595,15 @@ def render_dashboard(all_data):
     render_ai_summary_section(all_data)
 
     # ════════════════════════════════════════════════════════════
-    #  队列选择（胶囊 Tab 按钮 — CSS 美化成模板版外观）
+    #  队列选择（胶囊 Tab 按钮 — 全部用 st.button + 统一 CSS 美化）
     # ════════════════════════════════════════════════════════════
     if "active_qidx" not in st.session_state:
         st.session_state.active_qidx = 0
 
     current_idx = st.session_state.active_qidx
+
+    # 用一个容器包裹所有 Tab 按钮 + 自定义 class 标识
+    st.markdown('<div class="qc-tab-row">', unsafe_allow_html=True)
     tab_col_row = st.columns(len(QUEUES))
     for i, q in enumerate(QUEUES):
         df_f = filter_by_date(all_data.get(q["id"], pd.DataFrame()), date_from_str, date_to_str)
@@ -610,46 +613,51 @@ def render_dashboard(all_data):
         q_color = q.get("color", "#3b82f6")
 
         with tab_col_row[i]:
-            if active:
-                st.markdown(f'''<div style="padding:9px 18px;border-radius:10px;font-size:13px;font-weight:600;
-                    text-align:center;white-space:nowrap;pointer-events:none;
-                    background:{q_color};color:#fff;border:none;
-                    box-shadow:0 4px 12px rgba(0,0,0,0.15);">
-                    {q['icon']} {q['name']}
-                    <span style="font-size:10px;padding:1px 6px;border-radius:8px;opacity:0.7;background:rgba(255,255,255,0.25);margin-left:4px;">{bgt}</span>
-                </div>''', unsafe_allow_html=True)
-            else:
-                if st.button(f"{q['icon']} {q['name']} **{bgt}**",
-                             key=f"_tab_{i}", use_container_width=True,
-                             help=f"切换到 {q['name']}"):
-                    st.session_state.active_qidx = i
-                    st.rerun()
+            # 每个按钮带 data-qidx 属性供 CSS 区分激活态
+            btn_label = f"{q['icon']} {q['name']}\n<span style='font-size:10px;opacity:0.7;'>{bgt}</span>"
+            if st.button(f"{q['icon']} {q['name']} {bgt}",
+                         key=f"_tab_{i}", use_container_width=True,
+                         help=f"切换到 {q['name']}" + (f" (当前选中)" if active else "")):
+                st.session_state.active_qidx = i
+                st.rerun()
 
-    # 胶囊 Tab 全局美化 CSS（非激活按钮 → 白底+描边+圆角）
-    st.markdown('''<style>
-    /* 胶囊 Tab 美化 — 只对 _tab_ 按钮生效 */
-    div[data-testid="stHorizontalBlock"] button[data-testid*="_tab_"] {
-        background: #fff !important;
+    st.markdown('</div>', unsafe_allow_html=True)
+
+    # 胶囊 Tab 全局美化 CSS — 用 key 选择器精确匹配 _tab_ 按钮
+    st.markdown(f'''<style>
+    /* 胶囊 Tab 行 */
+    .qc-tab-row {{
+        display: flex !important;
+        gap: 6px !important;
+        margin-bottom: 18px !important;
+        flex-wrap: nowrap !important;
+    }}
+    .qc-tab-row > div {{
+        padding: 0 !important;
+        min-width: 0 !important;
+    }}
+    /* 所有 Tab 按钮 → 胶囊外观 */
+    [id^="_tab_"] {{
+        background: #ffffff !important;
         color: #64748b !important;
         border: 1px solid #e2e8f0 !important;
         border-radius: 10px !important;
-        font-size: 13px !important;
+        font-size: 12px !important;
         font-weight: 600 !important;
-        padding: 9px 12px !important;
+        padding: 8px 4px !important;
         box-shadow: none !important;
         transition: all 0.2s !important;
         text-align: center !important;
-    }
-    div[data-testid="stHorizontalBlock"] button[data-testid*="_tab_"]:hover {
-        border-color: rgba(59,130,246,0.3) !important;
-        transform: translateY(-1px) !important;
+        white-space: nowrap !important;
+        overflow: hidden !important;
+        text-overflow: ellipsis !important;
+        min-height: 36px !important;
+    }}
+    [id^="_tab_"]:hover {{
+        border-color: rgba(59,130,246,0.35) !important;
         box-shadow: 0 2px 8px rgba(0,0,0,0.08) !important;
-    }
-    /* Tab 行容器 — 横向排列紧凑 */
-    div[data-testid="stHorizontalBlock"]:has(> div > button[id^="_tab_"]) {
-        gap: 6px !important;
-        margin-bottom: 18px !important;
-    }
+        transform: translateY(-1px) !important;
+    }}
     </style>''', unsafe_allow_html=True)
 
     # ════════════════════════════════════════════════════════════
