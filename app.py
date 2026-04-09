@@ -17,6 +17,7 @@ from datetime import datetime, timedelta
 import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
+import streamlit.components.v1 as components
 import requests
 import yaml
 
@@ -624,7 +625,7 @@ def render_dashboard(all_data):
     st.markdown('</div>', unsafe_allow_html=True)
 
     # 胶囊 Tab 全局美化 CSS — 用 key 选择器精确匹配 _tab_ 按钮
-    st.markdown(f'''<style>
+    components.html(f'''<style>
     /* 胶囊 Tab 行 */
     .qc-tab-row {{
         display: flex !important;
@@ -658,7 +659,7 @@ def render_dashboard(all_data):
         box-shadow: 0 2px 8px rgba(0,0,0,0.08) !important;
         transform: translateY(-1px) !important;
     }}
-    </style>''', unsafe_allow_html=True)
+    </style>''', height=0)
 
     # ════════════════════════════════════════════════════════════
     #  当前队列详情
@@ -1046,8 +1047,8 @@ st.set_page_config(
     menu_items={"About": "📊 QC Dashboard v4.0 (AI)", "Report a bug": None, "Get Help": None},
 )
 
-# 全局 CSS（极简）
-st.markdown("""
+# 全局 CSS（极简）— 用 components.html 注入避免 <style> 文本暴露
+components.html("""
 <style>
     /* 完全隐藏侧边栏 */
     [data-testid="stSidebar"] { display: none !important; }
@@ -1067,7 +1068,7 @@ st.markdown("""
     .stButton button[kind="primary"] { border-radius: 8px !important; font-weight: 600; }
     hr { border: none !important; border-top: 1px solid #f1f5f9 !important; margin: 16px 0; }
     .js-plotly-plot { border-radius: 10px !important; overflow: hidden; }
-</style>""", unsafe_allow_html=True)
+</style>""", height=0)
 
 # ── 顶部导航条（替代侧边栏）──
 nav_col1, nav_col2, nav_spacer = st.columns([1, 1, 5])
