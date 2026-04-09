@@ -1,0 +1,32 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+
+# 浏览器数据（大文件，不需要提交）
+data/browser_profile/
+
+# 下载/临时文件
+data/uploads/processed/*.xlsx
+data/uploads/raw/*.xls*
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# macOS
+.DS_Store
+.AppleDouble
+
+# Streamlit 缓存
+.streamlit/cache/
+
+# 调试文件
+data/_debug_*
+capture_*.py
+scroll_top.py
+sheet_*.png
+wecom-*.png
+wecom-sheet-report.md

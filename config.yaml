@@ -1,0 +1,193 @@
+# ============================================================
+# QC Dashboard 配置文件
+# ============================================================
+# 说明：每个队列对应一个企微智能表格，配置文档URL、子表名、字段映射
+# 同事只需修改此文件即可添加/调整队列
+# ============================================================
+
+# 全局设置
+global:
+  # 数据采集模式: wcom-api | cdp | excel
+  collector_mode: wcom-api
+
+  # ============================================================
+  # ⚠️  凭证配置（同事拿到后只需修改这里！）
+  # ============================================================
+  # 从企微管理后台获取 → 应用管理 → 智能机器人 → 复制以下两项：
+  #   参考文档：https://open.work.weixin.qq.com/help2/pc/cat?doc_id=21677
+  # ============================================================
+  wcom_api:
+    bot_id: "aibPedOZviPGWaHccnaHZFSMGYej_hsEcas"      # ← 填你的机器人 ID（AgentId）
+    secret: "CCiKjQ4Iu7CGue4F4XDRtRs3aOfnYmaLBQzvDshRNNb"       # ← 填你的应用密钥（Secret）
+
+  # CDP 模式配置（备选，如使用 CDP 模式需填写）
+  cdp:
+    chrome_debug_port: 9222
+
+# 队列定义
+queues:
+  # ──────────────────────────────────────────────
+  # 队列1：供应商-投放误漏case
+  # ──────────────────────────────────────────────
+  - id: "q1_toufang"
+    name: "投放误漏"
+    full_name: "【供应商】投放误漏case"
+    doc_url: "https://doc.weixin.qq.com/sheet/e3_ACgA9wbwACk4qZHejt9TJuM61u9o6?scode=AJEAIQdfAAocSGCGJkACgA9wbwACk&tab=pmlenu"
+    doc_id: "e3_ACgA9wbwACk4qZHejt9TJuM61u9o6"
+    sheet_name: "量级登记"
+    sheet_tab: "pmlenu"
+    color: "#3b82f6"  # 蓝色
+    icon: "📢"
+    fields:
+      date_col: "A"
+      metrics:
+        - key: violation_rate
+          label: "违规准确率"
+          col: "E"
+        - key: miss_rate
+          label: "漏率"
+          col: "F"
+
+  # ──────────────────────────────────────────────
+  # 队列2：供应商-简单二审误漏case
+  # ──────────────────────────────────────────────
+  - id: "q2_erjiansimple"
+    name: "简单二审"
+    full_name: "【供应商】简单二审误漏case"
+    doc_url: "https://doc.weixin.qq.com/sheet/e3_ACgA9wbwACkZmouhYUBTlyj5JbPjt?scode=AJEAIQdfAAoY2uQGUTAZ0ATwZCAE0&tab=pmlenu"
+    doc_id: "e3_ACgA9wbwACkZmouhYUBTlyj5JbPjt"
+    sheet_name: "量级登记"
+    sheet_tab: "pmlenu"
+    color: "#22c55e"  # 绿色
+    icon: "📋"
+    fields:
+      date_col: "BL"
+      metrics:
+        - key: violation_rate
+          label: "违规准确率"
+          col: "BP"
+        - key: miss_rate
+          label: "漏率"
+          col: "BQ"
+
+  # ──────────────────────────────────────────────
+  # 队列3a：四期供应商-二审GT业务
+  # ──────────────────────────────────────────────
+  - id: "q3_erjian_4qi_gt"
+    name: "四期-二审GT"
+    full_name: "【四期供应商】二审周推质检分歧单（二审GT）"
+    doc_url: "https://doc.weixin.qq.com/sheet/e3_ACgA9wbwACkCNPZ6wydnzSRiMDToL?scode=AJEAIQdfAAo3ubKo0BACgA9wbwACk&tab=nz9ura"
+    doc_id: "e3_ACgA9wbwACkCNPZ6wydnzSRiMDToL"
+    sheet_name: "云雀四期结算"
+    sheet_tab: "nz9ura"
+    color: "#f97316"  # 橙色
+    icon: "🔄"
+    fields:
+      date_col: "AR"
+      metrics:
+        - key: violation_rate
+          label: "违规准确率"
+          col: "BE"
+        - key: miss_rate
+          label: "漏率"
+          col: "BH"
+
+  # ──────────────────────────────────────────────
+  # 队列3b：四期供应商-二审切片GT业务
+  # ──────────────────────────────────────────────
+  - id: "q3b_erjian_4qi_qiepian"
+    name: "四期-切片GT"
+    full_name: "【四期供应商】二审周推质检分歧单（二审切片GT）"
+    doc_url: "https://doc.weixin.qq.com/sheet/e3_ACgA9wbwACkCNPZ6wydnzSRiMDToL?scode=AJEAIQdfAAo3ubKo0BACgA9wbwACk&tab=nz9ura"
+    doc_id: "e3_ACgA9wbwACkCNPZ6wydnzSRiMDToL"
+    sheet_name: "云雀四期结算"
+    sheet_tab: "nz9ura"
+    color: "#f59e0b"  # 琥珀色（与二审GT区分）
+    icon: "🔪"
+    fields:
+      date_col: "CB"
+      metrics:
+        - key: violation_rate
+          label: "违规准确率"
+          col: "CO"
+        - key: miss_rate
+          label: "漏率"
+          col: "CR"
+
+  # ──────────────────────────────────────────────
+  # 队列4：四期供应商-举报周推质检分歧单
+  # ──────────────────────────────────────────────
+  - id: "q4_jubao_4qi"
+    name: "四期-举报"
+    full_name: "【四期供应商】举报周推质检分歧单"
+    doc_url: "https://doc.weixin.qq.com/sheet/e3_ACgA9wbwACkCNLKKJB0UqRJCM3fY1?scode=AJEAIQdfAAoGsSDKBAACgA9wbwACk&tab=nz9ura"
+    doc_id: "e3_ACgA9wbwACkCNLKKJB0UqRJCM3fY1"
+    sheet_name: "云雀四期结算"
+    sheet_tab: "nz9ura"
+    color: "#a855f7"  # 紫色
+    icon: "🚨"
+    fields:
+      date_col: "A"
+      # 申诉前
+      metrics:
+        - key: pre_violation_rate
+          label: "申诉前-违规准确率"
+          col: "J"
+        - key: pre_miss_rate
+          label: "申诉前-漏率"
+          col: "M"
+        - key: pre_accuracy
+          label: "申诉前-准确率"
+          col: "F"
+      # 申诉后
+        - key: post_violation_rate
+          label: "申诉后-违规准确率"
+          col: "R"
+        - key: post_miss_rate
+          label: "申诉后-漏率"
+          col: "U"
+        - key: post_accuracy
+          label: "申诉后-准确率"
+          col: "AB"
+
+  # ──────────────────────────────────────────────
+  # 队列5：供应商-拉黑误漏case
+  # ──────────────────────────────────────────────
+  - id: "q5_lahei"
+    name: "拉黑误漏"
+    full_name: "【供应商】拉黑误漏case"
+    doc_url: "https://doc.weixin.qq.com/sheet/e3_ACgA9wbwACklvJ3rQAeSlK2yvIVOE?scode=AJEAIQdfAAo5kv17JlACgA9wbwACk&tab=pmlenu"
+    doc_id: "e3_ACgA9wbwACklvJ3rQAeSlK2yvIVOE"
+    sheet_name: "量级登记"
+    sheet_tab: "pmlenu"
+    color: "#ef4444"  # 红色
+    icon: "🚫"
+    fields:
+      date_col: "A"
+      metrics:
+        - key: violation_rate
+          label: "违规准确率"
+          col: "E"
+        - key: miss_rate
+          label: "漏率"
+          col: "F"
+
+  # ──────────────────────────────────────────────
+  # 队列6：上墙文本申诉-云雀
+  # ──────────────────────────────────────────────
+  - id: "q6_shangqiang"
+    name: "上墙文本"
+    full_name: "上墙文本申诉-云雀"
+    doc_url: "https://doc.weixin.qq.com/sheet/e3_AQkAfgbQAOMMlwy0YAEStiiXPPTvR?scode=AJEAIQdfAAoWja1MRUAQkAfgbQAOM&tab=zk08ct"
+    doc_id: "e3_AQkAfgbQAOMMlwy0YAEStiiXPPTvR"
+    # ⚠️ 必须读「准确率（新）」子表，不是「准确率」
+    sheet_name: "准确率（新）"
+    sheet_tab: "zk08ct"
+    color: "#06b6d4"  # 青色
+    icon: "📝"
+    fields:
+      date_col: "A"
+      metrics:
+        - key: audit_accuracy
+          label: "审核准确率"
+          col: "Z"
