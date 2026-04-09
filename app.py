@@ -17,7 +17,6 @@ from datetime import datetime, timedelta
 import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
-import streamlit.components.v1 as components
 import requests
 import yaml
 
@@ -339,8 +338,7 @@ def render_ai_summary_section(all_data):
     # 检查是否有 DeepSeek 配置
     api_key, _ = _load_deepseek_config()
 
-    st.markdown("""<div style="font-size:14px;font-weight:600;margin:18px 0 10px;display:flex;align-items:center;gap:7px;">
-        🤖 AI 日报摘要</div>""", unsafe_allow_html=True)
+    st.markdown("""<div class="qc-section-title">🤖 AI 日报摘要</div>""", unsafe_allow_html=True)
 
     ai_col1, ai_col2 = st.columns([1, 5])
     with ai_col1:
@@ -401,15 +399,13 @@ def render_ai_summary_section(all_data):
 
     if "_ai_summary_html" in st.session_state:
         # 渲染为美观的卡片
-        st.markdown(f'''<div style="background:linear-gradient(135deg,#f0f9ff 0%,#e0f2fe 100%);
-            border:1px solid #bae6fd;border-radius:12px;padding:18px 20px;
-            box-shadow:0 2px 8px rgba(14,165,233,0.1);margin-bottom:6px;">
-            <div style="display:flex;align-items:center;gap:6px;margin-bottom:10px;">
-                <span style="font-size:18px;">🤖</span>
-                <span style="font-size:14px;font-weight:700;color:#0369a1;">AI 分析结果</span>
-                <span style="font-size:10px;color:#94a3b8;margin-left:auto;">DeepSeek · {datetime.now().strftime('%H:%M')}</span>
+        st.markdown(f'''<div class="qc-ai-result">
+            <div class="qc-ai-header">
+                <span class="qc-ai-icon">🤖</span>
+                <span class="qc-ai-title">AI 分析结果</span>
+                <span class="qc-ai-time">DeepSeek · {datetime.now().strftime('%H:%M')}</span>
             </div>
-            <div style="font-size:13px;line-height:1.7;color:#334155;">
+            <div class="qc-ai-body">
             {st.session_state["_ai_summary_html"].replace('\n', '<br>')}
             </div></div>''', unsafe_allow_html=True)
 
@@ -578,16 +574,14 @@ def render_dashboard(all_data):
         card_color = q.get("color", "#3b82f6")
 
         ov_cards_html.append(f'''
-        <div style="background:#fff;border:1px solid #e2e8f0;border-radius:10px;
-            padding:14px;text-align:center;cursor:default;transition:all 0.2s;
-            box-shadow:0 1px 3px rgba(0,0,0,0.08),0 1px 2px rgba(0,0,0,0.06);">
-            <div style="font-size:24px;margin-bottom:6px;">{q['icon']}</div>
-            <div style="font-size:12px;font-weight:600;color:#334155;margin-bottom:4px;">{q['name']}</div>
-            <div style="font-size:20px;font-weight:700;color:{card_color};">{val_str}</div>
-            <div style="font-size:10px;color:#94a3b8;margin-top:3px;">{latest_date}</div>
+        <div class="qc-ov-card">
+            <div class="qc-ov-icon">{q['icon']}</div>
+            <div class="qc-ov-name">{q['name']}</div>
+            <div class="qc-ov-val" style="color:{card_color};">{val_str}</div>
+            <div class="qc-ov-date">{latest_date}</div>
         </div>''')
 
-    st.markdown(f'''<div style="display:grid;grid-template-columns:repeat(7,1fr);gap:10px;margin-bottom:16px;">
+    st.markdown(f'''<div class="qc-ov-grid">
         {''.join(ov_cards_html)}</div>''', unsafe_allow_html=True)
 
     # ════════════════════════════════════════════════════════════
@@ -643,11 +637,10 @@ def render_dashboard(all_data):
     with sc_left:
         dr_s = f"{df['date'].iloc[0]} ~ {df['date'].iloc[-1]}" if len(df) > 0 else ""
         st.markdown(f"""
-        <div style="background:#fff;border:1px solid #e2e8f0;border-radius:12px;
-            padding:16px 18px;box-shadow:0 1px 3px rgba(0,0,0,0.08);">
-            <div style="font-size:11px;color:#94a3b8;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px;">数据天数</div>
-            <div style="font-size:28px;font-weight:700;color:#1e293b;line-height:1;">{len(df)}<span style="font-size:15px;color:#94a3b8;font-weight:400;margin-left:2px;">天</span></div>
-            <div style="font-size:11px;color:#94a3b8;margin-top:5px;">{dr_s}</div>
+        <div class="qc-stats-card">
+            <div class="qc-stats-label">数据天数</div>
+            <div class="qc-stats-num">{len(df)}<span class="qc-stats-unit">天</span></div>
+            <div class="qc-stats-daterange">{dr_s}</div>
         </div>""", unsafe_allow_html=True)
 
     with sc_right:
@@ -679,18 +672,16 @@ def render_dashboard(all_data):
             vc = "#dc2626" if not is_ok else "#1e293b"
 
             with mcols[ki]:
-                st.markdown(f'''<div style="border-left:3px solid {bl_c};background:{bg_c};
-                    border-radius:10px;padding:14px 16px;">
-                    <div style="font-size:11px;color:#64748b;margin-bottom:4px;">
-                    {lbl} <span style="color:#cbd5e1;">|</span> {tl}</div>
-                    <div style="font-size:24px;font-weight:700;color:{vc};">{fmt_pct(last_v)}</div>
-                    <div style="font-size:11px;color:#64748b;margin-top:4px;">
+                st.markdown(f'''<div class="qc-metric-card" style="border-left-color:{bl_c};background:{bg_c};">
+                    <div class="qc-metric-card-label">
+                    {lbl} <span class="qc-sep">|</span> {tl}</div>
+                    <div class="qc-metric-card-val" style="color:{vc};">{fmt_pct(last_v)}</div>
+                    <div class="qc-metric-card-sub">
                     均值 <b>{fmt_pct1(avg_v)}</b>&nbsp;&nbsp;{trend_html}</div></div>''', unsafe_allow_html=True)
 
     # ── 走势图标题 ──
-    st.markdown(f"""<div style="font-size:14px;font-weight:600;margin:18px 0 10px;
-        display:flex;align-items:center;gap:7px;">
-        <span style="width:8px;height:8px;border-radius:50%;background:{q['color']};"></span>
+    st.markdown(f"""<div class="qc-section-title">
+        <span class="qc-dot" style="background:{q['color']};"></span>
         {q['icon']} {q['name']} — 指标走势</div>""", unsafe_allow_html=True)
 
     fig = go.Figure()
@@ -750,7 +741,7 @@ def render_dashboard(all_data):
     render_queue_ai_insight(q, df)
 
     # ── 最新指标构成 ──
-    st.markdown("""<div style="font-size:14px;font-weight:600;margin:18px 0 10px;">✅ 最新指标构成</div>""", unsafe_allow_html=True)
+    st.markdown("""<div class="qc-section-title-simple">✅ 最新指标构成</div>""", unsafe_allow_html=True)
     icols = st.columns(len(q["metric_keys"]))
     for ki, mk in enumerate(q["metric_keys"]):
         vv = get_valid_values(df, mk)
@@ -766,18 +757,17 @@ def render_dashboard(all_data):
         em = "✅" if ok else "❌"
 
         with icols[ki]:
-            st.markdown(f'''<div style="text-align:center;padding:12px;background:#fff;
-                border:1px solid #e2e8f0;border-radius:12px;box-shadow:0 1px 3px rgba(0,0,0,0.08);">
-                <div style="font-size:24px;">{em}</div>
-                <div style="font-size:12px;font-weight:600;color:#334155;margin:4px 0;">{lbl}</div>
-                <div style="font-size:20px;font-weight:700;color:{bc};">{fmt_pct(lv)}</div>
-                <div style="background:#e2e8f0;border-radius:4px;height:6px;margin-top:8px;">
-                <div style="background:{bc};height:6px;width:{pc:.0f}%;border-radius:4px;"></div></div>
-                <div style="font-size:10px;color:#94a3b8;margin-top:4px;">
+            st.markdown(f'''<div class="qc-indicator-card">
+                <div class="qc-indicator-icon">{em}</div>
+                <div class="qc-indicator-label">{lbl}</div>
+                <div class="qc-indicator-val" style="color:{bc};">{fmt_pct(lv)}</div>
+                <div class="qc-bar-track">
+                <div class="qc-bar-fill" style="background:{bc};width:{pc:.0f}%;"></div></div>
+                <div class="qc-indicator-rate">
                 达标率 {pc:.0f}% ({sum(1 for v in vv if check_threshold(q,mk,v)[0])}/{len(vv)})</div></div>''', unsafe_allow_html=True)
 
     # ── 数据明细表 ──
-    st.markdown(f"""<div style="font-size:14px;font-weight:600;margin:18px 0 10px;">
+    st.markdown(f"""<div class="qc-section-title-simple">
         📋 {q['name']} 数据明细 ({len(df)} 条)</div>""", unsafe_allow_html=True)
 
     disp_cols = ["date"] + q["metric_keys"]
@@ -822,7 +812,7 @@ def render_dashboard(all_data):
                        key=f"dl_{qid}")
 
     # Footer
-    st.markdown(f'<div style="text-align:center;color:#94a3b8;font-size:11px;padding:14px 0;border-top:1px solid #e2e8f0;margin-top:10px;">'
+    st.markdown(f'<div class="qc-footer">'
             f'📊 QC Dashboard v4.0 (AI) · {datetime.now().strftime("%Y-%m-%d %H:%M")}</div>', unsafe_allow_html=True)
 
 
@@ -1012,16 +1002,8 @@ st.set_page_config(
     menu_items={"About": "📊 QC Dashboard v4.0 (AI)", "Report a bug": None, "Get Help": None},
 )
 
-# 全局 CSS — 从 custom.css 文件加载（避免 <style> 标签在旧版 Streamlit 上暴露为文本）
-_css_path = os.path.join(BASE, "custom.css")
-if os.path.exists(_css_path):
-    _css_content = open(_css_path, "r").read()
-    # 用 <link> 标签引入外部 CSS（data URI 方式，不依赖 static 目录）
-    import base64
-    _css_b64 = base64.b64encode(_css_content.encode()).decode()
-    st.markdown(f'''<link rel="stylesheet" href="data:text/css;base64,{_css_b64}">''', unsafe_allow_html=True)
-else:
-    st.markdown("""<link rel="stylesheet" href="static/custom.css">""", unsafe_allow_html=True)
+# 全局 CSS — 通过 static 目录加载（避免 <style> 标签和 data URI 在旧版 Streamlit 上暴露为文本）
+st.markdown('<link rel="stylesheet" href="static/custom.css">', unsafe_allow_html=True)
 
 # ── 顶部导航条（替代侧边栏）──
 nav_col1, nav_col2, nav_spacer = st.columns([1, 1, 5])
