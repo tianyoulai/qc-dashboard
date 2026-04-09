@@ -338,7 +338,7 @@ def render_ai_summary_section(all_data):
     # 检查是否有 DeepSeek 配置
     api_key, _ = _load_deepseek_config()
 
-    st.markdown("""<div class="qc-section-title">🤖 AI 日报摘要</div>""", unsafe_allow_html=True)
+    st.markdown("### 🤖 AI 日报摘要")
 
     ai_col1, ai_col2 = st.columns([1, 5])
     with ai_col1:
@@ -398,16 +398,10 @@ def render_ai_summary_section(all_data):
                 st.session_state["_ai_generated"] = True
 
     if "_ai_summary_html" in st.session_state:
-        # 渲染为美观的卡片
-        st.markdown(f'''<div class="qc-ai-result">
-            <div class="qc-ai-header">
-                <span class="qc-ai-icon">🤖</span>
-                <span class="qc-ai-title">AI 分析结果</span>
-                <span class="qc-ai-time">DeepSeek · {datetime.now().strftime('%H:%M')}</span>
-            </div>
-            <div class="qc-ai-body">
-            {st.session_state["_ai_summary_html"].replace('\n', '<br>')}
-            </div></div>''', unsafe_allow_html=True)
+        # 渲染为原生 info 卡片
+        st.info(f"""**🤖 AI 分析结果** · DeepSeek · {datetime.now().strftime('%H:%M')}
+
+{st.session_state["_ai_summary_html"]}""")
 
 
 def render_queue_ai_insight(q, df):
@@ -503,12 +497,9 @@ def render_queue_ai_insight(q, df):
                         st.session_state[f"_ai_q_{q['id']}_html"] = result
 
             if f"_ai_q_{q['id']}_html" in st.session_state:
-                st.markdown(f'''<div style="background:#faf5ff;border:1px solid #e9d5ff;
-                    border-radius:10px;padding:14px 16px;margin-top:8px;">
-                    <div style="font-size:12px;color:#7c3aed;margin-bottom:6px;">🔮 AI 洞察 · {q['icon']} {q['name']}</div>
-                    <div style="font-size:13px;line-height:1.7;color:#334155;">
-                    {st.session_state[f'_ai_q_{q["id"]}_html'].replace(chr(10), '<br>')}
-                    </div></div>''', unsafe_allow_html=True)
+                st.info(f"""**🔮 AI 洞察 · {q['icon']} {q['name']}
+
+{st.session_state[f'_ai_q_{q["id"]} _html'].replace(chr(10), '  \n')}""")
 
 def render_dashboard(all_data):
     """质检数据看板主页 — 对标参考设计（纯原生组件，兼容所有 Streamlit 版本）"""
@@ -517,15 +508,8 @@ def render_dashboard(all_data):
     total_records = sum(len(d) for d in all_data.values())
 
     # ── Header ──
-    st.markdown(f"""
-    <div style="display:flex;align-items:center;justify-content:space-between;
-        flex-wrap:wrap;gap:12px;margin-bottom:2px;padding-bottom:12px;border-bottom:1px solid #e2e8f0;">
-        <div>
-            <div style="font-size:22px;font-weight:700;color:#1e293b;">📊 质检数据统一看板</div>
-            <div style="font-size:12px;color:#64748b;margin-top:2px;">多队列 · 按日期聚合指标 · 数据来源：企业微信智能表格 · 共 <b>{total_records}</b> 条记录</div>
-        </div>
-        <div style="font-size:11px;color:#94a3b8;">{datetime.now().strftime('%Y-%m-%d %H:%M')}</div>
-    </div>""", unsafe_allow_html=True)
+    st.markdown(f"## 📊 质检数据统一看板")
+    st.caption(f"多队列 · 按日期聚合指标 · 数据来源：企业微信智能表格 · 共 **{total_records}** 条记录 · {datetime.now().strftime('%Y-%m-%d %H:%M')}")
 
     # ── 日期筛选行（对标HTML模板版：紧凑一行）──
     c_d1, c_d2, c_btns = st.columns([2, 2, 4])
@@ -560,9 +544,9 @@ def render_dashboard(all_data):
         del st.session_state["_quick"]
 
     # ════════════════════════════════════════════════════════════
-    #  Overview 卡片行（HTML 卡片 — 对标模板版的 overview-card 样式）
+    #  Overview 卡片行（原生 st.columns + st.metric，兼容所有 Streamlit 版本）
     # ════════════════════════════════════════════════════════════
-    ov_cards_html = []
+    ov_cols = st.columns(len(QUEUES))
     for ci, q in enumerate(QUEUES):
         df_f = filter_by_date(all_data.get(q["id"], pd.DataFrame()), date_from_str, date_to_str)
         lr = find_latest_nonzero(df_f, q["metric_keys"])
@@ -571,18 +555,14 @@ def render_dashboard(all_data):
         main_val = find_latest_nonzero_per_key(df_f, pm)
 
         val_str = fmt_pct(main_val) if main_val is not None else "--"
+        n_days = len(df_f)
         card_color = q.get("color", "#3b82f6")
 
-        ov_cards_html.append(f'''
-        <div class="qc-ov-card">
-            <div class="qc-ov-icon">{q['icon']}</div>
-            <div class="qc-ov-name">{q['name']}</div>
-            <div class="qc-ov-val" style="color:{card_color};">{val_str}</div>
-            <div class="qc-ov-date">{latest_date}</div>
-        </div>''')
-
-    st.markdown(f'''<div class="qc-ov-grid">
-        {''.join(ov_cards_html)}</div>''', unsafe_allow_html=True)
+        with ov_cols[ci]:
+            st.metric(label=f"{q['icon']} **{q['name']}**", value=val_str,
+                      delta=f"{n_days}天" if n_days > 0 else "待接入",
+                      delta_color="off" if n_days == 0 else "normal",
+                      help=f"{q.get('full_name', q['name'])}\n最新日期: {latest_date}")
 
     # ════════════════════════════════════════════════════════════
     #  🤖 AI 日报摘要（对标企微推送完整版）
@@ -597,8 +577,7 @@ def render_dashboard(all_data):
 
     current_idx = st.session_state.active_qidx
 
-    # 用一个容器包裹所有 Tab 按钮 + 自定义 class 标识
-    st.markdown('<div class="qc-tab-row">', unsafe_allow_html=True)
+    # Tab 按钮行
     tab_col_row = st.columns(len(QUEUES))
     for i, q in enumerate(QUEUES):
         df_f = filter_by_date(all_data.get(q["id"], pd.DataFrame()), date_from_str, date_to_str)
@@ -616,9 +595,7 @@ def render_dashboard(all_data):
                 st.session_state.active_qidx = i
                 st.rerun()
 
-    st.markdown('</div>', unsafe_allow_html=True)
-
-    # 胶囊 Tab CSS 已移至 custom.css 统一加载（见页面底部）
+    # 胶囊 Tab CSS 已在 custom.css 中通过 [id^="_tab_"] 选择器生效
 
     # ════════════════════════════════════════════════════════════
     #  当前队列详情
@@ -636,12 +613,7 @@ def render_dashboard(all_data):
     sc_left, sc_right = st.columns([1, 3])
     with sc_left:
         dr_s = f"{df['date'].iloc[0]} ~ {df['date'].iloc[-1]}" if len(df) > 0 else ""
-        st.markdown(f"""
-        <div class="qc-stats-card">
-            <div class="qc-stats-label">数据天数</div>
-            <div class="qc-stats-num">{len(df)}<span class="qc-stats-unit">天</span></div>
-            <div class="qc-stats-daterange">{dr_s}</div>
-        </div>""", unsafe_allow_html=True)
+        st.metric("📅 数据天数", f"{len(df)} 天", delta=dr_s, delta_color="off")
 
     with sc_right:
         mcols = st.columns(len(q["metric_keys"]))
@@ -672,17 +644,14 @@ def render_dashboard(all_data):
             vc = "#dc2626" if not is_ok else "#1e293b"
 
             with mcols[ki]:
-                st.markdown(f'''<div class="qc-metric-card" style="border-left-color:{bl_c};background:{bg_c};">
-                    <div class="qc-metric-card-label">
-                    {lbl} <span class="qc-sep">|</span> {tl}</div>
-                    <div class="qc-metric-card-val" style="color:{vc};">{fmt_pct(last_v)}</div>
-                    <div class="qc-metric-card-sub">
-                    均值 <b>{fmt_pct1(avg_v)}</b>&nbsp;&nbsp;{trend_html}</div></div>''', unsafe_allow_html=True)
+                st.metric(
+                    label=f"{lbl} | {tl}",
+                    value=fmt_pct(last_v),
+                    delta=f"均值: {fmt_pct1(avg_v)}  {trend_html}" if trend_html else f"均值: {fmt_pct1(avg_v)}"
+                )
 
     # ── 走势图标题 ──
-    st.markdown(f"""<div class="qc-section-title">
-        <span class="qc-dot" style="background:{q['color']};"></span>
-        {q['icon']} {q['name']} — 指标走势</div>""", unsafe_allow_html=True)
+    st.markdown(f"### {q['icon']} {q['name']} — 指标走势")
 
     fig = go.Figure()
     ccolors = ["#3b82f6", "#22c55e", "#ef4444", "#f97316", "#eab308", "#a855f7", "#06b6d4"]
@@ -741,7 +710,7 @@ def render_dashboard(all_data):
     render_queue_ai_insight(q, df)
 
     # ── 最新指标构成 ──
-    st.markdown("""<div class="qc-section-title-simple">✅ 最新指标构成</div>""", unsafe_allow_html=True)
+    st.markdown("### ✅ 最新指标构成")
     icols = st.columns(len(q["metric_keys"]))
     for ki, mk in enumerate(q["metric_keys"]):
         vv = get_valid_values(df, mk)
@@ -757,18 +726,15 @@ def render_dashboard(all_data):
         em = "✅" if ok else "❌"
 
         with icols[ki]:
-            st.markdown(f'''<div class="qc-indicator-card">
-                <div class="qc-indicator-icon">{em}</div>
-                <div class="qc-indicator-label">{lbl}</div>
-                <div class="qc-indicator-val" style="color:{bc};">{fmt_pct(lv)}</div>
-                <div class="qc-bar-track">
-                <div class="qc-bar-fill" style="background:{bc};width:{pc:.0f}%;"></div></div>
-                <div class="qc-indicator-rate">
-                达标率 {pc:.0f}% ({sum(1 for v in vv if check_threshold(q,mk,v)[0])}/{len(vv)})</div></div>''', unsafe_allow_html=True)
+            st.metric(
+                label=f"{em} {lbl}",
+                value=fmt_pct(lv),
+                delta=f"达标率 {pc:.0f}% ({sum(1 for v in vv if check_threshold(q,mk,v)[0])}/{len(vv)})",
+                help=f"{'✅ 达标' if ok else '❌ 不达标'}"
+            )
 
     # ── 数据明细表 ──
-    st.markdown(f"""<div class="qc-section-title-simple">
-        📋 {q['name']} 数据明细 ({len(df)} 条)</div>""", unsafe_allow_html=True)
+    st.markdown(f"### 📋 {q['name']} 数据明细 ({len(df)} 条)")
 
     disp_cols = ["date"] + q["metric_keys"]
     disp_df = df[disp_cols].copy().sort_values("date", ascending=False).reset_index(drop=True)
@@ -812,8 +778,7 @@ def render_dashboard(all_data):
                        key=f"dl_{qid}")
 
     # Footer
-    st.markdown(f'<div class="qc-footer">'
-            f'📊 QC Dashboard v4.0 (AI) · {datetime.now().strftime("%Y-%m-%d %H:%M")}</div>', unsafe_allow_html=True)
+    st.caption(f'📊 QC Dashboard v4.0 (AI) · {datetime.now().strftime("%Y-%m-%d %H:%M")}')
 
 
 # ════════════════════════════════════════════════════════════════
@@ -854,7 +819,7 @@ def render_import():
             st.warning("⏳ 暂无文件，请先上传")
 
     with cb:
-        st.markdown("<br>", unsafe_allow_html=True)
+        st.write("")
         if not excel_files:
             st.button("🔄 执行刷新", disabled=True, type="primary", use_container_width=True)
         elif st.button("🔄 执行刷新", type="primary", use_container_width=True):
