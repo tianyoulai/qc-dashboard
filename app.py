@@ -1,6 +1,6 @@
 """
 ============================================================
-QC Dashboard — Streamlit 独立看板  v2.1
+QC Dashboard — Streamlit 独立看板  v2.8
 ============================================================
 侧边栏导航：数据总览 | 数据导入
 用法:  cd qc-dashboard && streamlit run app.py
@@ -298,30 +298,49 @@ def render_dashboard(all_data):
         
         # 检查所有指标的阈值达标情况
         has_alert = False
+        alert_items = []
         alert_count = 0
         if lr is not None:
             for mk in q["metric_keys"]:
                 if mk in lr.index:
-                    is_ok, _, _ = check_threshold(q, mk, lr.get(mk))
+                    is_ok, status_txt, _ = check_threshold(q, mk, lr.get(mk))
                     if not is_ok:
                         has_alert = True
                         alert_count += 1
+                        lbl = q["metric_labels"].get(mk, mk)
+                        val_str = fmt_pct1(lr[mk])
+                        alert_items.append(f"{lbl} {val_str}")
 
         with ov_cols[i]:
-            # 不达标时卡片边框标红
-            if has_alert:
-                st.markdown(f"""
-                <div style="border:2px solid #dc2626;border-radius:12px;padding:8px;background:#fef2f2;">
-                    <div style="font-size:13px;color:#dc2626;font-weight:600;">⚠️ {alert_count}项不达标</div>
-                </div>
-                """, unsafe_allow_html=True)
+            # 用 HTML 容器包裹整个卡片，不达标时左侧红色边框 + 顶部小警示条
+            border_color = "#dc2626" if has_alert else q["color"]
+            bg_color = "#fef2f2" if has_alert else "#f8fafc"
             
-            st.metric(
-                label=f"{q['icon']} {q['name']}",
-                value=display_val,
-                delta=f"{len(df_f)} 天 | {latest_date}",
-                delta_color="off",
-            )
+            # 构建辅助信息
+            alert_html = ""
+            if has_alert:
+                detail = " · ".join(alert_items)
+                alert_html = f"""
+                <div style='background:#dc2626;color:#fff;font-size:11px;padding:3px 10px;
+                            border-radius:6px 6px 0 0;font-weight:600;margin:-8px -8px 8px -8px;'>
+                    ⚠️ {alert_count}项不达标：{detail}
+                </div>"""
+            
+            st.markdown(f"""
+            <div style='border-left:3px solid {border_color};background:{bg_color};
+                        border-radius:8px;padding:12px 10px;box-shadow:0 1px 3px rgba(0,0,0,0.06);'>
+                {alert_html}
+                <div style='font-size:12px;color:#64748b;margin-bottom:4px;'>
+                    {q['icon']} <b>{q['name']}</b>
+                </div>
+                <div style='font-size:22px;font-weight:700;color:#1e293b;'>
+                    {display_val}
+                </div>
+                <div style='font-size:11px;color:#94a3b8;margin-top:2px;'>
+                    {len(df_f)} 天 · {latest_date}
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
 
     st.divider()
 
@@ -341,7 +360,7 @@ def render_dashboard(all_data):
                 st.info(f"😴 **{q['name']}** 在选定日期范围内暂无数据")
                 continue
 
-            # 统计卡片（含阈值警示）
+            # 统计卡片（含阈值警示 — 精致版）
             st.markdown("##### 📌 核心指标")
             n_metrics = len(q["metric_keys"]) + 1
             stat_cols = st.columns(min(n_metrics, 5))
@@ -370,6 +389,8 @@ def render_dashboard(all_data):
                 # 阈值检查
                 is_ok, status_txt, color = check_threshold(q, mk, last_val)
                 thresh_label = get_threshold_label(q, mk)
+                # 阈值图标：达标✅ / 不达标⚠️
+                status_icon = "🟢" if is_ok else "🔴"
 
                 trend_str = ""
                 non_zero_indices = [i for i, v in enumerate(valid_vals) if v != 0]
@@ -384,24 +405,29 @@ def render_dashboard(all_data):
                         trend_str = f"{arrow} {abs(chg):.1f}%"
 
                 lbl = q["metric_labels"].get(mk, mk)
-                # 指标标签加底线说明
-                display_label = f"{lbl}"
+                # 精致的指标标签：名称 + 阈值 + 状态图标一行展示
+                tag_parts = [lbl]
                 if thresh_label:
-                    display_label += f" <span style='font-size:10px;color:#6b7280'>(底线{thresh_label})</span>"
+                    tag_parts.append(f"<span style='color:#94a3b8;font-weight:400;'>| {thresh_label}</span>")
+                display_label = f"{status_icon} {' '.join(tag_parts)}"
                 
                 with (stat_cols[ki + 1] if ki + 1 < len(stat_cols) else st.columns(1)[0]):
-                    # 不达标时显示红色提示
-                    if not is_ok:
-                        st.markdown(
-                            f"<div style='color:{color};font-size:11px;font-weight:600;margin-bottom:2px;'>"
-                            f"{status_txt}</div>",
-                            unsafe_allow_html=True,
-                        )
-                    st.metric(
-                        label=display_label,
-                        value=fmt_pct(last_val),
-                        delta=f"均{fmt_pct1(avg_val)} {trend_str}" if trend_str else f"均值 {fmt_pct1(avg_val)}",
-                    )
+                    # 用 HTML 容器替代原生 metric，更精细控制样式
+                    val_str = fmt_pct(last_val)
+                    delta_text = f"均{fmt_pct1(avg_val)} {trend_str}" if trend_str else f"均值 {fmt_pct1(avg_val)}"
+                    
+                    card_bg = "#fef2f2" if not is_ok else "#f0fdf4"
+                    border_l = "#dc2626" if not is_ok else "#16a34a"
+                    val_color = "#dc2626" if not is_ok else "#1e293b"
+                    
+                    st.markdown(f"""
+                    <div style='border-left:3px solid {border_l};background:{card_bg};
+                                border-radius:8px;padding:10px 12px;margin-bottom:8px;'>
+                        <div style='font-size:12px;color:#475569;font-weight:500;'>{display_label}</div>
+                        <div style='font-size:20px;font-weight:700;color:{val_color};margin:2px 0;'>{val_str}</div>
+                        <div style='font-size:11px;color:#64748b;'>{delta_text}</div>
+                    </div>
+                    """, unsafe_allow_html=True)
 
             # 图表区
             c1, c2 = st.columns([2, 1])
@@ -497,7 +523,7 @@ def render_dashboard(all_data):
             disp_df.rename(columns=rename_map, inplace=True)
 
             def _highlight(s):
-                """按底线阈值给单元格上色：不达标红色 / 达标绿色"""
+                """按底线阈值给单元格上色：不达标红色醒目标注 / 达标保持干净"""
                 result = [""] * len(s)
                 col_name = s.name
                 # 从 rename_map 反查 metric_key
@@ -513,19 +539,14 @@ def render_dashboard(all_data):
                             num = float(v.rstrip("%")) / 100
                             is_ok, _, color = check_threshold(q, mk, num)
                             if not is_ok:
-                                # 不达标：红底红字加粗
-                                result[i] = "background-color: #fef2f2; color: #dc2626; font-weight:600;"
-                            else:
-                                # 达标：绿底绿字
-                                result[i] = "background-color: #f0fdf4; color: #16a34a; font-weight:500;"
+                                # 不达标：红色文字+粗体+淡红背景，视觉突出但不喧宾夺主
+                                result[i] = "color:#dc2626;font-weight:700;background-color:#fef2f2;"
                         except (ValueError, TypeError):
                             pass
                     elif isinstance(v, (int, float)):
                         is_ok, _, color = check_threshold(q, mk, v)
                         if not is_ok:
-                            result[i] = "background-color: #fef2f2; color: #dc2626; font-weight:600;"
-                        else:
-                            result[i] = "background-color: #f0fdf4; color: #16a34a; font-weight:500;"
+                            result[i] = "color:#dc2626;font-weight:700;background-color:#fef2f2;"
                 return result
 
             styled_df = disp_df.style.apply(_highlight, axis=0)
@@ -554,7 +575,7 @@ def render_dashboard(all_data):
     st.divider()
     st.markdown(
         '<div style="text-align:center;color:#94a3b8;font-size:11px;padding:10px 0">'
-        '📊 QC Dashboard v2.1 · Powered by Streamlit + Plotly · '
+        '📊 QC Dashboard v2.8 · Powered by Streamlit + Plotly · '
         f'<span style="opacity:0.7">{datetime.now().strftime("%Y-%m-%d %H:%M:%S")}</span></div>',
         unsafe_allow_html=True,
     )
@@ -919,7 +940,7 @@ st.set_page_config(
     layout="wide",
     initial_sidebar_state="expanded",
     menu_items={
-        "About": "📊 QC Dashboard v2.1 — 质检数据统一看板",
+        "About": "📊 QC Dashboard v2.8 — 质检数据统一看板",
         "Report a bug": None,
         "Get Help": None,
     },
@@ -927,33 +948,105 @@ st.set_page_config(
 
 st.markdown("""
 <style>
+    /* ── 全局基础样式 ──*/
+    .main blockquote {
+        border-left: 4px solid #3b82f6 !important;
+        background: #f0f9ff !important;
+        border-radius: 0 8px 8px 0 !important;
+        padding: 12px 16px !important;
+    }
+    
     /* 隐藏 Streamlit 自带的侧边栏默认元素（避免重复） */
     [data-testid="stSidebar"] [data-testid="stVerticalBlock"] > *:first-child {
         display: none !important;
     }
     
-    /* 统计卡片 */
+    /* 原生 metric 卡片美化（仅用于数据导入页等保留 metric 的地方） */
     [data-testid="stMetric"] {
         background-color: #ffffff;
         border: 1px solid #e2e8f0;
-        border-radius: 12px;
-        padding: 8px !important;
-        box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+        border-radius: 10px;
+        padding: 12px !important;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.06);
     }
+    
     h1 { font-size: 24px !important; font-weight: 700 !important; margin-bottom: 8px !important; }
-    h3 { font-size: 20px !important; font-weight: 600 !important; }
+    h3 { font-size: 20px !important; font-weight: 600 !important; color: #1e293b !important; }
+    h4, h5 { color: #334155 !important; }
+    
     /* 上传区域 */
     [data-testid="stFileUploader"] {
         border: 2px dashed #cbd5e1 !important;
         border-radius: 12px !important;
-        padding: 16px !important;
+        padding: 20px !important;
+        background: #fafafa !important;
     }
-    /* 表格样式 */
-    [data-testid="stDataFrame"] { border-radius: 12px; overflow: hidden; }
+    [data-testid="stFileUploader"]:hover {
+        border-color: #93c5fd !important;
+        background: #eff6ff !important;
+    }
+    
+    /* 表格样式 — 精致圆角+细边框 */
+    [data-testid="stDataFrame"] { 
+        border-radius: 10px; 
+        overflow: hidden; 
+        border: 1px solid #e2e8f0 !important;
+    }
+    [data-testid="stDataFrame"] th {
+        background-color: #f8fafc !important;
+        color: #475569 !important;
+        font-weight: 600 !important;
+        font-size: 12px !important;
+        text-transform: uppercase;
+        letter-spacing: 0.03em;
+        padding: 10px 12px !important;
+    }
+    [data-testid="stDataFrame"] td {
+        font-size: 13px !important;
+        padding: 8px 12px !important;
+    }
+
+    /* Tabs 标签页美化 */
+    [data-testid="stTabs"] button {
+        font-size: 13px !important;
+        font-weight: 500 !important;
+        padding: 8px 16px !important;
+        border-radius: 8px 8px 0 0 !important;
+    }
+    [data-testid="stTabs"] [aria-selected="true"] {
+        border-bottom: 2.5px solid #3b82f6 !important;
+        color: #1e293b !important;
+        font-weight: 600 !important;
+    }
+    
+    /* 按钮微调 */
+    .stButton button[kind="primary"] {
+        border-radius: 8px !important;
+        font-weight: 600 !important;
+    }
+    
+    /* Expander 美化 */
+    .streamlit-expanderHeader {
+        font-size: 13px !important;
+        font-weight: 500 !important;
+    }
+    
+    /* Divider 细线 */
+    hr { 
+        border: none !important; 
+        border-top: 1px solid #f1f5f9 !important; 
+        margin: 16px 0 !important;
+    }
     
     /* 侧边栏导航按钮样式 */
     [data-testid="stSidebar"] .row-widget {
         margin-bottom: 4px;
+    }
+    
+    /* 图表容器圆角 */
+    .js-plotly-plot {
+        border-radius: 8px !important;
+        overflow: hidden;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -973,7 +1066,7 @@ with st.sidebar:
     st.markdown("---")
     st.caption(
         f"📅 {datetime.now().strftime('%Y-%m-%d')}\n\n"
-        f"📊 QC Dashboard v2.1"
+        f"📊 QC Dashboard v2.8"
     )
 
 # ── 渲染对应页面 ──
