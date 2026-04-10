@@ -9,7 +9,7 @@
     <!-- 执行的命令 -->
     <key>ProgramArguments</key>
     <array>
-        <string>/usr/bin/python3</string>
+        <string>/Library/Frameworks/Python.framework/Versions/3.14/bin/python3</string>
         <string>/Users/laitianyou/WorkBuddy/20260408163242/qc-dashboard/scripts/auto_refresh.py</string>
     </array>
 
@@ -46,11 +46,13 @@
     <key>EnvironmentVariables</key>
     <dict>
         <key>PATH</key>
-        <string>/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:/opt/homebrew/bin:/Users/laitianyou/.local/bin</string>
+        <string>/Library/Frameworks/Python.framework/Versions/3.14/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:/opt/homebrew/bin:/Users/laitianyou/.local/bin</string>
         <key>PYTHONPATH</key>
         <string>/Users/laitianyou/WorkBuddy/20260408163242/qc-dashboard/src</string>
         <key>HOME</key>
         <string>/Users/laitianyou</string>
+        <key>QC_DB_PASSWORD</key>
+        <string>K8!#C8FppM2uqO2jbc1EU1q_q3Tb9_7P</string>
     </dict>
 
     <!-- 运行用户 -->

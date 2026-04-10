@@ -34,3 +34,11 @@ wecom-sheet-report.md
 # 敏感凭证
 .env
 config.local.yaml
+
+# 数据库（加密后的二进制文件，不需要提交）
+data/metrics.db
+data/metrics.db.plaintext.bak
+
+# 临时下载文件（处理后自动清理）
+data/downloads/*.xlsx
+data/uploads/*.xlsx

@@ -88,17 +88,22 @@ case "${1:-help}" in
         echo ""
         echo "📅 数据库最新日期:"
         $PYTHON_CMD -c "
-import sqlite3, json
+import sys
+sys.path.insert(0, 'src')
+from collector import get_db_connection
 from pathlib import Path
 db = Path('data/metrics.db')
 if db.exists():
-    conn = sqlite3.connect(str(db))
-    c = conn.cursor()
-    c.execute(\"SELECT MAX(date), COUNT(DISTINCT date) FROM daily_metrics\")
-    row = c.fetchone()
-    print(f'   最新日期: {row[0] or \"无数据\"}')
-    print(f'   总记录数: {row[1] or 0} 天')
-    conn.close()
+    try:
+        conn = get_db_connection()
+        c = conn.cursor()
+        c.execute(\"SELECT MAX(date), COUNT(DISTINCT date) FROM daily_metrics\")
+        row = c.fetchone()
+        print(f'   最新日期: {row[0] or \"无数据\"}')
+        print(f'   总记录数: {row[1] or 0} 天')
+        conn.close()
+    except Exception as e:
+        print(f'   ⚠️ 数据库连接失败（可能需要设置 QC_DB_PASSWORD）: {e}')
 else:
     print('   ❌ 数据库不存在')
 " 2>/dev/null

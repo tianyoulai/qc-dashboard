@@ -8,8 +8,8 @@ QC Dashboard — Streamlit 独立看板  v1.1
 """
 
 import os
+import sys
 import json
-import sqlite3
 from datetime import datetime, timedelta
 
 import pandas as pd
@@ -20,6 +20,8 @@ import streamlit as st
 
 # ── 路径 ──
 BASE = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, os.path.join(BASE, "src"))
+from db_helper import get_db
 DB_PATH = os.path.join(BASE, "data", "metrics.db")
 
 # ── 队列配置（与 _dashboard_logic.js 保持一致）─────────
@@ -103,7 +105,7 @@ QUEUE_MAP = {q["id"]: q for q in QUEUES}
 @st.cache_data(ttl=60)
 def load_all_queue_data():
     """从 SQLite 加载全部队列数据，返回 {qid: DataFrame}"""
-    conn = sqlite3.connect(DB_PATH)
+    conn = get_db(DB_PATH)
     all_data = {}
 
     for q in QUEUES:

@@ -7,8 +7,8 @@
 
 # 全局设置
 global:
-  # 数据采集模式: wcom-api | cdp | excel
-  collector_mode: wcom-api
+  # 数据采集模式: playwright | wcom-api | cdp | excel
+  collector_mode: playwright
 
   # ============================================================
   # ⚠️  企微推送配置（同事拿到后只需修改这里！）

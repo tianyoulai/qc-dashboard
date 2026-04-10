@@ -20,7 +20,6 @@ QC Dashboard — 每日数据推送
 import os
 import sys
 import json
-import sqlite3
 import logging
 import requests
 from datetime import datetime, date, timedelta
@@ -117,8 +116,11 @@ def get_latest_metrics():
         log.error(f"数据库不存在: {DB_FILE}")
         return []
 
-    conn = sqlite3.connect(str(DB_FILE))
-    conn.row_factory = sqlite3.Row
+    # 使用 collector 的加密连接（自动处理 SQLCipher 密码）
+    import sys
+    sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
+    from collector import get_db_connection
+    conn = get_db_connection()
     c = conn.cursor()
 
     results = []
@@ -143,12 +145,12 @@ def get_latest_metrics():
             })
             continue
 
-        # 找最新非零日期
+        # 找最新非零日期（用索引访问，兼容 sqlcipher3）
         dates_vals = {}
         for r in rows:
-            d = r["date"]
-            k = r["metric_key"]
-            v = r["metric_value"]
+            d = r[0]   # date
+            k = r[1]   # metric_key
+            v = r[2]   # metric_value
             if d not in dates_vals:
                 dates_vals[d] = {}
             dates_vals[d][k] = v

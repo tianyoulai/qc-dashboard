@@ -16,7 +16,6 @@ QC Dashboard — 自动定时刷新脚本
 import os
 import sys
 import json
-import sqlite3
 import logging
 from datetime import datetime, date, timedelta
 from pathlib import Path
@@ -162,12 +161,42 @@ def main(dry_run=False):
             return 0
 
         # ── Step 2: 拉取数据 ──
-        log.info("📡 [2/4] 从企微API拉取数据...")
-        
-        mode = config.get("global", {}).get("collector_mode", "excel")
+        mode = config.get("global", {}).get("collector_mode", "playwright")
         total_imported = 0
+        log.info(f"📡 [2/4] 拉取数据 (模式: {mode})...")
         
-        if mode == "wcom-api":
+        if mode == "playwright":
+            # Playwright 自动下载 xlsx → 解析入库
+            import asyncio
+            from auto_download import run_full_pipeline
+            
+            log.info("   启动 Playwright 自动下载...")
+            try:
+                downloaded = asyncio.run(run_full_pipeline(download_only=True, headless=True))
+                log.info(f"   下载了 {len(downloaded)} 个文件: {downloaded}")
+            except Exception as e:
+                log.error(f"   ❌ Playwright 下载失败: {e}")
+                downloaded = []
+            
+            if downloaded:
+                # 下载成功后，逐个导入数据库
+                from collector import import_excel
+                for fpath in downloaded:
+                    try:
+                        count = import_excel(conn, config, file_path=fpath)
+                        total_imported += count
+                        log.info(f"   ✅ 导入 {fpath}: {count} 条")
+                    except Exception as e:
+                        log.warning(f"   ⚠️ 导入失败 {fpath}: {e}")
+                # 清理临时文件
+                from auto_download import cleanup_temp_files
+                cleanup_temp_files()
+            else:
+                log.warning("   ⚠️ 未下载到任何文件，尝试用 uploads 目录已有文件兜底")
+                from collector import import_excel
+                total_imported = import_excel(conn, config)
+        
+        elif mode == "wcom-api":
             from collector import fetch_wecom_api, check_wecom_init
             if not check_wecom_init():
                 log.error("❌ wecom-cli 未初始化！请先运行: python src/collector.py setup")

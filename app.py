@@ -10,7 +10,7 @@ QC Dashboard — Streamlit 看板  v5.0（对标 HTML 模板版）
 
 import os
 import io
-import sqlite3
+import sys
 import time
 from datetime import datetime, timedelta
 
@@ -35,6 +35,8 @@ if _orig_show_error is None:
 
 # ── 路径 ──
 BASE = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, os.path.join(BASE, "src"))
+from db_helper import get_db
 DB_PATH = os.path.join(BASE, "data", "metrics.db")
 UPLOAD_DIR = os.path.join(BASE, "data", "uploads")
 os.makedirs(UPLOAD_DIR, exist_ok=True)
@@ -125,7 +127,7 @@ QUEUE_MAP = {q["id"]: q for q in QUEUES}
 @st.cache_data(ttl=60)
 def load_all_queue_data():
     """从 SQLite 加载全部队列数据，返回 {qid: DataFrame}"""
-    conn = sqlite3.connect(DB_PATH)
+    conn = get_db(DB_PATH)
     all_data = {}
     for q in QUEUES:
         qid = q["id"]
@@ -998,12 +1000,12 @@ def render_import():
             dd2 = st.date_input("截止", key="del_to")
             if dd1 and dd2:
                 fs, ts = dd1.strftime("%Y-%m-%d"), dd2.strftime("%Y-%m-%d")
-                cnt = sqlite3.connect(DB_PATH).execute(
+                cnt = get_db(DB_PATH).execute(
                     "SELECT COUNT(*) FROM daily_metrics WHERE date BETWEEN ? AND ?", (fs, ts)).fetchone()[0]
                 if cnt > 0:
                     st.warning(f"将删除 **{cnt}** 条（{fs} ~ {ts}）")
                     if st.button("🗑️ 删除选中范围", type="primary"):
-                        conn = sqlite3.connect(DB_PATH)
+                        conn = get_db(DB_PATH)
                         conn.execute("DELETE FROM daily_metrics WHERE date BETWEEN ? AND ?", (fs, ts))
                         conn.commit(); conn.close(); st.cache_data.clear()
                         st.success(f"✅ 删除 {cnt} 条"); time.sleep(1); st.rerun()
@@ -1014,7 +1016,7 @@ def render_import():
         conf = st.text_input("输入 CONFIRM 确认全量删除", key="_conf_del")
         if conf and conf.strip().upper() == "CONFIRM":
             if st.button("确认清除全部数据", type="primary"):
-                conn = sqlite3.connect(DB_PATH)
+                conn = get_db(DB_PATH)
                 c = conn.execute("DELETE FROM daily_metrics"); conn.commit()
                 st.success(f"已删除 {c.rowcount} 条"); conn.close(); st.cache_data.clear(); time.sleep(1); st.rerun()
 
@@ -1065,7 +1067,7 @@ def _do_refresh():
         progress.progress(60); log("🧹 清理未来日期...")
         from datetime import date as _date
         today_s = _date.today().isoformat()
-        cn = sqlite3.connect(DB_PATH); c = cn.cursor()
+        cn = get_db(DB_PATH); c = cn.cursor()
         c.execute("DELETE FROM daily_metrics WHERE date > ?", (today_s,))
         fd = c.rowcount; cn.commit(); cn.close()
         if fd: log(f"🧹 清理 {fd} 条未来日期")
