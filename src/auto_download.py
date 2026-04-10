@@ -48,6 +48,9 @@ def log(msg, level="INFO"):
     now = datetime.now().strftime("%H:%M:%S")
     print(f"  [{now}] [{level}] {msg}")
 
+# ── 并行下载时的共享文件认领集合 ──
+_claimed_files = set()  # 已被某个 tab 认领的文件名，其他 tab 跳过
+
 
 # ============================================================
 # 配置加载
@@ -160,59 +163,114 @@ async def download_queues(queue_configs, headless=False, force_login=False):
             except Exception:
                 log("⏰ 等待登录超时(3分钟)，尝试继续...", "WARN")
 
-        # 逐个队列下载（去重：相同 doc_url 只下载一次）
+        # ── 并行下载：同时在多个 tab 打开文档并触发导出 ──
+        # 重置并行认领集合
+        global _claimed_files
+        _claimed_files = set()
+        
+        # 先去重：同一 doc_url 只下载一次
+        unique_tasks = []  # [(qcfg, url_key)]
         visited_urls = {}  # url_key → 下载文件路径
+        dedup_map = {}     # url_key → [qcfg, ...]  记录共享同一文档的队列
+        
         for qcfg in queue_configs:
-            qid = qcfg['id']
+            doc_url = qcfg.get('doc_url', '')
+            if not doc_url:
+                log(f"[{qcfg.get('name','')}] 缺少 doc_url，跳过", "WARN")
+                continue
+            url_key = doc_url.split('?')[0]
+            if url_key not in dedup_map:
+                dedup_map[url_key] = []
+                unique_tasks.append((qcfg, url_key))
+            dedup_map[url_key].append(qcfg)
+        
+        log(f"\n📋 共 {len(queue_configs)} 个队列，去重后 {len(unique_tasks)} 个文档需下载")
+        
+        # ── Phase 1: 并行打开所有文档页面 ──
+        log("⚡ [Phase 1] 并行打开所有文档页面...")
+        tab_tasks = []  # [(page, qcfg, url_key)]
+        
+        for i, (qcfg, url_key) in enumerate(unique_tasks):
             qname = qcfg.get('name', '')
             doc_url = qcfg.get('doc_url', '')
             
-            if not doc_url:
-                log(f"[{qname}] 缺少 doc_url，跳过", "WARN")
-                continue
+            # 第一个队列复用已有 page，其余新建 tab
+            if i == 0:
+                tab_page = page
+            else:
+                tab_page = await context.new_page()
             
-            # 去重：同一个表格只下载一次（如 q3 和 q3b 共享同一 doc_url）
-            url_key = doc_url.split('?')[0]  # 去掉查询参数作为唯一标识
-            if url_key in visited_urls:
-                log(f"[{qname}] 同一文档已下载，复用文件", "INFO")
-                prev_file = visited_urls[url_key]
-                if prev_file and os.path.exists(prev_file):
-                    downloaded_files.append(prev_file)
-                continue
-            
-            log(f"\n{'='*50}")
-            log(f"开始下载: [{qname}] ({qid})")
-            log(f"URL: {doc_url[:80]}...")
-            
-            # 导航到目标页面
+            log(f"  Tab {i+1}: [{qname}] 打开中...")
             try:
-                await page.goto(doc_url, wait_until="networkidle", timeout=60_000)
-                await asyncio.sleep(3)  # 等待表格渲染完成 (Canvas虚拟渲染需要时间)
+                await tab_page.goto(doc_url, wait_until="domcontentloaded", timeout=30_000)
             except Exception as e:
-                log(f"页面加载失败: {e}", "ERROR")
-                continue
-
-            # 截图记录当前状态 (调试用)
+                log(f"  Tab {i+1}: [{qname}] 加载失败: {e}", "WARN")
+            
+            tab_tasks.append((tab_page, qcfg, url_key))
+        
+        # 等待所有页面渲染完成
+        await asyncio.sleep(4)
+        log(f"  ✅ {len(tab_tasks)} 个页面已打开")
+        
+        # ── Phase 2: 并行触发所有导出按钮 ──
+        log("⚡ [Phase 2] 并行触发导出...")
+        
+        async def trigger_export_for_tab(tab_page, qcfg, url_key):
+            """在单个 tab 上触发导出并等待下载完成"""
+            qid = qcfg['id']
+            qname = qcfg.get('name', '')
+            
+            log(f"  [{qname}] 触发导出...")
+            
+            # 截图
             debug_img = DATA_DIR / f"_debug_{qid}.png"
-            await page.screenshot(path=str(debug_img), full_page=False)
-            log(f"页面截图已保存: {debug_img}")
-
-            # 尝试点击下载/导出按钮
-            dl_file = await click_and_download(page, qid, qname)
+            try:
+                await tab_page.screenshot(path=str(debug_img), full_page=False)
+            except:
+                pass
+            
+            # 点击下载
+            dl_file = await click_and_download(tab_page, qid, qname)
             
             if dl_file:
-                # 移动到 uploads 目录
                 dest_name = f"{qname}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx"
                 dest_path = UPLOAD_DIR / dest_name
                 shutil.move(str(dl_file), str(dest_path))
-                log(f"✅ 已保存: {dest_path}", "SUCCESS")
-                downloaded_files.append(str(dest_path))
-                # 记录 URL → 文件映射，供去重复用
-                visited_urls[url_key] = str(dest_path)
+                log(f"  ✅ [{qname}] 已保存: {dest_path.name}", "SUCCESS")
+                return (url_key, str(dest_path))
             else:
-                log(f"⚠️ [{qname}] 下载失败", "WARN")
-
-        # 不关闭浏览器，保留登录态
+                log(f"  ⚠️ [{qname}] 下载失败", "WARN")
+                return (url_key, None)
+        
+        # 并行执行所有 tab 的导出
+        results = await asyncio.gather(*[
+            trigger_export_for_tab(tp, qc, uk)
+            for tp, qc, uk in tab_tasks
+        ], return_exceptions=True)
+        
+        # 收集结果
+        for res in results:
+            if isinstance(res, Exception):
+                log(f"  ⚠️ 并行任务异常: {res}", "WARN")
+                continue
+            url_key, file_path = res
+            if file_path:
+                visited_urls[url_key] = file_path
+                downloaded_files.append(file_path)
+                # 为共享同一文档的其他队列也记录文件路径
+                shared_queues = dedup_map.get(url_key, [])
+                if len(shared_queues) > 1:
+                    for sq in shared_queues[1:]:
+                        downloaded_files.append(file_path)
+                        log(f"  📋 [{sq.get('name','')}] 复用文件: {Path(file_path).name}", "INFO")
+        
+        # 关闭多余的 tab（保留第一个）
+        for tp, _, _ in tab_tasks[1:]:
+            try:
+                await tp.close()
+            except:
+                pass
+        
         log("\n浏览器保持打开 (登录态已保存)")
         
     return downloaded_files
@@ -333,7 +391,7 @@ async def click_and_download(page, queue_id, queue_name):
     ]:
         try:
             await page.keyboard.press(key_combo)
-            dl_file = await poll_for_download(before_files, before_default, queue_name, timeout=30)
+            dl_file = await poll_for_download(before_files, before_default, queue_name, timeout=30, claimed_files=_claimed_files)
             if dl_file:
                 return dl_file
         except Exception:
@@ -394,7 +452,7 @@ async def try_click_export_menu_item(page, queue_name):
                             log(f"    已点击导出，等待文件生成...")
                             
                             # 轮询等待文件出现（最多 5 分钟）
-                            dl_file = await poll_for_download(before_files, before_default, queue_name, timeout=300)
+                            dl_file = await poll_for_download(before_files, before_default, queue_name, timeout=300, claimed_files=_claimed_files)
                             if dl_file:
                                 return dl_file
                             else:
@@ -407,7 +465,7 @@ async def try_click_export_menu_item(page, queue_name):
                 before_default = set((Path.home() / "Downloads").glob("*.xlsx")) if (Path.home() / "Downloads").exists() else set()
                 before_default_names = set(f.name for f in before_default)
                 
-                dl_file = await poll_for_download(before_files, before_default_names, queue_name, timeout=60)
+                dl_file = await poll_for_download(before_files, before_default_names, queue_name, timeout=60, claimed_files=_claimed_files)
                 if dl_file:
                     return dl_file
                 
@@ -420,7 +478,7 @@ async def try_click_export_menu_item(page, queue_name):
     return None
 
 
-async def poll_for_download(before_files, before_default_names, queue_name, timeout=300):
+async def poll_for_download(before_files, before_default_names, queue_name, timeout=300, claimed_files=None):
     """
     轮询等待下载文件出现在 downloads 目录或浏览器默认下载目录。
     
@@ -435,43 +493,32 @@ async def poll_for_download(before_files, before_default_names, queue_name, time
         before_default_names: 点击前浏览器默认下载目录的 xlsx 文件名集合
         queue_name: 队列名称（用于日志）
         timeout: 最大等待秒数
+        claimed_files: 并行模式下的已声明文件集合（set），避免多 tab 抢同一个文件
     
     返回: 下载文件路径 或 None
     """
+    if claimed_files is None:
+        claimed_files = set()
+    
     import time
     start_time = time.time()
     default_dl_dir = Path.home() / "Downloads"
     
     # 状态追踪
-    export_toast_seen = False
     last_log_time = 0
     
     while time.time() - start_time < timeout:
         elapsed = int(time.time() - start_time)
         
-        # 每 15 秒输出一次状态日志
-        if elapsed - last_log_time >= 15:
+        # 每 30 秒输出一次状态日志（并行时减少日志噪音）
+        if elapsed - last_log_time >= 30:
             last_log_time = elapsed
-            log(f"    等待导出完成... ({elapsed}s/{timeout}s)", "DEBUG")
-        
-        # 检查企微的"正在导出" toast
-        try:
-            has_exporting = await asyncio.get_event_loop().run_in_executor(
-                None, lambda: False  # 非阻塞，改用 JS 检测
-            )
-            has_exporting = await page.evaluate("""() => {
-                const bodyText = document.body.innerText || '';
-                return bodyText.includes('正在导出') || bodyText.includes('请稍候');
-            }""")
-            if has_exporting:
-                export_toast_seen = True
-        except:
-            pass
+            log(f"    [{queue_name}] 等待导出完成... ({elapsed}s/{timeout}s)", "DEBUG")
         
         # 检查 downloads 目录是否有新文件
         if DOWNLOADS_DIR.exists():
             current_files = set(f.name for f in DOWNLOADS_DIR.glob("*"))
-            new_files = current_files - before_files
+            new_files = current_files - before_files - claimed_files
             # 企微导出的文件可能是 .xlsx、.xls、.crdownload，也可能是 UUID 无扩展名
             xlsx_new = [f for f in new_files if f.endswith(('.xlsx', '.xls', '.crdownload'))]
             uuid_new = [f for f in new_files if not f.startswith('.') and not f.endswith(('.xlsx', '.xls', '.crdownload', '.png', '.html', '.log', '.json'))]
@@ -487,24 +534,28 @@ async def poll_for_download(before_files, before_default_names, queue_name, time
                         continue
                     if fpath.exists() and fpath.stat().st_size > 1000:  # 至少 1KB
                         size_mb = fpath.stat().st_size / (1024 * 1024)
-                        log(f"    ✅ 检测到新文件: {fname} ({size_mb:.1f} MB)", "SUCCESS")
+                        log(f"    ✅ [{queue_name}] 检测到新文件: {fname} ({size_mb:.1f} MB)", "SUCCESS")
+                        # 标记文件已被认领（并行安全）
+                        claimed_files.add(fname)
                         # 如果是 UUID 无扩展名文件，重命名为 .xlsx
                         if not fname.endswith(('.xlsx', '.xls')):
                             xlsx_path = fpath.with_suffix('.xlsx')
                             fpath.rename(xlsx_path)
                             log(f"    📝 重命名为: {xlsx_path.name}", "INFO")
+                            claimed_files.add(xlsx_path.name)
                             return str(xlsx_path)
                         return str(fpath)
         
         # 也检查浏览器默认下载目录
         if default_dl_dir.exists():
             current_default = set(f.name for f in default_dl_dir.glob("*.xlsx"))
-            new_default = current_default - before_default_names
+            new_default = current_default - before_default_names - claimed_files
             for fname in new_default:
                 fpath = default_dl_dir / fname
                 if fpath.exists() and fpath.stat().st_size > 0:
                     size_mb = fpath.stat().st_size / (1024 * 1024)
-                    log(f"    ✅ 检测到默认下载目录新文件: {fname} ({size_mb:.1f} MB)", "SUCCESS")
+                    log(f"    ✅ [{queue_name}] 检测到默认下载目录新文件: {fname} ({size_mb:.1f} MB)", "SUCCESS")
+                    claimed_files.add(fname)
                     # 移动到项目 downloads 目录
                     dest = DOWNLOADS_DIR / fname
                     shutil.move(str(fpath), str(dest))
@@ -593,7 +644,7 @@ async def js_find_and_click_export(page, queue_name):
                     }""", candidate)
                     
                     # 轮询等待下载
-                    dl_file = await poll_for_download(before_files, before_default, queue_name, timeout=180)
+                    dl_file = await poll_for_download(before_files, before_default, queue_name, timeout=180, claimed_files=_claimed_files)
                     if dl_file:
                         return dl_file
                 except Exception:
