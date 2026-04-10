@@ -290,30 +290,49 @@ def import_excel(conn, config: dict, queue_id: Optional[str] = None, file_path: 
                 log.info(f"  处理 [{sub_name}] (日期列={sub_date_col})")
             
             # 从第3行开始遍历数据（前两行为标题）
-            for row_idx in range(2, len(df)):
-                row_values = df.iloc[row_idx].tolist()
-                
-                if all(pd.isna(v) or v is None or str(v).strip() == '' for v in row_values):
-                    continue
+        # 诊断计数器
+        _skip_empty = 0
+        _skip_no_date = 0
+        _skip_no_metrics = 0
 
-                date_val = get_cell_val_pandas(row_values, sub_date_col)
-                if not date_val:
-                    continue
-                date_str = parse_date(date_val)
-                if not date_str:
-                    continue
+        for row_idx in range(2, len(df)):
+            row_values = df.iloc[row_idx].tolist()
 
-                metrics = {}
-                for mcfg in sub_fields.get('metrics', []):
-                    col = mcfg.get('col', '')
-                    key = mcfg.get('key', '')
-                    val = get_cell_val_pandas(row_values, col)
-                    if val is not None:
-                        metrics[key] = val
+            if all(pd.isna(v) or v is None or str(v).strip() == '' for v in row_values):
+                _skip_empty += 1
+                continue
 
-                if metrics:
-                    upsert_metrics(conn, qid, qname, date_str, metrics, source='excel')
-                    row_count += 1
+            date_val = get_cell_val_pandas(row_values, sub_date_col)
+            if not date_val:
+                _skip_no_date += 1
+                continue
+            date_str = parse_date(date_val)
+            if not date_str:
+                _skip_no_date += 1
+                continue
+
+            metrics = {}
+            for mcfg in sub_fields.get('metrics', []):
+                col = mcfg.get('col', '')
+                key = mcfg.get('key', '')
+                val = get_cell_val_pandas(row_values, col)
+                if val is not None:
+                    metrics[key] = val
+
+            if metrics:
+                upsert_metrics(conn, qid, qname, date_str, metrics, source='excel')
+                row_count += 1
+            else:
+                _skip_no_metrics += 1
+
+        # 导入0条时输出诊断信息
+        if row_count == 0:
+            log.warning(f"  ⚠️ 导入0条！诊断: 总行={len(df)-2}, 空行={_skip_empty}, 无日期={_skip_no_date}, 无指标={_skip_no_metrics}")
+            # 输出前3行样本帮助排查
+            for sample_idx in range(2, min(5, len(df))):
+                sample_row = df.iloc[sample_idx].tolist()
+                sample_date = get_cell_val_pandas(sample_row, sub_date_col)
+                log.warning(f"  📋 样本行{sample_idx}: A列={sample_date}, E列={get_cell_val_pandas(sample_row, 'E')}, F列={get_cell_val_pandas(sample_row, 'F')}")
 
         log.info(f"  ✅ 导入 {row_count} 条记录 → 队列 [{qname or qid}]")
         imported += row_count

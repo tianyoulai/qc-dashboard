@@ -2,14 +2,14 @@
 """
 QC Dashboard — 自动定时刷新脚本
 =====================================
-由 launchd 调用，每天 9:10 自动执行：
-  1. 通过企微 API 拉取最新数据（wcom-api 模式）
-  2. 清理未来日期占位行
-  3. 检测数据缺口并记录（补数提示）
-  4. 写入日志文件
+由 launchd 调用，每天 18:15 自动执行：
+  1. 通过 Playwright 自动下载企微表格 xlsx
+  2. 解析入库并清理未来日期
+  3. 检测数据缺口并记录
+  4. 自动推送到企微群（如已配置 webhook）
 
 用法:
-  python scripts/auto_refresh.py          # 正常执行
+  python scripts/auto_refresh.py          # 正式执行
   python scripts/auto_refresh.py --dry-run # 只检查不执行
 """
 
@@ -180,17 +180,60 @@ def main(dry_run=False):
             
             if downloaded:
                 # 下载成功后，逐个导入数据库
+                # 注意：去重文件（如 q3/q3b 共享同一 xlsx）会出现在列表中多次，
+                # import_excel 导入后会删除原文件，需要对重复文件先做备份
                 from collector import import_excel
+                import shutil
+                # 统计每个文件出现的次数，>1 说明有队列共享
+                from collections import Counter
+                file_counts = Counter(str(f) for f in downloaded)
+                file_used = Counter()  # 记录每个文件已处理次数
+
                 for fpath in downloaded:
                     try:
+                        fpath_str = str(fpath)
+                        file_used[fpath_str] += 1
+                        # 如果文件会被多次使用且这是第一次，先为后续复制备份
+                        if file_counts[fpath_str] > 1 and file_used[fpath_str] == 1:
+                            # 第1次使用：复制副本供后续队列，当前用原文件
+                            total_shared = file_counts[fpath_str]
+                            copy_path = fpath_str.replace('.xlsx', f'_shared{total_shared}.xlsx')
+                            shutil.copy2(fpath_str, copy_path)
+                            log.info(f"   📋 共享文件备份({total_shared}个队列共用): {Path(copy_path).name}")
+                            # 将后续出现的同路径替换为副本（从当前位置之后查找）
+                            current_idx = -1
+                            for i, f in enumerate(downloaded):
+                                if str(f) == fpath_str:
+                                    current_idx = i
+                                    break
+                            replaced = 0
+                            for i in range(current_idx + 1, len(downloaded)):
+                                if str(downloaded[i]) == fpath_str:
+                                    downloaded[i] = copy_path
+                                    replaced += 1
+                                    if replaced >= total_shared - 1:
+                                        break
+
+                        if not Path(fpath).exists():
+                            log.warning(f"   ⚠️ 文件不存在，跳过: {fpath}")
+                            continue
+
                         count = import_excel(conn, config, file_path=fpath)
                         total_imported += count
                         log.info(f"   ✅ 导入 {fpath}: {count} 条")
                     except Exception as e:
                         log.warning(f"   ⚠️ 导入失败 {fpath}: {e}")
-                # 清理临时文件
+                # 清理临时文件（包括 _shared 副本）
                 from auto_download import cleanup_temp_files
                 cleanup_temp_files()
+                # 额外清理 uploads 目录中的 _shared 副本
+                upload_dir = PROJECT_ROOT / "data" / "uploads"
+                for f in upload_dir.glob("*_shared*.xlsx"):
+                    try:
+                        f.unlink()
+                        log.info(f"   🧹 清理共享副本: {f.name}")
+                    except OSError:
+                        pass
             else:
                 log.warning("   ⚠️ 未下载到任何文件，尝试用 uploads 目录已有文件兜底")
                 from collector import import_excel
