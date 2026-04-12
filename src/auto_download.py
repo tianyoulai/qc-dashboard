@@ -80,9 +80,10 @@ def get_queue_config(config, queue_id=None):
 # ============================================================
 async def download_queues(queue_configs, headless=False, force_login=False):
     """
-    用 Playwright 打开企微表格并逐个下载 Excel。
+    用 Playwright 打开企微表格并逐个下载 Excel（串行模式）。
     
-    返回: 成功下载的文件路径列表
+    返回: [(file_path, queue_id), ...] 元组列表，每个元素标明文件对应的队列ID。
+          对于共享文件（如 q3/q3b），会返回多个元组指向同一文件。
     """
     from playwright.async_api import async_playwright
     
@@ -91,7 +92,7 @@ async def download_queues(queue_configs, headless=False, force_login=False):
     
     log(f"启动浏览器 (数据目录: {BROWSER_DATA})")
     
-    downloaded_files = []
+    downloaded_files = []  # [(file_path, queue_id), ...]
     
     async with async_playwright() as p:
         # 使用持久化上下文保存登录态
@@ -163,114 +164,58 @@ async def download_queues(queue_configs, headless=False, force_login=False):
             except Exception:
                 log("⏰ 等待登录超时(3分钟)，尝试继续...", "WARN")
 
-        # ── 并行下载：同时在多个 tab 打开文档并触发导出 ──
-        # 重置并行认领集合
-        global _claimed_files
-        _claimed_files = set()
-        
-        # 先去重：同一 doc_url 只下载一次
-        unique_tasks = []  # [(qcfg, url_key)]
+        # ── 串行下载：逐个队列打开文档并导出 ──
+        # 去重：同一 doc_url 只下载一次（如 q3 和 q3b 共享同一文档）
         visited_urls = {}  # url_key → 下载文件路径
-        dedup_map = {}     # url_key → [qcfg, ...]  记录共享同一文档的队列
-        
+
         for qcfg in queue_configs:
-            doc_url = qcfg.get('doc_url', '')
-            if not doc_url:
-                log(f"[{qcfg.get('name','')}] 缺少 doc_url，跳过", "WARN")
-                continue
-            url_key = doc_url.split('?')[0]
-            if url_key not in dedup_map:
-                dedup_map[url_key] = []
-                unique_tasks.append((qcfg, url_key))
-            dedup_map[url_key].append(qcfg)
-        
-        log(f"\n📋 共 {len(queue_configs)} 个队列，去重后 {len(unique_tasks)} 个文档需下载")
-        
-        # ── Phase 1: 并行打开所有文档页面 ──
-        log("⚡ [Phase 1] 并行打开所有文档页面...")
-        tab_tasks = []  # [(page, qcfg, url_key)]
-        
-        for i, (qcfg, url_key) in enumerate(unique_tasks):
-            qname = qcfg.get('name', '')
-            doc_url = qcfg.get('doc_url', '')
-            
-            # 第一个队列复用已有 page，其余新建 tab
-            if i == 0:
-                tab_page = page
-            else:
-                tab_page = await context.new_page()
-            
-            log(f"  Tab {i+1}: [{qname}] 打开中...")
-            try:
-                await tab_page.goto(doc_url, wait_until="domcontentloaded", timeout=30_000)
-            except Exception as e:
-                log(f"  Tab {i+1}: [{qname}] 加载失败: {e}", "WARN")
-            
-            tab_tasks.append((tab_page, qcfg, url_key))
-        
-        # 等待所有页面渲染完成
-        await asyncio.sleep(4)
-        log(f"  ✅ {len(tab_tasks)} 个页面已打开")
-        
-        # ── Phase 2: 并行触发所有导出按钮 ──
-        log("⚡ [Phase 2] 并行触发导出...")
-        
-        async def trigger_export_for_tab(tab_page, qcfg, url_key):
-            """在单个 tab 上触发导出并等待下载完成"""
             qid = qcfg['id']
             qname = qcfg.get('name', '')
-            
-            log(f"  [{qname}] 触发导出...")
-            
-            # 截图
-            debug_img = DATA_DIR / f"_debug_{qid}.png"
+            doc_url = qcfg.get('doc_url', '')
+
+            if not doc_url:
+                log(f"[{qname}] 缺少 doc_url，跳过", "WARN")
+                continue
+
+            # 去重：同一个表格只下载一次，但为每个队列都记录映射
+            url_key = doc_url.split('?')[0]
+            if url_key in visited_urls:
+                log(f"[{qname}] 同一文档已下载，复用文件", "INFO")
+                prev_file = visited_urls[url_key]
+                if prev_file and os.path.exists(prev_file):
+                    downloaded_files.append((prev_file, qid))
+                continue
+
+            log(f"\n{'='*50}")
+            log(f"开始下载: [{qname}] ({qid})")
+            log(f"URL: {doc_url[:80]}...")
+
+            # 导航到目标页面
             try:
-                await tab_page.screenshot(path=str(debug_img), full_page=False)
-            except:
-                pass
-            
-            # 点击下载
-            dl_file = await click_and_download(tab_page, qid, qname)
-            
+                await page.goto(doc_url, wait_until="domcontentloaded", timeout=30_000)
+                await asyncio.sleep(3)  # 等待表格渲染完成
+            except Exception as e:
+                log(f"页面加载失败: {e}", "ERROR")
+                continue
+
+            # 截图记录当前状态
+            debug_img = DATA_DIR / f"_debug_{qid}.png"
+            await page.screenshot(path=str(debug_img), full_page=False)
+
+            # 尝试点击下载/导出按钮
+            dl_file = await click_and_download(page, qid, qname)
+
             if dl_file:
+                # 移动到 uploads 目录
                 dest_name = f"{qname}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx"
                 dest_path = UPLOAD_DIR / dest_name
                 shutil.move(str(dl_file), str(dest_path))
-                log(f"  ✅ [{qname}] 已保存: {dest_path.name}", "SUCCESS")
-                return (url_key, str(dest_path))
+                log(f"✅ 已保存: {dest_path}", "SUCCESS")
+                downloaded_files.append((str(dest_path), qid))
+                visited_urls[url_key] = str(dest_path)
             else:
-                log(f"  ⚠️ [{qname}] 下载失败", "WARN")
-                return (url_key, None)
-        
-        # 并行执行所有 tab 的导出
-        results = await asyncio.gather(*[
-            trigger_export_for_tab(tp, qc, uk)
-            for tp, qc, uk in tab_tasks
-        ], return_exceptions=True)
-        
-        # 收集结果
-        for res in results:
-            if isinstance(res, Exception):
-                log(f"  ⚠️ 并行任务异常: {res}", "WARN")
-                continue
-            url_key, file_path = res
-            if file_path:
-                visited_urls[url_key] = file_path
-                downloaded_files.append(file_path)
-                # 为共享同一文档的其他队列也记录文件路径
-                shared_queues = dedup_map.get(url_key, [])
-                if len(shared_queues) > 1:
-                    for sq in shared_queues[1:]:
-                        downloaded_files.append(file_path)
-                        log(f"  📋 [{sq.get('name','')}] 复用文件: {Path(file_path).name}", "INFO")
-        
-        # 关闭多余的 tab（保留第一个）
-        for tp, _, _ in tab_tasks[1:]:
-            try:
-                await tp.close()
-            except:
-                pass
-        
+                log(f"⚠️ [{qname}] 下载失败", "WARN")
+
         log("\n浏览器保持打开 (登录态已保存)")
         
     return downloaded_files

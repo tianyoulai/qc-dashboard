@@ -1,0 +1,742 @@
+2026-04-10 09:10:05 [INFO] ============================================================
+2026-04-10 09:10:05 [INFO] 🔄 QC Dashboard 自动刷新启动
+2026-04-10 09:10:05 [INFO]    时间: 2026-04-10 09:10:05
+2026-04-10 09:10:05 [INFO]    模式: 正式执行
+2026-04-10 09:10:05 [INFO] ============================================================
+2026-04-10 09:10:05 [ERROR] ❌ 刷新失败: No module named 'yaml'
+Traceback (most recent call last):
+  File "/Users/laitianyou/WorkBuddy/20260408163242/qc-dashboard/scripts/auto_refresh.py", line 138, in main
+    config = load_config()
+  File "/Users/laitianyou/WorkBuddy/20260408163242/qc-dashboard/scripts/auto_refresh.py", line 48, in load_config
+    import yaml
+ModuleNotFoundError: No module named 'yaml'
+2026-04-10 18:15:04 [INFO] ============================================================
+2026-04-10 18:15:04 [INFO] 🔄 QC Dashboard 自动刷新启动
+2026-04-10 18:15:04 [INFO]    时间: 2026-04-10 18:15:04
+2026-04-10 18:15:04 [INFO]    模式: 正式执行
+2026-04-10 18:15:04 [INFO] ============================================================
+2026-04-10 18:15:04 [INFO] 📊 [1/4] 检测数据缺口...
+2026-04-10 18:15:04 [INFO]    ✅ 数据连续，最新日期: 2026-04-10
+2026-04-10 18:15:04 [INFO] 📡 [2/4] 拉取数据 (模式: playwright)...
+2026-04-10 18:15:05 [INFO]    启动 Playwright 自动下载...
+  [18:15:05] [INFO] ========================================================
+  [18:15:05] [INFO]  方案2 自动化流水线
+  [18:15:05] [INFO]  队列数: 7
+  [18:15:05] [INFO]  时间:   2026-04-10 18:15:05
+  [18:15:05] [INFO] ========================================================
+  [18:15:05] [INFO] 
+【Step 1/3】自动下载企微表格
+  [18:15:05] [INFO] 启动浏览器 (数据目录: /Users/laitianyou/WorkBuddy/20260408163242/qc-dashboard/data/browser_profile)
+  [18:15:07] [INFO] 正在打开: [投放误漏]
+  [18:15:07] [INFO]   URL: https://doc.weixin.qq.com/sheet/e3_ACgA9wbwACk4qZHejt9TJuM61u9o6?scode=AJEAIQdfA...
+  [18:15:11] [INFO] 
+==================================================
+  [18:15:11] [INFO] 开始下载: [投放误漏] (q1_toufang)
+  [18:15:11] [INFO] URL: https://doc.weixin.qq.com/sheet/e3_ACgA9wbwACk4qZHejt9TJuM61u9o6?scode=AJEAIQdfA...
+  [18:16:07] [INFO] 页面截图已保存: /Users/laitianyou/WorkBuddy/20260408163242/qc-dashboard/data/_debug_q1_toufang.png
+  [18:16:07] [INFO]   [Step 1] 检查页面上是否有可见的「导出」选项...
+  [18:16:07] [INFO]   [Step 2] 尝试打开文档操作菜单...
+  [18:16:07] [DEBUG]     找到按钮: .mini-list-dropdown-btn
+  [18:16:09] [INFO]     菜单截图: /Users/laitianyou/WorkBuddy/20260408163242/qc-dashboard/data/_debug_q1_toufang_menu.png
+  [18:16:09] [DEBUG]     找到按钮: [aria-label="按钮:文档列表下拉"]
+  [18:16:11] [INFO]     菜单截图: /Users/laitianyou/WorkBuddy/20260408163242/qc-dashboard/data/_debug_q1_toufang_menu.png
+  [18:16:12] [DEBUG]     找到按钮: [aria-label="按钮:文件操作"]
+  [18:16:13] [INFO]     菜单截图: /Users/laitianyou/WorkBuddy/20260408163242/qc-dashboard/data/_debug_q1_toufang_menu.png
+  [18:16:13] [SUCCESS]     找到菜单项: [导出]
+  [18:16:14] [SUCCESS]     找到子菜单项: [Excel], 点击下载...
+  [18:16:17] [INFO]     已点击导出，等待文件生成...
+  [18:16:32] [DEBUG]     等待导出完成... (15s/300s)
+  [18:16:47] [DEBUG]     等待导出完成... (30s/300s)
+  [18:17:02] [DEBUG]     等待导出完成... (45s/300s)
+  [18:17:17] [DEBUG]     等待导出完成... (60s/300s)
+  [18:17:32] [DEBUG]     等待导出完成... (75s/300s)
+  [18:17:48] [DEBUG]     等待导出完成... (90s/300s)
+  [18:18:03] [DEBUG]     等待导出完成... (106s/300s)
+  [18:18:18] [DEBUG]     等待导出完成... (121s/300s)
+  [18:18:33] [DEBUG]     等待导出完成... (136s/300s)
+  [18:18:48] [DEBUG]     等待导出完成... (151s/300s)
+  [18:19:03] [DEBUG]     等待导出完成... (166s/300s)
+  [18:19:18] [DEBUG]     等待导出完成... (181s/300s)
+  [18:19:39] [DEBUG]     等待导出完成... (202s/300s)
+  [18:19:42] [SUCCESS]     ✅ 检测到新文件: 75fba0c7-444a-4bbf-9da6-b9dcfe24682c (178.7 MB)
+  [18:19:42] [INFO]     📝 重命名为: 75fba0c7-444a-4bbf-9da6-b9dcfe24682c.xlsx
+  [18:19:42] [SUCCESS] ✅ 已保存: /Users/laitianyou/WorkBuddy/20260408163242/qc-dashboard/data/uploads/投放误漏_20260410_181942.xlsx
+  [18:19:42] [INFO] 
+==================================================
+  [18:19:42] [INFO] 开始下载: [简单二审] (q2_erjiansimple)
+  [18:19:42] [INFO] URL: https://doc.weixin.qq.com/sheet/e3_ACgA9wbwACkZmouhYUBTlyj5JbPjt?scode=AJEAIQdfA...
+  [18:20:37] [INFO] 页面截图已保存: /Users/laitianyou/WorkBuddy/20260408163242/qc-dashboard/data/_debug_q2_erjiansimple.png
+  [18:20:37] [INFO]   [Step 1] 检查页面上是否有可见的「导出」选项...
+  [18:20:37] [INFO]   [Step 2] 尝试打开文档操作菜单...
+  [18:20:37] [DEBUG]     找到按钮: .mini-list-dropdown-btn
+  [18:20:38] [INFO]     菜单截图: /Users/laitianyou/WorkBuddy/20260408163242/qc-dashboard/data/_debug_q2_erjiansimple_menu.png
+  [18:20:39] [DEBUG]     找到按钮: [aria-label="按钮:文档列表下拉"]
+  [18:20:41] [INFO]     菜单截图: /Users/laitianyou/WorkBuddy/20260408163242/qc-dashboard/data/_debug_q2_erjiansimple_menu.png
+  [18:20:41] [DEBUG]     找到按钮: [aria-label="按钮:文件操作"]
+  [18:20:43] [INFO]     菜单截图: /Users/laitianyou/WorkBuddy/20260408163242/qc-dashboard/data/_debug_q2_erjiansimple_menu.png
+  [18:20:43] [SUCCESS]     找到菜单项: [导出]
+  [18:20:44] [SUCCESS]     找到子菜单项: [Excel], 点击下载...
+  [18:20:44] [INFO]     已点击导出，等待文件生成...
+  [18:20:59] [DEBUG]     等待导出完成... (15s/300s)
+  [18:21:14] [DEBUG]     等待导出完成... (30s/300s)
+  [18:21:29] [DEBUG]     等待导出完成... (45s/300s)
+  [18:21:44] [DEBUG]     等待导出完成... (60s/300s)
+  [18:21:59] [DEBUG]     等待导出完成... (75s/300s)
+  [18:22:14] [DEBUG]     等待导出完成... (90s/300s)
+  [18:22:29] [DEBUG]     等待导出完成... (105s/300s)
+  [18:22:44] [DEBUG]     等待导出完成... (120s/300s)
+  [18:23:00] [DEBUG]     等待导出完成... (135s/300s)
+  [18:23:15] [DEBUG]     等待导出完成... (150s/300s)
+  [18:23:30] [DEBUG]     等待导出完成... (165s/300s)
+  [18:23:45] [DEBUG]     等待导出完成... (180s/300s)
+  [18:24:00] [DEBUG]     等待导出完成... (195s/300s)
+  [18:24:18] [DEBUG]     等待导出完成... (213s/300s)
+  [18:24:34] [DEBUG]     等待导出完成... (229s/300s)
+  [18:24:50] [DEBUG]     等待导出完成... (245s/300s)
+  [18:25:06] [DEBUG]     等待导出完成... (262s/300s)
+  [18:25:22] [DEBUG]     等待导出完成... (278s/300s)
+  [18:25:38] [DEBUG]     等待导出完成... (294s/300s)
+  [18:25:46] [WARN]     ⏰ 轮询超时 (300s)，未检测到下载文件
+  [18:25:46] [WARN]     轮询超时，文件未出现
+  [18:26:01] [DEBUG]     等待导出完成... (15s/60s)
+  [18:26:16] [DEBUG]     等待导出完成... (30s/60s)
+  [18:26:24] [SUCCESS]     ✅ 检测到新文件: 8d779bb0-e521-4ad0-9924-875b7c7090a5 (1929.6 MB)
+  [18:26:24] [INFO]     📝 重命名为: 8d779bb0-e521-4ad0-9924-875b7c7090a5.xlsx
+  [18:26:24] [SUCCESS] ✅ 已保存: /Users/laitianyou/WorkBuddy/20260408163242/qc-dashboard/data/uploads/简单二审_20260410_182624.xlsx
+  [18:26:24] [INFO] 
+==================================================
+  [18:26:24] [INFO] 开始下载: [四期-二审GT] (q3_erjian_4qi_gt)
+  [18:26:24] [INFO] URL: https://doc.weixin.qq.com/sheet/e3_ACgA9wbwACkCNPZ6wydnzSRiMDToL?scode=AJEAIQdfA...
+  [18:27:03] [INFO] 页面截图已保存: /Users/laitianyou/WorkBuddy/20260408163242/qc-dashboard/data/_debug_q3_erjian_4qi_gt.png
+  [18:27:03] [INFO]   [Step 1] 检查页面上是否有可见的「导出」选项...
+  [18:27:03] [INFO]   [Step 2] 尝试打开文档操作菜单...
+  [18:27:03] [DEBUG]     找到按钮: .mini-list-dropdown-btn
+  [18:27:05] [INFO]     菜单截图: /Users/laitianyou/WorkBuddy/20260408163242/qc-dashboard/data/_debug_q3_erjian_4qi_gt_menu.png
+  [18:27:05] [DEBUG]     找到按钮: [aria-label="按钮:文档列表下拉"]
+  [18:27:07] [INFO]     菜单截图: /Users/laitianyou/WorkBuddy/20260408163242/qc-dashboard/data/_debug_q3_erjian_4qi_gt_menu.png
+  [18:27:07] [DEBUG]     找到按钮: [aria-label="按钮:文件操作"]
+  [18:27:09] [INFO]     菜单截图: /Users/laitianyou/WorkBuddy/20260408163242/qc-dashboard/data/_debug_q3_erjian_4qi_gt_menu.png
+  [18:27:09] [SUCCESS]     找到菜单项: [导出]
+  [18:27:10] [SUCCESS]     找到子菜单项: [Excel], 点击下载...
+  [18:27:10] [INFO]     已点击导出，等待文件生成...
+  [18:27:25] [DEBUG]     等待导出完成... (15s/300s)
+  [18:27:40] [DEBUG]     等待导出完成... (30s/300s)
+  [18:27:55] [DEBUG]     等待导出完成... (45s/300s)
+  [18:28:10] [DEBUG]     等待导出完成... (60s/300s)
+  [18:28:25] [DEBUG]     等待导出完成... (75s/300s)
+  [18:28:40] [DEBUG]     等待导出完成... (90s/300s)
+  [18:28:55] [DEBUG]     等待导出完成... (105s/300s)
+  [18:29:13] [DEBUG]     等待导出完成... (123s/300s)
+  [18:29:29] [DEBUG]     等待导出完成... (139s/300s)
+  [18:29:32] [SUCCESS]     ✅ 检测到新文件: 5b052f6b-b1a1-4b4a-b30c-0647eec89e05 (480.7 MB)
+  [18:29:32] [INFO]     📝 重命名为: 5b052f6b-b1a1-4b4a-b30c-0647eec89e05.xlsx
+  [18:29:32] [SUCCESS] ✅ 已保存: /Users/laitianyou/WorkBuddy/20260408163242/qc-dashboard/data/uploads/四期-二审GT_20260410_182932.xlsx
+  [18:29:32] [INFO] [四期-切片GT] 同一文档已下载，复用文件
+  [18:29:32] [INFO] 
+==================================================
+  [18:29:32] [INFO] 开始下载: [四期-举报] (q4_jubao_4qi)
+  [18:29:32] [INFO] URL: https://doc.weixin.qq.com/sheet/e3_ACgA9wbwACkCNLKKJB0UqRJCM3fY1?scode=AJEAIQdfA...
+  [18:30:06] [INFO] 页面截图已保存: /Users/laitianyou/WorkBuddy/20260408163242/qc-dashboard/data/_debug_q4_jubao_4qi.png
+  [18:30:06] [INFO]   [Step 1] 检查页面上是否有可见的「导出」选项...
+  [18:30:06] [INFO]   [Step 2] 尝试打开文档操作菜单...
+  [18:30:06] [DEBUG]     找到按钮: .mini-list-dropdown-btn
+  [18:30:08] [INFO]     菜单截图: /Users/laitianyou/WorkBuddy/20260408163242/qc-dashboard/data/_debug_q4_jubao_4qi_menu.png
+  [18:30:08] [DEBUG]     找到按钮: [aria-label="按钮:文档列表下拉"]
+  [18:30:10] [INFO]     菜单截图: /Users/laitianyou/WorkBuddy/20260408163242/qc-dashboard/data/_debug_q4_jubao_4qi_menu.png
+  [18:30:10] [DEBUG]     找到按钮: [aria-label="按钮:文件操作"]
+  [18:30:12] [INFO]     菜单截图: /Users/laitianyou/WorkBuddy/20260408163242/qc-dashboard/data/_debug_q4_jubao_4qi_menu.png
+  [18:30:12] [SUCCESS]     找到菜单项: [导出]
+  [18:30:13] [SUCCESS]     找到子菜单项: [Excel], 点击下载...
+  [18:30:13] [INFO]     已点击导出，等待文件生成...
+  [18:30:28] [DEBUG]     等待导出完成... (15s/300s)
+  [18:30:43] [DEBUG]     等待导出完成... (30s/300s)
+  [18:30:58] [DEBUG]     等待导出完成... (45s/300s)
+  [18:31:13] [DEBUG]     等待导出完成... (60s/300s)
+  [18:31:28] [DEBUG]     等待导出完成... (75s/300s)
+  [18:31:43] [DEBUG]     等待导出完成... (90s/300s)
+  [18:32:00] [DEBUG]     等待导出完成... (106s/300s)
+  [18:32:03] [SUCCESS]     ✅ 检测到新文件: 0af0d7e6-22cb-477f-b1e1-b36c00c38465 (225.7 MB)
+  [18:32:03] [INFO]     📝 重命名为: 0af0d7e6-22cb-477f-b1e1-b36c00c38465.xlsx
+  [18:32:03] [SUCCESS] ✅ 已保存: /Users/laitianyou/WorkBuddy/20260408163242/qc-dashboard/data/uploads/四期-举报_20260410_183203.xlsx
+  [18:32:03] [INFO] 
+==================================================
+  [18:32:03] [INFO] 开始下载: [拉黑误漏] (q5_lahei)
+  [18:32:03] [INFO] URL: https://doc.weixin.qq.com/sheet/e3_ACgA9wbwACklvJ3rQAeSlK2yvIVOE?scode=AJEAIQdfA...
+  [18:32:35] [INFO] 页面截图已保存: /Users/laitianyou/WorkBuddy/20260408163242/qc-dashboard/data/_debug_q5_lahei.png
+  [18:32:35] [INFO]   [Step 1] 检查页面上是否有可见的「导出」选项...
+  [18:32:35] [INFO]   [Step 2] 尝试打开文档操作菜单...
+  [18:32:35] [DEBUG]     找到按钮: .mini-list-dropdown-btn
+  [18:32:36] [INFO]     菜单截图: /Users/laitianyou/WorkBuddy/20260408163242/qc-dashboard/data/_debug_q5_lahei_menu.png
+  [18:32:37] [DEBUG]     找到按钮: [aria-label="按钮:文档列表下拉"]
+  [18:32:38] [INFO]     菜单截图: /Users/laitianyou/WorkBuddy/20260408163242/qc-dashboard/data/_debug_q5_lahei_menu.png
+  [18:32:39] [DEBUG]     找到按钮: [aria-label="按钮:文件操作"]
+  [18:32:41] [INFO]     菜单截图: /Users/laitianyou/WorkBuddy/20260408163242/qc-dashboard/data/_debug_q5_lahei_menu.png
+  [18:32:41] [SUCCESS]     找到菜单项: [导出]
+  [18:32:42] [SUCCESS]     找到子菜单项: [Excel], 点击下载...
+  [18:32:42] [INFO]     已点击导出，等待文件生成...
+  [18:32:57] [DEBUG]     等待导出完成... (15s/300s)
+  [18:33:12] [DEBUG]     等待导出完成... (30s/300s)
+  [18:33:27] [DEBUG]     等待导出完成... (45s/300s)
+  [18:33:42] [DEBUG]     等待导出完成... (60s/300s)
+  [18:33:57] [DEBUG]     等待导出完成... (75s/300s)
+  [18:34:12] [DEBUG]     等待导出完成... (90s/300s)
+  [18:34:27] [DEBUG]     等待导出完成... (105s/300s)
+  [18:34:42] [DEBUG]     等待导出完成... (120s/300s)
+  [18:35:03] [DEBUG]     等待导出完成... (141s/300s)
+  [18:35:14] [SUCCESS]     ✅ 检测到新文件: 9ba5cad0-5330-4064-a47e-b92bc0f2e55f (459.1 MB)
+  [18:35:14] [INFO]     📝 重命名为: 9ba5cad0-5330-4064-a47e-b92bc0f2e55f.xlsx
+  [18:35:14] [SUCCESS] ✅ 已保存: /Users/laitianyou/WorkBuddy/20260408163242/qc-dashboard/data/uploads/拉黑误漏_20260410_183514.xlsx
+  [18:35:14] [INFO] 
+==================================================
+  [18:35:14] [INFO] 开始下载: [上墙文本] (q6_shangqiang)
+  [18:35:14] [INFO] URL: https://doc.weixin.qq.com/sheet/e3_AQkAfgbQAOMMlwy0YAEStiiXPPTvR?scode=AJEAIQdfA...
+  [18:35:34] [INFO] 页面截图已保存: /Users/laitianyou/WorkBuddy/20260408163242/qc-dashboard/data/_debug_q6_shangqiang.png
+  [18:35:34] [INFO]   [Step 1] 检查页面上是否有可见的「导出」选项...
+  [18:35:34] [INFO]   [Step 2] 尝试打开文档操作菜单...
+  [18:35:34] [DEBUG]     找到按钮: .mini-list-dropdown-btn
+  [18:35:35] [INFO]     菜单截图: /Users/laitianyou/WorkBuddy/20260408163242/qc-dashboard/data/_debug_q6_shangqiang_menu.png
+  [18:35:36] [DEBUG]     找到按钮: [aria-label="按钮:文档列表下拉"]
+  [18:35:38] [INFO]     菜单截图: /Users/laitianyou/WorkBuddy/20260408163242/qc-dashboard/data/_debug_q6_shangqiang_menu.png
+  [18:35:38] [DEBUG]     找到按钮: [aria-label="按钮:文件操作"]
+  [18:35:40] [INFO]     菜单截图: /Users/laitianyou/WorkBuddy/20260408163242/qc-dashboard/data/_debug_q6_shangqiang_menu.png
+  [18:35:40] [SUCCESS]     找到菜单项: [导出]
+  [18:35:41] [SUCCESS]     找到子菜单项: [Excel], 点击下载...
+  [18:35:41] [INFO]     已点击导出，等待文件生成...
+  [18:35:56] [DEBUG]     等待导出完成... (15s/300s)
+  [18:36:07] [SUCCESS]     ✅ 检测到新文件: 8c16d865-4f61-4b03-a6c7-5d832c9c9504 (171.1 MB)
+  [18:36:07] [INFO]     📝 重命名为: 8c16d865-4f61-4b03-a6c7-5d832c9c9504.xlsx
+  [18:36:07] [SUCCESS] ✅ 已保存: /Users/laitianyou/WorkBuddy/20260408163242/qc-dashboard/data/uploads/上墙文本_20260410_183607.xlsx
+  [18:36:07] [INFO] 
+浏览器保持打开 (登录态已保存)
+  [18:36:07] [INFO] 
+仅下载模式，跳过解析和看板更新
+2026-04-10 18:36:07 [INFO]    下载了 7 个文件: ['/Users/laitianyou/WorkBuddy/20260408163242/qc-dashboard/data/uploads/投放误漏_20260410_181942.xlsx', '/Users/laitianyou/WorkBuddy/20260408163242/qc-dashboard/data/uploads/简单二审_20260410_182624.xlsx', '/Users/laitianyou/WorkBuddy/20260408163242/qc-dashboard/data/uploads/四期-二审GT_20260410_182932.xlsx', '/Users/laitianyou/WorkBuddy/20260408163242/qc-dashboard/data/uploads/四期-二审GT_20260410_182932.xlsx', '/Users/laitianyou/WorkBuddy/20260408163242/qc-dashboard/data/uploads/四期-举报_20260410_183203.xlsx', '/Users/laitianyou/WorkBuddy/20260408163242/qc-dashboard/data/uploads/拉黑误漏_20260410_183514.xlsx', '/Users/laitianyou/WorkBuddy/20260408163242/qc-dashboard/data/uploads/上墙文本_20260410_183607.xlsx']
+2026-04-10 18:36:08 [INFO] 📂 处理文件: 投放误漏_20260410_181942.xlsx
+2026-04-10 18:36:08 [INFO]   工作表: 量级登记 (共 10 个子表)
+2026-04-10 18:36:08 [INFO]   数据维度: 486 行 × 28 列
+2026-04-10 18:36:08 [INFO]   ✅ 导入 484 条记录 → 队列 [投放误漏]
+2026-04-10 18:36:08 [INFO]   🗑️ 已删除: 投放误漏_20260410_181942.xlsx
+2026-04-10 18:36:08 [INFO]    ✅ 导入 /Users/laitianyou/WorkBuddy/20260408163242/qc-dashboard/data/uploads/投放误漏_20260410_181942.xlsx: 484 条
+2026-04-10 18:36:08 [INFO] 📂 处理文件: 简单二审_20260410_182624.xlsx
+2026-04-10 18:36:14 [INFO]   工作表: 量级登记 (共 14 个子表)
+2026-04-10 18:36:14 [INFO]   数据维度: 426 行 × 90 列
+2026-04-10 18:36:14 [INFO]   ✅ 导入 165 条记录 → 队列 [简单二审]
+2026-04-10 18:36:14 [INFO]   🗑️ 已删除: 简单二审_20260410_182624.xlsx
+2026-04-10 18:36:14 [INFO]    ✅ 导入 /Users/laitianyou/WorkBuddy/20260408163242/qc-dashboard/data/uploads/简单二审_20260410_182624.xlsx: 165 条
+2026-04-10 18:36:14 [INFO]    📋 共享文件备份(2个队列共用): 四期-二审GT_20260410_182932_shared2.xlsx
+2026-04-10 18:36:14 [INFO] 📂 处理文件: 四期-二审GT_20260410_182932.xlsx
+2026-04-10 18:36:15 [INFO]   工作表: 云雀四期结算 (共 19 个子表)
+2026-04-10 18:36:15 [INFO]   数据维度: 262 行 × 126 列
+2026-04-10 18:36:15 [INFO]   ✅ 导入 174 条记录 → 队列 [四期-二审GT]
+2026-04-10 18:36:15 [INFO]   🗑️ 已删除: 四期-二审GT_20260410_182932.xlsx
+2026-04-10 18:36:15 [INFO]    ✅ 导入 /Users/laitianyou/WorkBuddy/20260408163242/qc-dashboard/data/uploads/四期-二审GT_20260410_182932.xlsx: 174 条
+2026-04-10 18:36:15 [INFO] 📂 处理文件: 四期-二审GT_20260410_182932_shared2.xlsx
+2026-04-10 18:36:15 [INFO]   工作表: 云雀四期结算 (共 19 个子表)
+2026-04-10 18:36:15 [INFO]   数据维度: 262 行 × 126 列
+2026-04-10 18:36:15 [INFO]   ✅ 导入 174 条记录 → 队列 [四期-二审GT]
+2026-04-10 18:36:15 [INFO]   🗑️ 已删除: 四期-二审GT_20260410_182932_shared2.xlsx
+2026-04-10 18:36:15 [INFO]    ✅ 导入 /Users/laitianyou/WorkBuddy/20260408163242/qc-dashboard/data/uploads/四期-二审GT_20260410_182932_shared2.xlsx: 174 条
+2026-04-10 18:36:15 [INFO] 📂 处理文件: 四期-举报_20260410_183203.xlsx
+2026-04-10 18:36:16 [INFO]   工作表: 云雀四期结算 (共 9 个子表)
+2026-04-10 18:36:16 [INFO]   数据维度: 257 行 × 43 列
+2026-04-10 18:36:16 [INFO]   ✅ 导入 253 条记录 → 队列 [四期-举报]
+2026-04-10 18:36:16 [INFO]   🗑️ 已删除: 四期-举报_20260410_183203.xlsx
+2026-04-10 18:36:16 [INFO]    ✅ 导入 /Users/laitianyou/WorkBuddy/20260408163242/qc-dashboard/data/uploads/四期-举报_20260410_183203.xlsx: 253 条
+2026-04-10 18:36:16 [INFO] 📂 处理文件: 拉黑误漏_20260410_183514.xlsx
+2026-04-10 18:36:17 [INFO]   工作表: 量级登记 (共 16 个子表)
+2026-04-10 18:36:17 [INFO]   数据维度: 442 行 × 33 列
+2026-04-10 18:36:17 [INFO]   ✅ 导入 440 条记录 → 队列 [拉黑误漏]
+2026-04-10 18:36:17 [INFO]   🗑️ 已删除: 拉黑误漏_20260410_183514.xlsx
+2026-04-10 18:36:17 [INFO]    ✅ 导入 /Users/laitianyou/WorkBuddy/20260408163242/qc-dashboard/data/uploads/拉黑误漏_20260410_183514.xlsx: 440 条
+2026-04-10 18:36:17 [INFO] 📂 处理文件: 上墙文本_20260410_183607.xlsx
+2026-04-10 18:36:17 [INFO]   工作表: 准确率（新） (共 5 个子表)
+2026-04-10 18:36:17 [INFO]   数据维度: 64 行 × 28 列
+2026-04-10 18:36:17 [INFO]   ✅ 导入 35 条记录 → 队列 [上墙文本]
+2026-04-10 18:36:17 [INFO]   🗑️ 已删除: 上墙文本_20260410_183607.xlsx
+2026-04-10 18:36:17 [INFO]    ✅ 导入 /Users/laitianyou/WorkBuddy/20260408163242/qc-dashboard/data/uploads/上墙文本_20260410_183607.xlsx: 35 条
+2026-04-10 18:36:17 [INFO]    ✅ 新增/更新 1725 条记录
+2026-04-10 18:36:17 [INFO] 🧹 [3/4] 清理未来日期...
+2026-04-10 18:36:17 [INFO]    ✅ 删除 463 条未来日期记录
+2026-04-10 18:36:17 [INFO] 📋 [4/4] 刷新完成汇总:
+2026-04-10 18:36:17 [INFO]    📥 新增记录: 1725
+2026-04-10 18:36:17 [INFO]    🧹 未来日期清理: 463
+2026-04-10 18:36:17 [INFO]    📅 数据库最新: 2026-04-10
+2026-04-10 18:36:17 [INFO]    ✅ 数据已同步到今天 (2026-04-10)
+2026-04-10 18:36:17 [INFO] ============================================================
+2026-04-10 18:36:17 [INFO] 🎉 自动刷新完成！
+2026-04-10 18:36:17 [INFO] ============================================================
+2026-04-10 18:36:17 [INFO] 📤 触发每日数据推送...
+2026-04-10 18:36:18 [INFO]    ✅ 推送完成
+2026-04-11 18:20:02 [INFO] ============================================================
+2026-04-11 18:20:02 [INFO] 🔄 QC Dashboard 自动刷新启动
+2026-04-11 18:20:02 [INFO]    时间: 2026-04-11 18:20:02
+2026-04-11 18:20:02 [INFO]    模式: 正式执行
+2026-04-11 18:20:02 [INFO] ============================================================
+2026-04-11 18:20:03 [INFO] 📊 [1/4] 检测数据缺口...
+2026-04-11 18:20:03 [INFO]    ✅ 数据连续，最新日期: 2026-04-10
+2026-04-11 18:20:03 [INFO] 📡 [2/4] 拉取数据 (模式: playwright)...
+2026-04-11 18:20:03 [INFO]    启动 Playwright 自动下载...
+  [18:20:03] [INFO] ========================================================
+  [18:20:03] [INFO]  方案2 自动化流水线
+  [18:20:03] [INFO]  队列数: 7
+  [18:20:03] [INFO]  时间:   2026-04-11 18:20:03
+  [18:20:03] [INFO] ========================================================
+  [18:20:03] [INFO] 
+【Step 1/3】自动下载企微表格
+  [18:20:03] [INFO] 启动浏览器 (数据目录: /Users/laitianyou/WorkBuddy/20260408163242/qc-dashboard/data/browser_profile)
+  [18:20:10] [INFO] 正在打开: [投放误漏]
+  [18:20:10] [INFO]   URL: https://doc.weixin.qq.com/sheet/e3_ACgA9wbwACk4qZHejt9TJuM61u9o6?scode=AJEAIQdfA...
+  [18:20:15] [INFO] 
+📋 共 7 个队列，去重后 6 个文档需下载
+  [18:20:15] [INFO] ⚡ [Phase 1] 并行打开所有文档页面...
+  [18:20:15] [INFO]   Tab 1: [投放误漏] 打开中...
+  [18:20:15] [INFO]   Tab 2: [简单二审] 打开中...
+  [18:20:16] [INFO]   Tab 3: [四期-二审GT] 打开中...
+  [18:20:17] [INFO]   Tab 4: [四期-举报] 打开中...
+  [18:20:17] [INFO]   Tab 5: [拉黑误漏] 打开中...
+  [18:20:18] [INFO]   Tab 6: [上墙文本] 打开中...
+  [18:20:23] [INFO]   ✅ 6 个页面已打开
+  [18:20:23] [INFO] ⚡ [Phase 2] 并行触发导出...
+  [18:20:23] [INFO]   [投放误漏] 触发导出...
+  [18:20:23] [INFO]   [简单二审] 触发导出...
+  [18:20:23] [INFO]   [四期-二审GT] 触发导出...
+  [18:20:23] [INFO]   [四期-举报] 触发导出...
+  [18:20:23] [INFO]   [拉黑误漏] 触发导出...
+  [18:20:23] [INFO]   [上墙文本] 触发导出...
+  [18:20:23] [INFO]   [Step 1] 检查页面上是否有可见的「导出」选项...
+  [18:20:23] [INFO]   [Step 2] 尝试打开文档操作菜单...
+  [18:20:23] [DEBUG]     找到按钮: .mini-list-dropdown-btn
+  [18:20:24] [INFO]     菜单截图: /Users/laitianyou/WorkBuddy/20260408163242/qc-dashboard/data/_debug_q6_shangqiang_menu.png
+  [18:20:25] [DEBUG]     找到按钮: [aria-label="按钮:文档列表下拉"]
+  [18:20:27] [INFO]   [Step 1] 检查页面上是否有可见的「导出」选项...
+  [18:20:27] [INFO]     菜单截图: /Users/laitianyou/WorkBuddy/20260408163242/qc-dashboard/data/_debug_q6_shangqiang_menu.png
+  [18:20:27] [DEBUG]     找到按钮: [aria-label="按钮:文件操作"]
+  [18:20:28] [INFO]   [Step 1] 检查页面上是否有可见的「导出」选项...
+  [18:20:29] [INFO]     菜单截图: /Users/laitianyou/WorkBuddy/20260408163242/qc-dashboard/data/_debug_q6_shangqiang_menu.png
+  [18:20:29] [SUCCESS]     找到菜单项: [导出]
+  [18:20:29] [INFO]   [Step 1] 检查页面上是否有可见的「导出」选项...
+  [18:20:30] [SUCCESS]     找到子菜单项: [Excel], 点击下载...
+  [18:20:30] [INFO]     已点击导出，等待文件生成...
+  [18:20:31] [INFO]   [Step 1] 检查页面上是否有可见的「导出」选项...
+  [18:20:31] [INFO]   [Step 1] 检查页面上是否有可见的「导出」选项...
+  [18:20:32] [INFO]   [Step 2] 尝试打开文档操作菜单...
+  [18:20:32] [DEBUG]     找到按钮: .mini-list-dropdown-btn
+  [18:20:33] [INFO]   [Step 2] 尝试打开文档操作菜单...
+  [18:20:33] [INFO]   [Step 2] 尝试打开文档操作菜单...
+  [18:20:33] [DEBUG]     找到按钮: .mini-list-dropdown-btn
+  [18:20:33] [DEBUG]     找到按钮: .mini-list-dropdown-btn
+  [18:20:33] [INFO]   [Step 2] 尝试打开文档操作菜单...
+  [18:20:33] [INFO]   [Step 2] 尝试打开文档操作菜单...
+  [18:20:33] [DEBUG]     找到按钮: .mini-list-dropdown-btn
+  [18:20:34] [DEBUG]     找到按钮: .mini-list-dropdown-btn
+  [18:20:36] [DEBUG]     force click 失败 (Locator.click: Timeout 3000ms exceeded.
+Call log:
+  - waiting for locator(".mini-list-dropdown-btn").first
+    - locator resolved to <div aria-label="按钮:文档首页下拉" class="mini-list-dropdown-btn">…</div>
+  - attempting click action
+    - scrolling into view if needed
+), 尝试 JS click
+  [18:20:38] [INFO]     菜单截图: /Users/laitianyou/WorkBuddy/20260408163242/qc-dashboard/data/_debug_q5_lahei_menu.png
+  [18:20:42] [INFO]     菜单截图: /Users/laitianyou/WorkBuddy/20260408163242/qc-dashboard/data/_debug_q4_jubao_4qi_menu.png
+  [18:20:43] [INFO]     菜单截图: /Users/laitianyou/WorkBuddy/20260408163242/qc-dashboard/data/_debug_q3_erjian_4qi_gt_menu.png
+  [18:20:44] [DEBUG]     找到按钮: [aria-label="按钮:文件操作"]
+  [18:20:47] [DEBUG]     force click 失败 (Locator.click: Timeout 3000ms exceeded.
+Call log:
+  - waiting for locator("[aria-label=\"按钮:文件操作\"]").first
+    - locator resolved to <div aria-label="按钮:文件操作" id="headerbar-filemenu" class="file-menu-can-hover">…</div>
+), 尝试 JS click
+  [18:20:48] [SUCCESS]     ✅ [上墙文本] 检测到新文件: ca062c83-4177-4712-9a1e-4b23549feda5 (171.1 MB)
+  [18:20:48] [INFO]     📝 重命名为: ca062c83-4177-4712-9a1e-4b23549feda5.xlsx
+  [18:20:48] [SUCCESS]   ✅ [上墙文本] 已保存: 上墙文本_20260411_182048.xlsx
+  [18:20:53] [DEBUG]     找到按钮: [aria-label="按钮:文件操作"]
+  [18:20:53] [INFO]     菜单截图: /Users/laitianyou/WorkBuddy/20260408163242/qc-dashboard/data/_debug_q2_erjiansimple_menu.png
+  [18:20:56] [DEBUG]     force click 失败 (Locator.click: Timeout 3000ms exceeded.
+Call log:
+  - waiting for locator("[aria-label=\"按钮:文件操作\"]").first
+), 尝试 JS click
+  [18:20:56] [INFO]     菜单截图: /Users/laitianyou/WorkBuddy/20260408163242/qc-dashboard/data/_debug_q1_toufang_menu.png
+  [18:20:58] [DEBUG]     找到按钮: [aria-label="按钮:文件操作"]
+  [18:21:01] [DEBUG]     force click 失败 (Locator.click: Timeout 3000ms exceeded.
+Call log:
+  - waiting for locator("[aria-label=\"按钮:文件操作\"]").first
+), 尝试 JS click
+  [18:21:02] [DEBUG]     找到按钮: [aria-label="按钮:文档列表下拉"]
+  [18:21:04] [DEBUG]     找到按钮: [aria-label="按钮:文档列表下拉"]
+  [18:21:05] [DEBUG]     force click 失败 (Locator.click: Timeout 3000ms exceeded.
+Call log:
+  - waiting for locator("[aria-label=\"按钮:文档列表下拉\"]").first
+    - locator resolved to <div aria-label="按钮:文档列表下拉" class="mini-list-dropdown-btn">…</div>
+  - attempting click action
+    - scrolling into view if needed
+    - done scrolling
+), 尝试 JS click
+  [18:21:06] [INFO]     菜单截图: /Users/laitianyou/WorkBuddy/20260408163242/qc-dashboard/data/_debug_q5_lahei_menu.png
+  [18:21:09] [INFO]     菜单截图: /Users/laitianyou/WorkBuddy/20260408163242/qc-dashboard/data/_debug_q4_jubao_4qi_menu.png
+  [18:21:09] [INFO]     菜单截图: /Users/laitianyou/WorkBuddy/20260408163242/qc-dashboard/data/_debug_q3_erjian_4qi_gt_menu.png
+  [18:21:09] [SUCCESS]     找到菜单项: [导出]
+  [18:21:09] [SUCCESS]     找到菜单项: [导出]
+  [18:21:11] [INFO]     菜单截图: /Users/laitianyou/WorkBuddy/20260408163242/qc-dashboard/data/_debug_q1_toufang_menu.png
+  [18:21:11] [INFO]     菜单截图: /Users/laitianyou/WorkBuddy/20260408163242/qc-dashboard/data/_debug_q2_erjiansimple_menu.png
+  [18:21:12] [DEBUG]     找到按钮: [aria-label="更多"]
+  [18:21:13] [DEBUG]     找到按钮: [aria-label="按钮:文件操作"]
+  [18:21:13] [DEBUG]     force click 失败 (Locator.click: Element is outside of the viewport
+Call log:
+  - waiting for locator("[aria-label=\"更多\"]").first
+    - locator resolved to <div role="button" aria-label="更多" aria-pressed="false" aria-disabled="false" id="toolbar-button-toolbar-overall-shelter" class="buttons_actual__2bXuf buttons_vertical__DA2is">…</div>
+  - attempting click action
+    - scrolling into view if needed
+    - done scrolling
+), 尝试 JS click
+  [18:21:15] [DEBUG]     找到按钮: [aria-label="按钮:文件操作"]
+  [18:21:17] [INFO]     菜单截图: /Users/laitianyou/WorkBuddy/20260408163242/qc-dashboard/data/_debug_q1_toufang_menu.png
+  [18:21:17] [SUCCESS]     找到菜单项: [导出]
+  [18:21:18] [INFO]     菜单截图: /Users/laitianyou/WorkBuddy/20260408163242/qc-dashboard/data/_debug_q5_lahei_menu.png
+  [18:21:18] [SUCCESS]     找到菜单项: [导出]
+  [18:21:18] [SUCCESS]     找到子菜单项: [Excel], 点击下载...
+  [18:21:19] [INFO]     菜单截图: /Users/laitianyou/WorkBuddy/20260408163242/qc-dashboard/data/_debug_q2_erjiansimple_menu.png
+  [18:21:19] [INFO]     已点击导出，等待文件生成...
+  [18:21:19] [SUCCESS]     找到菜单项: [导出]
+  [18:21:20] [SUCCESS]     找到子菜单项: [Excel], 点击下载...
+  [18:21:20] [SUCCESS]     找到子菜单项: [Excel], 点击下载...
+  [18:21:20] [INFO]     已点击导出，等待文件生成...
+  [18:21:21] [INFO]     已点击导出，等待文件生成...
+  [18:21:46] [DEBUG]     [四期-举报] 等待导出完成... (30s/60s)
+  [18:21:47] [DEBUG]     [四期-二审GT] 等待导出完成... (30s/60s)
+  [18:21:49] [DEBUG]     [投放误漏] 等待导出完成... (30s/300s)
+  [18:21:50] [DEBUG]     [简单二审] 等待导出完成... (30s/300s)
+  [18:21:51] [DEBUG]     [拉黑误漏] 等待导出完成... (30s/300s)
+  [18:22:16] [WARN]     ⏰ 轮询超时 (60s)，未检测到下载文件
+  [18:22:17] [DEBUG]     找到按钮: [aria-label="更多"]
+  [18:22:17] [DEBUG]     force click 失败 (Locator.click: Element is outside of the viewport
+Call log:
+  - waiting for locator("[aria-label=\"更多\"]").first
+    - locator resolved to <div role="button" aria-label="更多" aria-pressed="false" aria-disabled="false" id="toolbar-button-toolbar-overall-shelter" class="buttons_actual__2bXuf buttons_vertical__DA2is">…</div>
+  - attempting click action
+    - scrolling into view if needed
+    - done scrolling
+), 尝试 JS click
+  [18:22:17] [WARN]     ⏰ 轮询超时 (60s)，未检测到下载文件
+  [18:22:18] [DEBUG]     找到按钮: [aria-label="更多"]
+  [18:22:18] [DEBUG]     force click 失败 (Locator.click: Element is outside of the viewport
+Call log:
+  - waiting for locator("[aria-label=\"更多\"]").first
+    - locator resolved to <div role="button" aria-label="更多" aria-pressed="false" aria-disabled="false" id="toolbar-button-toolbar-overall-shelter" class="buttons_actual__2bXuf buttons_vertical__DA2is">…</div>
+  - attempting click action
+    - scrolling into view if needed
+    - done scrolling
+), 尝试 JS click
+  [18:22:19] [INFO]     菜单截图: /Users/laitianyou/WorkBuddy/20260408163242/qc-dashboard/data/_debug_q4_jubao_4qi_menu.png
+  [18:22:19] [DEBUG]     [投放误漏] 等待导出完成... (60s/300s)
+  [18:22:19] [DEBUG]     找到按钮: [class*="title"] [class*="arrow"]
+  [18:22:20] [INFO]     菜单截图: /Users/laitianyou/WorkBuddy/20260408163242/qc-dashboard/data/_debug_q3_erjian_4qi_gt_menu.png
+  [18:22:20] [DEBUG]     [简单二审] 等待导出完成... (60s/300s)
+  [18:22:21] [DEBUG]     [拉黑误漏] 等待导出完成... (60s/300s)
+  [18:22:21] [INFO]     菜单截图: /Users/laitianyou/WorkBuddy/20260408163242/qc-dashboard/data/_debug_q4_jubao_4qi_menu.png
+  [18:22:21] [DEBUG]     找到按钮: [class*="title"] [class*="arrow"]
+  [18:22:22] [INFO]   [Step 3] JS 全局搜索「导出」元素...
+  [18:22:23] [INFO]   [Step 4] 键盘快捷键兜底...
+  [18:22:24] [INFO]     菜单截图: /Users/laitianyou/WorkBuddy/20260408163242/qc-dashboard/data/_debug_q3_erjian_4qi_gt_menu.png
+  [18:22:25] [INFO]   [Step 3] JS 全局搜索「导出」元素...
+  [18:22:26] [INFO]   [Step 4] 键盘快捷键兜底...
+  [18:22:49] [DEBUG]     [投放误漏] 等待导出完成... (90s/300s)
+  [18:22:50] [DEBUG]     [简单二审] 等待导出完成... (90s/300s)
+  [18:22:51] [DEBUG]     [拉黑误漏] 等待导出完成... (90s/300s)
+  [18:22:54] [WARN]     ⏰ 轮询超时 (30s)，未检测到下载文件
+  [18:22:57] [WARN]     ⏰ 轮询超时 (30s)，未检测到下载文件
+  [18:23:20] [SUCCESS]     ✅ [投放误漏] 检测到新文件: 31f18831-b9a6-4e28-9eef-9955a26070cd (468.1 MB)
+  [18:23:20] [INFO]     📝 重命名为: 31f18831-b9a6-4e28-9eef-9955a26070cd.xlsx
+  [18:23:20] [SUCCESS]   ✅ [投放误漏] 已保存: 投放误漏_20260411_182320.xlsx
+  [18:23:25] [WARN]     ⏰ 轮询超时 (30s)，未检测到下载文件
+  [18:23:27] [DEBUG]     [简单二审] 等待导出完成... (126s/300s)
+  [18:23:27] [DEBUG]     [拉黑误漏] 等待导出完成... (126s/300s)
+  [18:23:30] [WARN]     ⏰ 轮询超时 (30s)，未检测到下载文件
+  [18:23:56] [WARN]     ⏰ 轮询超时 (30s)，未检测到下载文件
+  [18:23:56] [ERROR]   ❌ 所有策略均未触发下载
+  [18:23:56] [INFO]   DOM 已保存: /Users/laitianyou/WorkBuddy/20260408163242/qc-dashboard/data/_debug_q4_jubao_4qi_dom.html
+  [18:23:56] [DEBUG]   可见按钮: [{"tag": "DIV", "text": "", "title": "按钮:文档列表下拉", "class": "mini-list-dropdown-btn", "visible": true}, {"tag": "SPAN", "text": "", "title": "", "class": "titlebar-move-file-bg-icon", "visible": true}, {"tag": "DIV", "text": "", "title": "", "class": "wecom-titlebar-btn-container", "visible": true}, {"tag": "DIV", "text": "", "title": "", "class": "titlebar-btn-container", "visible": true}, {"tag": "DIV", "text": "", "title": "撤销", "class": "buttons_actual__2bXuf", "visible": true}, {"tag": "DIV"
+  [18:23:56] [WARN]   ⚠️ [四期-举报] 下载失败
+  [18:23:57] [DEBUG]     [简单二审] 等待导出完成... (156s/300s)
+  [18:23:57] [DEBUG]     [拉黑误漏] 等待导出完成... (156s/300s)
+  [18:24:01] [WARN]     ⏰ 轮询超时 (30s)，未检测到下载文件
+  [18:24:01] [ERROR]   ❌ 所有策略均未触发下载
+  [18:24:01] [INFO]   DOM 已保存: /Users/laitianyou/WorkBuddy/20260408163242/qc-dashboard/data/_debug_q3_erjian_4qi_gt_dom.html
+  [18:24:01] [DEBUG]   可见按钮: [{"tag": "DIV", "text": "", "title": "按钮:文档列表下拉", "class": "mini-list-dropdown-btn", "visible": true}, {"tag": "SPAN", "text": "", "title": "", "class": "titlebar-move-file-bg-icon", "visible": true}, {"tag": "DIV", "text": "", "title": "", "class": "wecom-titlebar-btn-container", "visible": true}, {"tag": "DIV", "text": "", "title": "", "class": "titlebar-btn-container", "visible": true}, {"tag": "DIV", "text": "", "title": "撤销", "class": "buttons_actual__2bXuf", "visible": true}, {"tag": "DIV"
+  [18:24:01] [WARN]   ⚠️ [四期-二审GT] 下载失败
+  [18:24:20] [SUCCESS]     ✅ [简单二审] 检测到新文件: 89767930-b299-4883-96fb-3a381522db70 (178.8 MB)
+  [18:24:20] [INFO]     📝 重命名为: 89767930-b299-4883-96fb-3a381522db70.xlsx
+  [18:24:20] [SUCCESS]   ✅ [简单二审] 已保存: 简单二审_20260411_182420.xlsx
+  [18:24:30] [DEBUG]     [拉黑误漏] 等待导出完成... (189s/300s)
+  [18:25:01] [DEBUG]     [拉黑误漏] 等待导出完成... (220s/300s)
+  [18:25:20] [SUCCESS]     ✅ [拉黑误漏] 检测到新文件: 40c8f7ae-2fdd-43d3-9fd1-085d2faf1783 (1949.1 MB)
+  [18:25:20] [INFO]     📝 重命名为: 40c8f7ae-2fdd-43d3-9fd1-085d2faf1783.xlsx
+  [18:25:20] [SUCCESS]   ✅ [拉黑误漏] 已保存: 拉黑误漏_20260411_182520.xlsx
+  [18:25:20] [INFO] 
+浏览器保持打开 (登录态已保存)
+  [18:25:21] [INFO] 
+仅下载模式，跳过解析和看板更新
+2026-04-11 18:25:21 [INFO]    下载了 4 个文件: ['/Users/laitianyou/WorkBuddy/20260408163242/qc-dashboard/data/uploads/投放误漏_20260411_182320.xlsx', '/Users/laitianyou/WorkBuddy/20260408163242/qc-dashboard/data/uploads/简单二审_20260411_182420.xlsx', '/Users/laitianyou/WorkBuddy/20260408163242/qc-dashboard/data/uploads/拉黑误漏_20260411_182520.xlsx', '/Users/laitianyou/WorkBuddy/20260408163242/qc-dashboard/data/uploads/上墙文本_20260411_182048.xlsx']
+2026-04-11 18:25:21 [INFO] 📂 处理文件: 投放误漏_20260411_182320.xlsx
+2026-04-11 18:25:21 [INFO]   工作表: 量级登记 (共 16 个子表)
+2026-04-11 18:25:22 [INFO]   数据维度: 442 行 × 33 列
+2026-04-11 18:25:22 [INFO]   ✅ 导入 440 条记录 → 队列 [投放误漏]
+2026-04-11 18:25:22 [INFO]   🗑️ 已删除: 投放误漏_20260411_182320.xlsx
+2026-04-11 18:25:22 [INFO]    ✅ 导入 /Users/laitianyou/WorkBuddy/20260408163242/qc-dashboard/data/uploads/投放误漏_20260411_182320.xlsx: 440 条
+2026-04-11 18:25:22 [INFO] 📂 处理文件: 简单二审_20260411_182420.xlsx
+2026-04-11 18:25:22 [INFO]   工作表: 量级登记 (共 10 个子表)
+2026-04-11 18:25:22 [INFO]   数据维度: 486 行 × 28 列
+2026-04-11 18:25:22 [WARNING]   ⚠️ 导入0条！诊断: 总行=484, 空行=0, 无日期=484, 无指标=0
+2026-04-11 18:25:22 [WARNING]   📋 样本行2: A列=None, E列=0.964912280701755, F列=0
+2026-04-11 18:25:22 [WARNING]   📋 样本行3: A列=None, E列=0.95, F列=0.005
+2026-04-11 18:25:22 [WARNING]   📋 样本行4: A列=None, E列=0, F列=0
+2026-04-11 18:25:22 [INFO]   ✅ 导入 0 条记录 → 队列 [简单二审]
+2026-04-11 18:25:22 [INFO]   🗑️ 已删除: 简单二审_20260411_182420.xlsx
+2026-04-11 18:25:22 [INFO]    ✅ 导入 /Users/laitianyou/WorkBuddy/20260408163242/qc-dashboard/data/uploads/简单二审_20260411_182420.xlsx: 0 条
+2026-04-11 18:25:22 [INFO] 📂 处理文件: 拉黑误漏_20260411_182520.xlsx
+2026-04-11 18:25:24 [INFO]   工作表: 量级登记 (共 14 个子表)
+2026-04-11 18:25:24 [INFO]   数据维度: 426 行 × 90 列
+2026-04-11 18:25:24 [INFO]   ✅ 导入 289 条记录 → 队列 [拉黑误漏]
+2026-04-11 18:25:24 [INFO]   🗑️ 已删除: 拉黑误漏_20260411_182520.xlsx
+2026-04-11 18:25:24 [INFO]    ✅ 导入 /Users/laitianyou/WorkBuddy/20260408163242/qc-dashboard/data/uploads/拉黑误漏_20260411_182520.xlsx: 289 条
+2026-04-11 18:25:24 [INFO] 📂 处理文件: 上墙文本_20260411_182048.xlsx
+2026-04-11 18:25:24 [INFO]   工作表: 准确率（新） (共 5 个子表)
+2026-04-11 18:25:24 [INFO]   数据维度: 64 行 × 28 列
+2026-04-11 18:25:24 [INFO]   ✅ 导入 40 条记录 → 队列 [上墙文本]
+2026-04-11 18:25:24 [INFO]   🗑️ 已删除: 上墙文本_20260411_182048.xlsx
+2026-04-11 18:25:24 [INFO]    ✅ 导入 /Users/laitianyou/WorkBuddy/20260408163242/qc-dashboard/data/uploads/上墙文本_20260411_182048.xlsx: 40 条
+2026-04-11 18:25:24 [INFO]    ✅ 新增/更新 769 条记录
+2026-04-11 18:25:24 [INFO] 🧹 [3/4] 清理未来日期...
+2026-04-11 18:25:24 [INFO]    ✅ 删除 54 条未来日期记录
+2026-04-11 18:25:24 [INFO] 📋 [4/4] 刷新完成汇总:
+2026-04-11 18:25:24 [INFO]    📥 新增记录: 769
+2026-04-11 18:25:24 [INFO]    🧹 未来日期清理: 54
+2026-04-11 18:25:24 [INFO]    📅 数据库最新: 2026-04-11
+2026-04-11 18:25:24 [INFO]    ✅ 数据已同步到今天 (2026-04-11)
+2026-04-11 18:25:24 [INFO] ============================================================
+2026-04-11 18:25:24 [INFO] 🎉 自动刷新完成！
+2026-04-11 18:25:24 [INFO] ============================================================
+2026-04-11 18:25:24 [INFO] 📤 触发每日数据推送...
+2026-04-11 18:25:28 [INFO]    ✅ 推送完成
+2026-04-12 18:20:05 [INFO] ============================================================
+2026-04-12 18:20:05 [INFO] 🔄 QC Dashboard 自动刷新启动
+2026-04-12 18:20:05 [INFO]    时间: 2026-04-12 18:20:05
+2026-04-12 18:20:05 [INFO]    模式: 正式执行
+2026-04-12 18:20:05 [INFO] ============================================================
+2026-04-12 18:20:05 [INFO] 📊 [1/4] 检测数据缺口...
+2026-04-12 18:20:05 [INFO]    ✅ 数据连续，最新日期: 2026-04-11
+2026-04-12 18:20:05 [INFO] 📡 [2/4] 拉取数据 (模式: playwright)...
+2026-04-12 18:20:05 [INFO]    启动 Playwright 自动下载...
+  [18:20:05] [INFO] ========================================================
+  [18:20:05] [INFO]  方案2 自动化流水线
+  [18:20:05] [INFO]  队列数: 7
+  [18:20:05] [INFO]  时间:   2026-04-12 18:20:05
+  [18:20:05] [INFO] ========================================================
+  [18:20:05] [INFO] 
+【Step 1/3】自动下载企微表格
+  [18:20:05] [INFO] 启动浏览器 (数据目录: /Users/laitianyou/WorkBuddy/20260408163242/qc-dashboard/data/browser_profile)
+  [18:20:17] [INFO] 正在打开: [投放误漏]
+  [18:20:17] [INFO]   URL: https://doc.weixin.qq.com/sheet/e3_ACgA9wbwACk4qZHejt9TJuM61u9o6?scode=AJEAIQdfA...
+  [18:20:23] [INFO] 
+📋 共 7 个队列，去重后 6 个文档需下载
+  [18:20:23] [INFO] ⚡ [Phase 1] 并行打开所有文档页面...
+  [18:20:23] [INFO]   Tab 1: [投放误漏] 打开中...
+  [18:20:23] [INFO]   Tab 2: [简单二审] 打开中...
+  [18:20:24] [INFO]   Tab 3: [四期-二审GT] 打开中...
+  [18:20:24] [INFO]   Tab 4: [四期-举报] 打开中...
+  [18:20:25] [INFO]   Tab 5: [拉黑误漏] 打开中...
+  [18:20:26] [INFO]   Tab 6: [上墙文本] 打开中...
+  [18:20:30] [INFO]   ✅ 6 个页面已打开
+  [18:20:30] [INFO] ⚡ [Phase 2] 并行触发导出...
+  [18:20:30] [INFO]   [投放误漏] 触发导出...
+  [18:20:30] [INFO]   [简单二审] 触发导出...
+  [18:20:30] [INFO]   [四期-二审GT] 触发导出...
+  [18:20:30] [INFO]   [四期-举报] 触发导出...
+  [18:20:30] [INFO]   [拉黑误漏] 触发导出...
+  [18:20:30] [INFO]   [上墙文本] 触发导出...
+  [18:20:30] [INFO]   [Step 1] 检查页面上是否有可见的「导出」选项...
+  [18:20:31] [INFO]   [Step 2] 尝试打开文档操作菜单...
+  [18:20:31] [DEBUG]     找到按钮: .mini-list-dropdown-btn
+  [18:20:32] [INFO]     菜单截图: /Users/laitianyou/WorkBuddy/20260408163242/qc-dashboard/data/_debug_q6_shangqiang_menu.png
+  [18:20:33] [DEBUG]     找到按钮: [aria-label="按钮:文档列表下拉"]
+  [18:20:33] [INFO]   [Step 1] 检查页面上是否有可见的「导出」选项...
+  [18:20:34] [INFO]   [Step 1] 检查页面上是否有可见的「导出」选项...
+  [18:20:34] [INFO]   [Step 1] 检查页面上是否有可见的「导出」选项...
+  [18:20:34] [INFO]   [Step 1] 检查页面上是否有可见的「导出」选项...
+  [18:20:34] [INFO]     菜单截图: /Users/laitianyou/WorkBuddy/20260408163242/qc-dashboard/data/_debug_q6_shangqiang_menu.png
+  [18:20:35] [INFO]   [Step 1] 检查页面上是否有可见的「导出」选项...
+  [18:20:35] [INFO]   [Step 2] 尝试打开文档操作菜单...
+  [18:20:35] [DEBUG]     找到按钮: [aria-label="按钮:文件操作"]
+  [18:20:35] [DEBUG]     找到按钮: .mini-list-dropdown-btn
+  [18:20:35] [INFO]   [Step 2] 尝试打开文档操作菜单...
+  [18:20:35] [DEBUG]     找到按钮: .mini-list-dropdown-btn
+  [18:20:36] [INFO]   [Step 2] 尝试打开文档操作菜单...
+  [18:20:36] [INFO]   [Step 2] 尝试打开文档操作菜单...
+  [18:20:36] [DEBUG]     找到按钮: .mini-list-dropdown-btn
+  [18:20:36] [DEBUG]     找到按钮: .mini-list-dropdown-btn
+  [18:20:37] [INFO]     菜单截图: /Users/laitianyou/WorkBuddy/20260408163242/qc-dashboard/data/_debug_q6_shangqiang_menu.png
+  [18:20:37] [SUCCESS]     找到菜单项: [导出]
+  [18:20:38] [SUCCESS]     找到子菜单项: [Excel], 点击下载...
+  [18:20:38] [INFO]     已点击导出，等待文件生成...
+  [18:20:39] [INFO]   [Step 2] 尝试打开文档操作菜单...
+  [18:20:42] [DEBUG]     找到按钮: .mini-list-dropdown-btn
+  [18:20:45] [DEBUG]     force click 失败 (Locator.click: Timeout 3000ms exceeded.
+Call log:
+  - waiting for locator(".mini-list-dropdown-btn").first
+    - locator resolved to <div aria-label="按钮:文档首页下拉" class="mini-list-dropdown-btn">…</div>
+), 尝试 JS click
+  [18:20:46] [INFO]     菜单截图: /Users/laitianyou/WorkBuddy/20260408163242/qc-dashboard/data/_debug_q3_erjian_4qi_gt_menu.png
+  [18:20:47] [INFO]     菜单截图: /Users/laitianyou/WorkBuddy/20260408163242/qc-dashboard/data/_debug_q2_erjiansimple_menu.png
+  [18:20:47] [INFO]     菜单截图: /Users/laitianyou/WorkBuddy/20260408163242/qc-dashboard/data/_debug_q5_lahei_menu.png
+  [18:20:49] [INFO]     菜单截图: /Users/laitianyou/WorkBuddy/20260408163242/qc-dashboard/data/_debug_q4_jubao_4qi_menu.png
+  [18:20:55] [INFO]     菜单截图: /Users/laitianyou/WorkBuddy/20260408163242/qc-dashboard/data/_debug_q1_toufang_menu.png
+  [18:20:55] [DEBUG]     找到按钮: [aria-label="按钮:文档列表下拉"]
+  [18:20:55] [DEBUG]     找到按钮: [aria-label="按钮:文档列表下拉"]
+  [18:20:55] [DEBUG]     找到按钮: [aria-label="按钮:文档列表下拉"]
+  [18:20:56] [DEBUG]     找到按钮: [aria-label="按钮:文档列表下拉"]
+  [18:20:56] [SUCCESS]     ✅ [上墙文本] 检测到新文件: bb9220dc-d8d5-439b-bf23-fd8c02fcecd2 (172.5 MB)
+  [18:20:56] [INFO]     📝 重命名为: bb9220dc-d8d5-439b-bf23-fd8c02fcecd2.xlsx
+  [18:20:56] [SUCCESS]   ✅ [上墙文本] 已保存: 上墙文本_20260412_182056.xlsx
+  [18:21:00] [DEBUG]     找到按钮: [aria-label="按钮:文档列表下拉"]
+  [18:21:02] [INFO]     菜单截图: /Users/laitianyou/WorkBuddy/20260408163242/qc-dashboard/data/_debug_q5_lahei_menu.png
+  [18:21:02] [INFO]     菜单截图: /Users/laitianyou/WorkBuddy/20260408163242/qc-dashboard/data/_debug_q4_jubao_4qi_menu.png
+  [18:21:02] [INFO]     菜单截图: /Users/laitianyou/WorkBuddy/20260408163242/qc-dashboard/data/_debug_q3_erjian_4qi_gt_menu.png
+  [18:21:03] [DEBUG]     force click 失败 (Locator.click: Timeout 3000ms exceeded.
+Call log:
+  - waiting for locator("[aria-label=\"按钮:文档列表下拉\"]").first
+), 尝试 JS click
+  [18:21:05] [INFO]     菜单截图: /Users/laitianyou/WorkBuddy/20260408163242/qc-dashboard/data/_debug_q2_erjiansimple_menu.png
+  [18:21:06] [DEBUG]     找到按钮: [aria-label="按钮:文件操作"]
+  [18:21:06] [DEBUG]     找到按钮: [aria-label="按钮:文件操作"]
+  [18:21:07] [INFO]     菜单截图: /Users/laitianyou/WorkBuddy/20260408163242/qc-dashboard/data/_debug_q1_toufang_menu.png
+  [18:21:07] [DEBUG]     找到按钮: [aria-label="按钮:文件操作"]
+  [18:21:08] [DEBUG]     找到按钮: [aria-label="按钮:文件操作"]
+  [18:21:09] [DEBUG]     找到按钮: [aria-label="按钮:文件操作"]
+  [18:21:09] [INFO]     菜单截图: /Users/laitianyou/WorkBuddy/20260408163242/qc-dashboard/data/_debug_q4_jubao_4qi_menu.png
+  [18:21:10] [SUCCESS]     找到菜单项: [导出]
+  [18:21:10] [INFO]     菜单截图: /Users/laitianyou/WorkBuddy/20260408163242/qc-dashboard/data/_debug_q5_lahei_menu.png
+  [18:21:11] [SUCCESS]     找到菜单项: [导出]
+  [18:21:12] [SUCCESS]     找到子菜单项: [Excel], 点击下载...
+  [18:21:13] [INFO]     菜单截图: /Users/laitianyou/WorkBuddy/20260408163242/qc-dashboard/data/_debug_q1_toufang_menu.png
+  [18:21:13] [SUCCESS]     找到菜单项: [导出]
+  [18:21:13] [INFO]     已点击导出，等待文件生成...
+  [18:21:13] [SUCCESS]     找到子菜单项: [Excel], 点击下载...
+  [18:21:13] [INFO]     菜单截图: /Users/laitianyou/WorkBuddy/20260408163242/qc-dashboard/data/_debug_q3_erjian_4qi_gt_menu.png
+  [18:21:14] [SUCCESS]     找到菜单项: [导出]
+  [18:21:14] [INFO]     已点击导出，等待文件生成...
+  [18:21:15] [INFO]     菜单截图: /Users/laitianyou/WorkBuddy/20260408163242/qc-dashboard/data/_debug_q2_erjiansimple_menu.png
+  [18:21:15] [SUCCESS]     找到菜单项: [导出]
+  [18:21:16] [SUCCESS]     找到子菜单项: [Excel], 点击下载...
+  [18:21:17] [INFO]     已点击导出，等待文件生成...
+  [18:21:18] [SUCCESS]     找到子菜单项: [Excel], 点击下载...
+  [18:21:18] [SUCCESS]     找到子菜单项: [Excel], 点击下载...
+  [18:21:18] [INFO]     已点击导出，等待文件生成...
+  [18:21:18] [INFO]     已点击导出，等待文件生成...
+  [18:21:43] [DEBUG]     [四期-举报] 等待导出完成... (30s/300s)
+  [18:21:44] [DEBUG]     [拉黑误漏] 等待导出完成... (30s/300s)
+  [18:21:47] [DEBUG]     [投放误漏] 等待导出完成... (30s/300s)
+  [18:21:48] [DEBUG]     [四期-二审GT] 等待导出完成... (30s/300s)
+  [18:21:48] [DEBUG]     [简单二审] 等待导出完成... (30s/300s)
+  [18:22:13] [DEBUG]     [四期-举报] 等待导出完成... (60s/300s)
+  [18:22:14] [DEBUG]     [拉黑误漏] 等待导出完成... (60s/300s)
+  [18:22:17] [DEBUG]     [投放误漏] 等待导出完成... (60s/300s)
+  [18:22:18] [DEBUG]     [四期-二审GT] 等待导出完成... (60s/300s)
+  [18:22:18] [DEBUG]     [简单二审] 等待导出完成... (60s/300s)
+  [18:22:28] [SUCCESS]     ✅ [投放误漏] 检测到新文件: edc283ae-bfc3-40ed-94bb-e17e326c25af (476.1 MB)
+  [18:22:28] [INFO]     📝 重命名为: edc283ae-bfc3-40ed-94bb-e17e326c25af.xlsx
+  [18:22:28] [SUCCESS]   ✅ [投放误漏] 已保存: 投放误漏_20260412_182228.xlsx
+  [18:22:44] [DEBUG]     [四期-举报] 等待导出完成... (91s/300s)
+  [18:22:45] [DEBUG]     [拉黑误漏] 等待导出完成... (91s/300s)
+  [18:22:52] [DEBUG]     [四期-二审GT] 等待导出完成... (94s/300s)
+  [18:22:52] [DEBUG]     [简单二审] 等待导出完成... (94s/300s)
+  [18:22:55] [SUCCESS]     ✅ [四期-举报] 检测到新文件: 492eef14-602d-440e-8774-4c5a319debf2 (226.9 MB)
+  [18:22:55] [INFO]     📝 重命名为: 492eef14-602d-440e-8774-4c5a319debf2.xlsx
+  [18:22:55] [SUCCESS]   ✅ [四期-举报] 已保存: 四期-举报_20260412_182255.xlsx
+  [18:23:19] [DEBUG]     [拉黑误漏] 等待导出完成... (125s/300s)
+  [18:23:21] [SUCCESS]     ✅ [四期-二审GT] 检测到新文件: 6ccb6517-42df-4de9-8bcc-7e6c4ff3ef6c (468.1 MB)
+  [18:23:21] [INFO]     📝 重命名为: 6ccb6517-42df-4de9-8bcc-7e6c4ff3ef6c.xlsx
+  [18:23:21] [SUCCESS]   ✅ [四期-二审GT] 已保存: 四期-二审GT_20260412_182321.xlsx
+  [18:23:26] [DEBUG]     [简单二审] 等待导出完成... (128s/300s)
+  [18:23:52] [DEBUG]     [拉黑误漏] 等待导出完成... (158s/300s)
+  [18:23:57] [DEBUG]     [简单二审] 等待导出完成... (158s/300s)
+  [18:24:08] [SUCCESS]     ✅ [简单二审] 检测到新文件: b3cb5f6f-9f62-40e8-9125-3230813aee92 (178.9 MB)
+  [18:24:08] [INFO]     📝 重命名为: b3cb5f6f-9f62-40e8-9125-3230813aee92.xlsx
+  [18:24:08] [SUCCESS]   ✅ [简单二审] 已保存: 简单二审_20260412_182408.xlsx
+  [18:24:23] [DEBUG]     [拉黑误漏] 等待导出完成... (189s/300s)
+  [18:24:54] [DEBUG]     [拉黑误漏] 等待导出完成... (220s/300s)
+  [18:25:13] [SUCCESS]     ✅ [拉黑误漏] 检测到新文件: ff96a7ab-ad9d-4d16-86b5-16b4972a2f4a (1973.6 MB)
+  [18:25:13] [INFO]     📝 重命名为: ff96a7ab-ad9d-4d16-86b5-16b4972a2f4a.xlsx
+  [18:25:13] [SUCCESS]   ✅ [拉黑误漏] 已保存: 拉黑误漏_20260412_182513.xlsx
+  [18:25:13] [INFO]   📋 [四期-切片GT] 复用文件: 四期-二审GT_20260412_182321.xlsx
+  [18:25:13] [INFO] 
+浏览器保持打开 (登录态已保存)
+  [18:25:14] [INFO] 
+仅下载模式，跳过解析和看板更新
+2026-04-12 18:25:14 [INFO]    下载了 7 个文件: ['/Users/laitianyou/WorkBuddy/20260408163242/qc-dashboard/data/uploads/投放误漏_20260412_182228.xlsx', '/Users/laitianyou/WorkBuddy/20260408163242/qc-dashboard/data/uploads/简单二审_20260412_182408.xlsx', '/Users/laitianyou/WorkBuddy/20260408163242/qc-dashboard/data/uploads/四期-二审GT_20260412_182321.xlsx', '/Users/laitianyou/WorkBuddy/20260408163242/qc-dashboard/data/uploads/四期-二审GT_20260412_182321.xlsx', '/Users/laitianyou/WorkBuddy/20260408163242/qc-dashboard/data/uploads/四期-举报_20260412_182255.xlsx', '/Users/laitianyou/WorkBuddy/20260408163242/qc-dashboard/data/uploads/拉黑误漏_20260412_182513.xlsx', '/Users/laitianyou/WorkBuddy/20260408163242/qc-dashboard/data/uploads/上墙文本_20260412_182056.xlsx']
+2026-04-12 18:25:14 [INFO] 📂 处理文件: 投放误漏_20260412_182228.xlsx
+2026-04-12 18:25:14 [WARNING]   ⚠️ 子表 '量级登记' 未精确匹配，使用 '质量数据'
+2026-04-12 18:25:14 [INFO]   数据维度: 0 行 × 0 列
+2026-04-12 18:25:14 [WARNING]   ⚠️ 导入0条！诊断: 总行=-2, 空行=0, 无日期=0, 无指标=0
+2026-04-12 18:25:14 [INFO]   ✅ 导入 0 条记录 → 队列 [投放误漏]
+2026-04-12 18:25:14 [INFO]   🗑️ 已删除: 投放误漏_20260412_182228.xlsx
+2026-04-12 18:25:14 [INFO]    ✅ 导入 /Users/laitianyou/WorkBuddy/20260408163242/qc-dashboard/data/uploads/投放误漏_20260412_182228.xlsx: 0 条
+2026-04-12 18:25:14 [INFO] 📂 处理文件: 简单二审_20260412_182408.xlsx
+2026-04-12 18:25:15 [INFO]   工作表: 量级登记 (共 10 个子表)
+2026-04-12 18:25:15 [INFO]   数据维度: 486 行 × 28 列
+2026-04-12 18:25:15 [WARNING]   ⚠️ 导入0条！诊断: 总行=484, 空行=0, 无日期=484, 无指标=0
+2026-04-12 18:25:15 [WARNING]   📋 样本行2: A列=None, E列=0.964912280701755, F列=0
+2026-04-12 18:25:15 [WARNING]   📋 样本行3: A列=None, E列=0.95, F列=0.005
+2026-04-12 18:25:15 [WARNING]   📋 样本行4: A列=None, E列=0, F列=0
+2026-04-12 18:25:15 [INFO]   ✅ 导入 0 条记录 → 队列 [简单二审]
+2026-04-12 18:25:15 [INFO]   🗑️ 已删除: 简单二审_20260412_182408.xlsx
+2026-04-12 18:25:15 [INFO]    ✅ 导入 /Users/laitianyou/WorkBuddy/20260408163242/qc-dashboard/data/uploads/简单二审_20260412_182408.xlsx: 0 条
+2026-04-12 18:25:15 [INFO]    📋 共享文件备份(2个队列共用): 四期-二审GT_20260412_182321_shared2.xlsx
+2026-04-12 18:25:15 [INFO] 📂 处理文件: 四期-二审GT_20260412_182321.xlsx
+2026-04-12 18:25:15 [WARNING]   ⚠️ 子表 '云雀四期结算' 未精确匹配，使用 '量级登记'
+2026-04-12 18:25:15 [INFO]   数据维度: 442 行 × 33 列
+2026-04-12 18:25:15 [WARNING]   ⚠️ 导入0条！诊断: 总行=440, 空行=0, 无日期=440, 无指标=0
+2026-04-12 18:25:15 [WARNING]   📋 样本行2: A列=None, E列=0.817460317460318, F列=0.0666666666666667
+2026-04-12 18:25:15 [WARNING]   📋 样本行3: A列=None, E列=0.916666666666667, F列=0
+2026-04-12 18:25:15 [WARNING]   📋 样本行4: A列=None, E列=0.821782178217822, F列=0.0363636363636364
+2026-04-12 18:25:15 [INFO]   ✅ 导入 0 条记录 → 队列 [四期-二审GT]
+2026-04-12 18:25:15 [INFO]   🗑️ 已删除: 四期-二审GT_20260412_182321.xlsx
+2026-04-12 18:25:15 [INFO]    ✅ 导入 /Users/laitianyou/WorkBuddy/20260408163242/qc-dashboard/data/uploads/四期-二审GT_20260412_182321.xlsx: 0 条
+2026-04-12 18:25:15 [INFO] 📂 处理文件: 四期-二审GT_20260412_182321_shared2.xlsx
+2026-04-12 18:25:15 [WARNING]   ⚠️ 子表 '云雀四期结算' 未精确匹配，使用 '量级登记'
+2026-04-12 18:25:15 [INFO]   数据维度: 442 行 × 33 列
+2026-04-12 18:25:15 [WARNING]   ⚠️ 导入0条！诊断: 总行=440, 空行=0, 无日期=440, 无指标=0
+2026-04-12 18:25:15 [WARNING]   📋 样本行2: A列=None, E列=0.817460317460318, F列=0.0666666666666667
+2026-04-12 18:25:15 [WARNING]   📋 样本行3: A列=None, E列=0.916666666666667, F列=0
+2026-04-12 18:25:15 [WARNING]   📋 样本行4: A列=None, E列=0.821782178217822, F列=0.0363636363636364
+2026-04-12 18:25:15 [INFO]   ✅ 导入 0 条记录 → 队列 [四期-二审GT]
+2026-04-12 18:25:15 [INFO]   🗑️ 已删除: 四期-二审GT_20260412_182321_shared2.xlsx
+2026-04-12 18:25:15 [INFO]    ✅ 导入 /Users/laitianyou/WorkBuddy/20260408163242/qc-dashboard/data/uploads/四期-二审GT_20260412_182321_shared2.xlsx: 0 条
+2026-04-12 18:25:15 [INFO] 📂 处理文件: 四期-举报_20260412_182255.xlsx
+2026-04-12 18:25:16 [INFO]   工作表: 云雀四期结算 (共 9 个子表)
+2026-04-12 18:25:16 [INFO]   数据维度: 257 行 × 43 列
+2026-04-12 18:25:16 [INFO]   ✅ 导入 253 条记录 → 队列 [四期-举报]
+2026-04-12 18:25:16 [INFO]   🗑️ 已删除: 四期-举报_20260412_182255.xlsx
+2026-04-12 18:25:16 [INFO]    ✅ 导入 /Users/laitianyou/WorkBuddy/20260408163242/qc-dashboard/data/uploads/四期-举报_20260412_182255.xlsx: 253 条
+2026-04-12 18:25:16 [INFO] 📂 处理文件: 拉黑误漏_20260412_182513.xlsx
+2026-04-12 18:25:18 [INFO]   工作表: 量级登记 (共 14 个子表)
+2026-04-12 18:25:18 [INFO]   数据维度: 426 行 × 90 列
+2026-04-12 18:25:19 [INFO]   ✅ 导入 289 条记录 → 队列 [拉黑误漏]
+2026-04-12 18:25:19 [INFO]   🗑️ 已删除: 拉黑误漏_20260412_182513.xlsx
+2026-04-12 18:25:19 [INFO]    ✅ 导入 /Users/laitianyou/WorkBuddy/20260408163242/qc-dashboard/data/uploads/拉黑误漏_20260412_182513.xlsx: 289 条
+2026-04-12 18:25:19 [INFO] 📂 处理文件: 上墙文本_20260412_182056.xlsx
+2026-04-12 18:25:19 [INFO]   工作表: 准确率（新） (共 5 个子表)
+2026-04-12 18:25:19 [INFO]   数据维度: 64 行 × 28 列
+2026-04-12 18:25:19 [INFO]   ✅ 导入 40 条记录 → 队列 [上墙文本]
+2026-04-12 18:25:19 [INFO]   🗑️ 已删除: 上墙文本_20260412_182056.xlsx
+2026-04-12 18:25:19 [INFO]    ✅ 导入 /Users/laitianyou/WorkBuddy/20260408163242/qc-dashboard/data/uploads/上墙文本_20260412_182056.xlsx: 40 条
+2026-04-12 18:25:19 [INFO]    ✅ 新增/更新 582 条记录
+2026-04-12 18:25:19 [INFO] 🧹 [3/4] 清理未来日期...
+2026-04-12 18:25:19 [INFO]    ✅ 删除 215 条未来日期记录
+2026-04-12 18:25:19 [INFO] 📋 [4/4] 刷新完成汇总:
+2026-04-12 18:25:19 [INFO]    📥 新增记录: 582
+2026-04-12 18:25:19 [INFO]    🧹 未来日期清理: 215
+2026-04-12 18:25:19 [INFO]    📅 数据库最新: 2026-04-12
+2026-04-12 18:25:19 [INFO]    ✅ 数据已同步到今天 (2026-04-12)
+2026-04-12 18:25:19 [INFO] ============================================================
+2026-04-12 18:25:19 [INFO] 🎉 自动刷新完成！
+2026-04-12 18:25:19 [INFO] ============================================================
+2026-04-12 18:25:19 [INFO] 📤 触发每日数据推送...
+2026-04-12 18:25:24 [INFO]    ✅ 推送完成

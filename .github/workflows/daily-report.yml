@@ -1,0 +1,121 @@
+# 质检日报自动推送 - GitHub Action
+# 每天北京时间 15:00 执行，生成昨日质检日报并推送到企业微信群
+
+name: Daily QA Report
+
+on:
+  schedule:
+    # UTC 7:00 = 北京时间 15:00（每天）
+    - cron: '0 7 * * *'
+  workflow_dispatch:
+    # 允许手动触发（用于测试）
+    inputs:
+      report_date:
+        description: '报告日期 (YYYY-MM-DD)，默认昨天'
+        required: false
+        default: ''
+      dry_run:
+        description: '仅生成不推送'
+        required: false
+        type: boolean
+        default: false
+
+jobs:
+  daily-report:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Prepare config
+        env:
+          TIDB_HOST: ${{ secrets.TIDB_HOST }}
+          TIDB_PORT: ${{ secrets.TIDB_PORT }}
+          TIDB_USER: ${{ secrets.TIDB_USER }}
+          TIDB_PASSWORD: ${{ secrets.TIDB_PASSWORD }}
+          TIDB_DATABASE: ${{ secrets.TIDB_DATABASE }}
+          WECOM_WEBHOOK: ${{ secrets.WECOM_WEBHOOK_URL }}
+        run: |
+          # 直接生成完整的 settings.json，代码从该文件读取所有配置
+          mkdir -p config
+
+          # 生成 settings.json
+          python3 << 'PYEOF'
+          import json
+          import os
+
+          config = {
+              "wecom_webhook_url": os.environ.get("WECOM_WEBHOOK", ""),
+              "wecom_webhook_key": "",
+              "daily_report_hour": 18,
+              "daily_report_minute": 0,
+              "dashboard_url": "https://quality-dashboard-2026.streamlit.app/",
+              "db_path": "data/warehouse/qa.duckdb",
+              "tidb": {
+                  "host": os.environ.get("TIDB_HOST", ""),
+                  "port": int(os.environ.get("TIDB_PORT", "4000")),
+                  "user": os.environ.get("TIDB_USER", ""),
+                  "password": os.environ.get("TIDB_PASSWORD", ""),
+                  "database": os.environ.get("TIDB_DATABASE", ""),
+                  "charset": "utf8mb4"
+              }
+          }
+
+          with open("config/settings.json", "w") as f:
+              json.dump(config, f, indent=2)
+
+          print("Config prepared:")
+          with open("config/settings.json", "r") as f:
+              print(f.read())
+          PYEOF
+
+      - name: Run daily report
+        env:
+          DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
+          DEEPSEEK_API_URL: ${{ secrets.DEEPSEEK_API_URL }}
+        run: |
+          ARGS=""
+          
+          # 计算日期参数
+          if [ -n "${{ github.event.inputs.report_date }}" ]; then
+            ARGS="--date ${{ github.event.inputs.report_date }}"
+          else
+            ARGS="--date $(date -d 'yesterday' '+%Y-%m-%d')"
+          fi
+          
+          if [ "${{ github.event.inputs.dry_run }}" = "true" ]; then
+            ARGS="$ARGS --dry-run"
+          fi
+          
+          echo "Running: python jobs/daily_report.py $ARGS"
+          python jobs/daily_report.py $ARGS
+
+      - name: Commit daily_data.json
+        if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+          git add daily_data.json || true
+          git diff --quiet && git diff --staged --quiet || git commit -m "Update daily_data.json [skip ci]"
+          git push
+
+      - name: Upload report artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: daily-report-${{ github.run_number }}
+          path: deliverables/
+          retention-days: 30

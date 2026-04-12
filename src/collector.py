@@ -210,21 +210,30 @@ def import_excel(conn, config: dict, queue_id: Optional[str] = None, file_path: 
     for fpath in excel_files:
         log.info(f"📂 处理文件: {fpath.name}")
         
-        # ── 阶段1：先匹配队列（必须在读取子表之前，因为子表名取决于队列配置）──
+        # ── 阶段1：匹配队列 ──
+        # 优先使用 queue_id 精确匹配（auto_refresh 传入），
+        # 其次按文件名模糊匹配（手动导入场景）
         matched_queue = None
-        for qcfg in queues_config:
-            if qcfg.get('name', '') in fpath.name or qcfg.get('full_name', '') in fpath.name or \
-               qcfg.get('sheet_name', '') in fpath.name:
-                matched_queue = qcfg
-                break
+        
+        if queue_id:
+            # queue_id 精确匹配 — 最可靠的方式
+            for qcfg in queues_config:
+                if qcfg.get('id') == queue_id:
+                    matched_queue = qcfg
+                    break
+            if matched_queue:
+                log.info(f"  队列匹配: {matched_queue.get('name', queue_id)} (精确ID匹配)")
+        
+        if not matched_queue:
+            # 文件名模糊匹配（手动上传 xlsx 时的兜底方案）
+            for qcfg in queues_config:
+                if qcfg.get('name', '') in fpath.name or qcfg.get('full_name', '') in fpath.name or \
+                   qcfg.get('sheet_name', '') in fpath.name:
+                    matched_queue = qcfg
+                    break
 
         if not matched_queue:
-            log.warning(f"  ⚠️ 无法自动匹配队列。请在文件名中包含队列名称")
-            pending = [q for q in queues_config if q.get('id') == queue_id] if queue_id else list(queues_config)
-            if pending:
-                matched_queue = pending[0]
-
-        if not matched_queue:
+            log.warning(f"  ⚠️ 无法匹配队列（queue_id={queue_id}, 文件名={fpath.name}）")
             continue
 
         qid = matched_queue['id']
@@ -289,60 +298,58 @@ def import_excel(conn, config: dict, queue_id: Optional[str] = None, file_path: 
                 sub_name = sub_cfg.get('name', f'子表{sub_idx+1}')
                 log.info(f"  处理 [{sub_name}] (日期列={sub_date_col})")
             
+            # 诊断计数器
+            _skip_empty = 0
+            _skip_no_date = 0
+            _skip_no_metrics = 0
+
             # 从第3行开始遍历数据（前两行为标题）
-        # 诊断计数器
-        _skip_empty = 0
-        _skip_no_date = 0
-        _skip_no_metrics = 0
+            for row_idx in range(2, len(df)):
+                row_values = df.iloc[row_idx].tolist()
 
-        for row_idx in range(2, len(df)):
-            row_values = df.iloc[row_idx].tolist()
+                if all(pd.isna(v) or v is None or str(v).strip() == '' for v in row_values):
+                    _skip_empty += 1
+                    continue
 
-            if all(pd.isna(v) or v is None or str(v).strip() == '' for v in row_values):
-                _skip_empty += 1
-                continue
+                date_val = get_cell_val_pandas(row_values, sub_date_col)
+                if not date_val:
+                    _skip_no_date += 1
+                    continue
+                date_str = parse_date(date_val)
+                if not date_str:
+                    _skip_no_date += 1
+                    continue
 
-            date_val = get_cell_val_pandas(row_values, sub_date_col)
-            if not date_val:
-                _skip_no_date += 1
-                continue
-            date_str = parse_date(date_val)
-            if not date_str:
-                _skip_no_date += 1
-                continue
+                metrics = {}
+                for mcfg in sub_fields.get('metrics', []):
+                    col = mcfg.get('col', '')
+                    key = mcfg.get('key', '')
+                    val = get_cell_val_pandas(row_values, col)
+                    if val is not None:
+                        metrics[key] = val
 
-            metrics = {}
-            for mcfg in sub_fields.get('metrics', []):
-                col = mcfg.get('col', '')
-                key = mcfg.get('key', '')
-                val = get_cell_val_pandas(row_values, col)
-                if val is not None:
-                    metrics[key] = val
+                if metrics:
+                    upsert_metrics(conn, qid, qname, date_str, metrics, source='excel')
+                    row_count += 1
+                else:
+                    _skip_no_metrics += 1
 
-            if metrics:
-                upsert_metrics(conn, qid, qname, date_str, metrics, source='excel')
-                row_count += 1
-            else:
-                _skip_no_metrics += 1
-
-        # 导入0条时输出诊断信息
-        if row_count == 0:
-            log.warning(f"  ⚠️ 导入0条！诊断: 总行={len(df)-2}, 空行={_skip_empty}, 无日期={_skip_no_date}, 无指标={_skip_no_metrics}")
-            # 输出前3行样本帮助排查
-            for sample_idx in range(2, min(5, len(df))):
-                sample_row = df.iloc[sample_idx].tolist()
-                sample_date = get_cell_val_pandas(sample_row, sub_date_col)
-                log.warning(f"  📋 样本行{sample_idx}: A列={sample_date}, E列={get_cell_val_pandas(sample_row, 'E')}, F列={get_cell_val_pandas(sample_row, 'F')}")
+            # 子表导入0条时输出诊断信息
+            if row_count == 0 and len(df) > 2:
+                log.warning(f"  ⚠️ 导入0条！诊断: 总行={len(df)-2}, 空行={_skip_empty}, 无日期={_skip_no_date}, 无指标={_skip_no_metrics}")
+                # 输出前3行样本帮助排查
+                for sample_idx in range(2, min(5, len(df))):
+                    sample_row = df.iloc[sample_idx].tolist()
+                    sample_date = get_cell_val_pandas(sample_row, sub_date_col)
+                    sample_metrics = {mcfg['col']: get_cell_val_pandas(sample_row, mcfg['col']) for mcfg in sub_fields.get('metrics', [])}
+                    log.warning(f"  📋 样本行{sample_idx}: date_col({sub_date_col})={sample_date}, metrics={sample_metrics}")
 
         log.info(f"  ✅ 导入 {row_count} 条记录 → 队列 [{qname or qid}]")
         imported += row_count
 
-        # 导入成功后立即删除原文件（不保留临时文件，节省磁盘空间）
-        try:
-            fpath.unlink()
-            log.info(f"  🗑️ 已删除: {fpath.name}")
-        except OSError as e:
-            log.warning(f"  ⚠️ 删除失败: {e}")
+        # 注意：不在这里删除文件！
+        # 共享文件（如 q3/q3b 同一 xlsx）需要被多次导入，
+        # 由调用方（auto_refresh.py）在全部队列导入完成后统一清理。
 
     return imported
 

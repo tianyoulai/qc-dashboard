@@ -173,65 +173,38 @@ def main(dry_run=False):
             log.info("   启动 Playwright 自动下载...")
             try:
                 downloaded = asyncio.run(run_full_pipeline(download_only=True, headless=True))
-                log.info(f"   下载了 {len(downloaded)} 个文件: {downloaded}")
+                log.info(f"   下载了 {len(downloaded)} 个文件(队列映射)")
             except Exception as e:
                 log.error(f"   ❌ Playwright 下载失败: {e}")
                 downloaded = []
             
             if downloaded:
-                # 下载成功后，逐个导入数据库
-                # 注意：去重文件（如 q3/q3b 共享同一 xlsx）会出现在列表中多次，
-                # import_excel 导入后会删除原文件，需要对重复文件先做备份
+                # downloaded 现在是 [(file_path, queue_id), ...] 元组列表
+                # 共享文件（如 q3/q3b）会出现多次，指向同一个文件但 queue_id 不同
+                # import_excel 不会删除文件，所以可以安全地多次导入同一文件
                 from collector import import_excel
-                import shutil
-                # 统计每个文件出现的次数，>1 说明有队列共享
-                from collections import Counter
-                file_counts = Counter(str(f) for f in downloaded)
-                file_used = Counter()  # 记录每个文件已处理次数
 
-                for fpath in downloaded:
+                for fpath, qid in downloaded:
                     try:
-                        fpath_str = str(fpath)
-                        file_used[fpath_str] += 1
-                        # 如果文件会被多次使用且这是第一次，先为后续复制备份
-                        if file_counts[fpath_str] > 1 and file_used[fpath_str] == 1:
-                            # 第1次使用：复制副本供后续队列，当前用原文件
-                            total_shared = file_counts[fpath_str]
-                            copy_path = fpath_str.replace('.xlsx', f'_shared{total_shared}.xlsx')
-                            shutil.copy2(fpath_str, copy_path)
-                            log.info(f"   📋 共享文件备份({total_shared}个队列共用): {Path(copy_path).name}")
-                            # 将后续出现的同路径替换为副本（从当前位置之后查找）
-                            current_idx = -1
-                            for i, f in enumerate(downloaded):
-                                if str(f) == fpath_str:
-                                    current_idx = i
-                                    break
-                            replaced = 0
-                            for i in range(current_idx + 1, len(downloaded)):
-                                if str(downloaded[i]) == fpath_str:
-                                    downloaded[i] = copy_path
-                                    replaced += 1
-                                    if replaced >= total_shared - 1:
-                                        break
-
                         if not Path(fpath).exists():
-                            log.warning(f"   ⚠️ 文件不存在，跳过: {fpath}")
+                            log.warning(f"   ⚠️ 文件不存在，跳过: {fpath} (队列 {qid})")
                             continue
 
-                        count = import_excel(conn, config, file_path=fpath)
+                        count = import_excel(conn, config, queue_id=qid, file_path=fpath)
                         total_imported += count
-                        log.info(f"   ✅ 导入 {fpath}: {count} 条")
+                        log.info(f"   ✅ 导入 [{qid}] {Path(fpath).name}: {count} 条")
                     except Exception as e:
-                        log.warning(f"   ⚠️ 导入失败 {fpath}: {e}")
-                # 清理临时文件（包括 _shared 副本）
+                        log.warning(f"   ⚠️ 导入失败 [{qid}] {fpath}: {e}")
+
+                # 全部导入完成后统一清理
                 from auto_download import cleanup_temp_files
                 cleanup_temp_files()
-                # 额外清理 uploads 目录中的 _shared 副本
+                # 清理 uploads 目录中的 xlsx（import_excel 不再自行删除）
                 upload_dir = PROJECT_ROOT / "data" / "uploads"
-                for f in upload_dir.glob("*_shared*.xlsx"):
+                for f in upload_dir.glob("*.xlsx"):
                     try:
                         f.unlink()
-                        log.info(f"   🧹 清理共享副本: {f.name}")
+                        log.info(f"   🗑️ 清理: {f.name}")
                     except OSError:
                         pass
             else:
