@@ -35,9 +35,9 @@ wecom-sheet-report.md
 .env
 config.local.yaml
 
-# 数据库（加密后的二进制文件，不需要提交）
-data/metrics.db
+# 备份文件
 data/metrics.db.plaintext.bak
+data/metrics.db.encrypted.bak
 
 # 临时下载文件（处理后自动清理）
 data/downloads/*.xlsx

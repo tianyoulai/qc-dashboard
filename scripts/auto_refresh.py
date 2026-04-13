@@ -278,6 +278,25 @@ def main(dry_run=False):
         else:
             log.info("📤 每日推送未启用 (push.enabled=false)")
 
+        # ── Step 6: Git push metrics.db → Streamlit Cloud 自动同步 ──
+        log.info("📦 [6/6] Git 推送数据库...")
+        try:
+            import subprocess
+            git_cmds = [
+                ["git", "-C", str(PROJECT_ROOT), "add", "data/metrics.db"],
+                ["git", "-C", str(PROJECT_ROOT), "commit", "-m", f"data: {datetime.now().strftime('%Y-%m-%d')} 自动更新"],
+                ["git", "-C", str(PROJECT_ROOT), "push"],
+            ]
+            for cmd in git_cmds:
+                r = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+                if r.returncode != 0 and "nothing to commit" not in (r.stdout + r.stderr):
+                    log.warning(f"   ⚠️ Git: {' '.join(cmd[-2:])} → {r.stderr[:100]}")
+                    break
+            else:
+                log.info("   ✅ Git push 完成 → Streamlit Cloud 将自动同步")
+        except Exception as e:
+            log.warning(f"   ⚠️ Git push 异常: {e}")
+
         return 0
 
     except Exception as e:
