@@ -1,0 +1,12 @@
+2026-04-13 18:20:05 [INFO] ============================================================
+2026-04-13 18:20:05 [INFO] 🔄 QC Dashboard 自动刷新启动
+2026-04-13 18:20:05 [INFO]    时间: 2026-04-13 18:20:05
+2026-04-13 18:20:05 [INFO]    模式: 正式执行
+2026-04-13 18:20:05 [INFO] ============================================================
+2026-04-13 18:20:05 [ERROR] ❌ 刷新失败: cannot import name '_get_password' from 'db_helper' (/Users/laitianyou/WorkBuddy/20260408163242/qc-dashboard/src/db_helper.py)
+Traceback (most recent call last):
+  File "/Users/laitianyou/WorkBuddy/20260408163242/qc-dashboard/scripts/auto_refresh.py", line 141, in main
+    from collector import init_db
+  File "/Users/laitianyou/WorkBuddy/20260408163242/qc-dashboard/src/collector.py", line 26, in <module>
+    from db_helper import get_db_connection, _get_password as _get_db_password
+ImportError: cannot import name '_get_password' from 'db_helper' (/Users/laitianyou/WorkBuddy/20260408163242/qc-dashboard/src/db_helper.py)

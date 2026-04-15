@@ -23,7 +23,7 @@ from datetime import datetime, timedelta
 from typing import Optional
 
 # ── 统一数据库连接（自动处理 SQLCipher 加密）──
-from db_helper import get_db_connection, _get_password as _get_db_password
+from db_helper import get_db_connection
 
 # ── 项目根目录 ──
 PROJECT_ROOT = Path(__file__).parent.parent
