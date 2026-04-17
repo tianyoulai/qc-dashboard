@@ -602,13 +602,13 @@ def render_dashboard(all_data):
                 is_ok, _, _ = check_threshold(q, pm, main_val)
                 status_icon = " ✅" if is_ok else " ⚠️"
 
-            # ── 组合显示：主指标 + 漏率（如有，紧凑内联）──
+            # ── 组合显示：主指标 + 漏率（如有，内联）──
             if miss_val is not None:
                 miss_str = fmt_pct(miss_val)
                 # 漏率是否达标
                 miss_ok, _, _ = check_threshold(q, miss_mk, miss_val)
                 miss_tag = "✅" if miss_ok else "⚠️"
-                display_value = f"{val_str}{status_icon} <span style='color:#94a3b8;font-size:9px;margin-left:4px'>| 漏 {miss_str} {miss_tag}</span>"
+                display_value = f"{val_str}{status_icon}  <span style='color:#94a3b8'>L:{miss_str}{miss_tag}</span>"
             else:
                 display_value = f"{val_str}{status_icon}"
 
@@ -1156,15 +1156,15 @@ _CSS = r"""/* ══ v5.3 QC Dashboard — 紧凑7列布局 ══ */
 body{background:var(--bg)!important;font-size:14px!important;line-height:1.55!important;color:var(--tx2)!important;padding:12px 20px!important}
 [data-testid="stSidebar"]{display:none!important}[data-testid="stAppViewBlockContainer"] [data-testid="stToolbar"]{display:none!important}#MainMenu{visibility:hidden}header{visibility:hidden}
 
-/* ── metric 卡片（7列紧凑布局：小字号 + 紧内边距）── */
-[data-testid="stMetric"]{background:var(--card)!important;border:1px solid var(--bd)!important;border-radius:8px!important;box-shadow:0 1px 2px rgba(0,0,0,.03)!important;padding:12px 6px!important;transition:box-shadow .18s,transform .15s!important;margin:2px 1.5px!important;flex:1 1 0!important;min-width:0!important;max-width:none!important}
+/* ── metric 卡片（7列紧凑布局）── */
+[data-testid="stMetric"]{background:var(--card)!important;border:1px solid var(--bd)!important;border-radius:8px!important;box-shadow:0 1px 2px rgba(0,0,0,.03)!important;padding:10px 4px!important;transition:box-shadow .18s,transform .15s!important;margin:2px 1px!important;flex:1 1 0!important;min-width:0!important}
 [data-testid="stMetric"]:hover{box-shadow:0 3px 10px rgba(0,0,0,.07)!important;transform:translateY(-1px)!important;border-color:rgba(59,130,246,.25)!important}
 [data-testid="stMetric"]>div{width:100%!important;padding:0!important;display:flex!important;flex-direction:column!important;align-items:center!important}
-[data-testid="stMetric"]>div>div:nth-child(1){font-size:10.5px!important;font-weight:600!important;color:var(--dim)!important;text-align:center!important;margin-bottom:3px!important;line-height:1.2!important;letter-spacing:.15px;white-space:nowrap!important;overflow:hidden!important;text-overflow:ellipsis!important;width:100%!important}
-[data-testid="stMetric"]>div>div:nth-child(2){font-size:18px!important;font-weight:700!important;color:var(--tx)!important;text-align:center!important;margin-bottom:1px!important;line-height:1.1!important;font-variant-numeric:tabular-nums;width:100%!important}
-[data-testid="stMetric"]>div>div:nth-child(2) span:not([aria-hidden]){font-size:9px!important;line-height:1!important;display:inline!important;margin-left:3px!important;color:#94a3b8!important;font-weight:500!important;white-space:nowrap!important;vertical-align:middle!important}
-[data-testid="stMetric"]>div>div:nth-child(2) small{font-size:9px!important;line-height:1!important;display:inline!important;margin-left:3px!important;color:#94a3b8!important;font-weight:500!important;white-space:nowrap!important;vertical-align:middle!important}
-[data-testid="stMetric"]>div>div:nth-child(3){font-size:8.5px!important;color:var(--dim)!important;text-align:center!important;font-weight:400!important;line-height:1.15!important;white-space:nowrap!important;overflow:hidden!important;text-overflow:ellipsis!important}
+[data-testid="stMetric"]>div>div:nth-child(1){font-size:10px!important;font-weight:600!important;color:var(--dim)!important;text-align:center!important;margin-bottom:2px!important;line-height:1.2!important;letter-spacing:.1px;white-space:nowrap!important;width:100%!important}
+[data-testid="stMetric"]>div>div:nth-child(2){font-size:17px!important;font-weight:700!important;color:var(--tx)!important;text-align:center!important;margin-bottom:0!important;line-height:1.1!important;font-variant-numeric:tabular-nums;width:100%!important;display:flex!important;flex-wrap:wrap!important;justify-content:center!important;align-items:baseline!important;gap:2px!important}
+[data-testid="stMetric"]>div>div:nth-child(2) *{display:inline!important}
+[data-testid="stMetric"]>div>div:nth-child(2) span{font-size:9px!important;color:#94a3b8!important;font-weight:500!important;white-space:nowrap!important;margin-left:2px!important}
+[data-testid="stMetric"]>div>div:nth-child(3){font-size:8px!important;color:var(--dim)!important;text-align:center!important;font-weight:400!important;line-height:1.1!important;white-space:nowrap!important}
 [data-testid="stMetric"]>div>div:nth-child(3) span[aria-hidden]{display:none!important}
 [data-testid="stMetric"]>div>div:nth-child(3) *{color:var(--dim)!important}
 
