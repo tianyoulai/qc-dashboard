@@ -1,6 +1,6 @@
 """
 ============================================================
-QC Dashboard — Streamlit 看板  v5.0（对标 HTML 模板版）
+QC Dashboard — Streamlit 看板  v5.2（对标 HTML 模板版）
 ============================================================
 对标 HTML 模板版 UI 风格（白底卡片/胶囊Tab/轻量走势图）
 用法:  cd qc-dashboard && streamlit run app.py
@@ -582,8 +582,19 @@ def render_dashboard(all_data):
             pm = q.get("primary_metric", q["metric_keys"][0])
             main_val = find_latest_nonzero_per_key(df_f, pm)
 
-            val_str = fmt_pct(main_val) if main_val is not None else "--"
+            # ── 查找漏率（miss_rate）作为副指标 ──
+            miss_val = None
+            miss_mk = None
+            for mk in q["metric_keys"]:
+                if "miss_rate" in mk:
+                    miss_mk = mk
+                    miss_val = find_latest_nonzero_per_key(df_f, mk)
+                    break
+
             n_days = len(df_f)
+
+            # 主指标格式化
+            val_str = fmt_pct(main_val) if main_val is not None else "--"
 
             # 达标/不达标标识
             status_icon = ""
@@ -591,8 +602,18 @@ def render_dashboard(all_data):
                 is_ok, _, _ = check_threshold(q, pm, main_val)
                 status_icon = " ✅" if is_ok else " ⚠️"
 
+            # ── 组合显示：主指标 + 漏率（如有）──
+            if miss_val is not None:
+                miss_str = fmt_pct(miss_val)
+                # 漏率是否达标
+                miss_ok, _, _ = check_threshold(q, miss_mk, miss_val)
+                miss_tag = "✅" if miss_ok else "⚠️"
+                display_value = f"{val_str}{status_icon}\n<small style='color:#94a3b8;font-size:11px'>漏 {miss_str} {miss_tag}</small>"
+            else:
+                display_value = f"{val_str}{status_icon}"
+
             with ov_cols[ci]:
-                st.metric(label=f"{q['icon']} **{q['name']}**", value=f"{val_str}{status_icon}",
+                st.metric(label=f"{q['icon']} **{q['name']}**", value=display_value,
                           delta=f"{n_days}天 · {latest_date}" if n_days > 0 else "待接入",
                           delta_color="off" if n_days == 0 else "normal",
                           help=f"{q.get('full_name', q['name'])}\n最新日期: {latest_date}")
@@ -934,7 +955,7 @@ def render_dashboard(all_data):
                        key=f"dl_{qid}")
 
     # Footer
-    st.caption(f'📊 QC Dashboard v5.1 · {datetime.now().strftime("%Y-%m-%d %H:%M")}')
+    st.caption(f'📊 QC Dashboard v5.2 · {datetime.now().strftime("%Y-%m-%d %H:%M")}')
 
 
 # ════════════════════════════════════════════════════════════════
@@ -1124,7 +1145,7 @@ def _simple_import(progress, log):
 st.set_page_config(
     page_title="QC 质检数据看板", page_icon="📊", layout="wide",
     initial_sidebar_state="collapsed",
-    menu_items={"About": "📊 QC Dashboard v5.1", "Report a bug": None, "Get Help": None},
+    menu_items={"About": "📊 QC Dashboard v5.2", "Report a bug": None, "Get Help": None},
 )
 
 # ═══ 全局 CSS — v4.3 内联注入（对标模板版 UI）═══
