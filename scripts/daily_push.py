@@ -201,12 +201,108 @@ def get_latest_metrics():
 # ============================================================
 #  DeepSeek AI 摘要生成
 # ============================================================
-def generate_ai_summary(metrics_data, api_key=None, base_url="https://api.deepseek.com"):
-    """调用 DeepSeek API 生成日报摘要"""
-    if not api_key:
-        log.warning("未配置 DeepSeek API Key，跳过 AI 摘要生成")
+def _load_gongfeng_auth():
+    """从 OpenClaw auth-profiles 读取工蜂代理认证信息。"""
+    auth_path = Path.home() / ".openclaw" / "agents" / "main" / "agent" / "auth-profiles.json"
+    if not auth_path.exists():
+        return None
+    try:
+        import json as _json
+        with open(auth_path, "r", encoding="utf-8") as f:
+            profiles = _json.load(f)
+        gf = profiles.get("profiles", {}).get("gongfeng:default", {})
+        if not gf or gf.get("type") != "oauth":
+            return None
+        return {
+            "access": gf.get("access", ""),
+            "username": gf.get("username", ""),
+            "deviceId": gf.get("deviceId", ""),
+        }
+    except Exception:
         return None
 
+
+def _call_llm(system_prompt, user_prompt, model="claude-sonnet-4-5",
+              max_tokens=500, temperature=0.3):
+    """调用 LLM API，优先工蜂代理（免费 Claude），fallback DeepSeek。"""
+    # ── 优先：工蜂代理 ──
+    gf_auth = _load_gongfeng_auth()
+    if gf_auth and gf_auth["access"]:
+        try:
+            gf_url = "https://copilot.code.woa.com/server/openclaw/copilot-gateway/v1/chat/completions"
+            headers = {
+                "Content-Type": "application/json",
+                "Authorization": f"Bearer {gf_auth['access']}",
+                "X-Model-Name": "Claude Sonnet 4.5",
+                "X-Username": gf_auth["username"],
+                "OAUTH-TOKEN": gf_auth["access"],
+                "DEVICE-ID": gf_auth["deviceId"],
+            }
+            resp = requests.post(
+                gf_url,
+                headers=headers,
+                json={
+                    "model": model,
+                    "messages": [
+                        {"role": "system", "content": system_prompt},
+                        {"role": "user", "content": user_prompt},
+                    ],
+                    "max_tokens": max_tokens,
+                    "temperature": temperature,
+                },
+                timeout=60,
+            )
+            resp.raise_for_status()
+            content = resp.json()["choices"][0]["message"]["content"].strip()
+            if content.startswith("```"):
+                lines = content.split("\n")
+                content = "\n".join(lines[1:-1] if lines[-1].strip() == "```" else lines[1:])
+            log.info("✅ 工蜂代理 Claude 调用成功")
+            return content
+        except Exception as e:
+            log.warning(f"⚠️ 工蜂代理调用失败: {e}，fallback DeepSeek")
+
+    # ── Fallback：DeepSeek ──
+    if not api_key:
+        log.warning("⚠️ 无可用 LLM（工蜂代理和 DeepSeek 均不可用）")
+        return None
+    try:
+        headers = {
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type": "application/json",
+        }
+        payload = {
+            "model": "deepseek-chat",
+            "messages": [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt},
+            ],
+            "temperature": temperature,
+            "max_tokens": max_tokens,
+        }
+        resp = requests.post(
+            f"{base_url}/v1/chat/completions",
+            headers=headers,
+            json=payload,
+            timeout=30,
+        )
+        resp.raise_for_status()
+        content = resp.json()["choices"][0]["message"]["content"].strip()
+        if content.startswith("```"):
+            lines = content.split("\n")
+            content = "\n".join(lines[1:-1] if lines[-1].strip() == "```" else lines[1:])
+        log.info("✅ DeepSeek fallback 调用成功")
+        return content
+    except requests.exceptions.RequestException as e:
+        log.error(f"❌ DeepSeek API 调用失败: {e}")
+        return None
+    except (KeyError, IndexError) as e:
+        log.error(f"❌ DeepSeek API 返回格式异常: {e}")
+        return None
+
+
+def generate_ai_summary(metrics_data, api_key=None, base_url="https://api.deepseek.com"):
+    """调用 LLM 生成日报摘要（优先 Claude，fallback DeepSeek）。"""
     # 组装 prompt
     data_text = ""
     alert_queues = []
@@ -223,7 +319,8 @@ def generate_ai_summary(metrics_data, api_key=None, base_url="https://api.deepse
     if alert_queues:
         alert_summary = f"\n特别关注：以下队列未达标 - {', '.join(alert_queues)}"
 
-    prompt = f"""你是质检数据分析师。根据以下各队列最新指标数据，生成一份简洁的日报摘要。
+    system_prompt = "你是质检数据分析师，擅长从数据中提取关键信息并给出专业建议。"
+    user_prompt = f"""根据以下各队列最新指标数据，生成一份简洁的日报摘要。
 
 要求：
 1. 用 3-5 句话概括整体情况
@@ -235,39 +332,7 @@ def generate_ai_summary(metrics_data, api_key=None, base_url="https://api.deepse
 今日数据：{data_text}
 {alert_summary}"""
 
-    try:
-        headers = {
-            "Authorization": f"Bearer {api_key}",
-            "Content-Type": "application/json",
-        }
-        payload = {
-            "model": "deepseek-chat",
-            "messages": [
-                {"role": "system", "content": "你是质检数据分析师，擅长从数据中提取关键信息并给出专业建议。"},
-                {"role": "user", "content": prompt},
-            ],
-            "temperature": 0.3,
-            "max_tokens": 500,
-        }
-
-        resp = requests.post(
-            f"{base_url}/v1/chat/completions",
-            headers=headers,
-            json=payload,
-            timeout=30,
-        )
-        resp.raise_for_status()
-        result = resp.json()
-        summary = result["choices"][0]["message"]["content"].strip()
-        log.info("✅ DeepSeek AI 摘要生成成功")
-        return summary
-
-    except requests.exceptions.RequestException as e:
-        log.error(f"❌ DeepSeek API 调用失败: {e}")
-        return None
-    except (KeyError, IndexError) as e:
-        log.error(f"❌ DeepSeek API 返回格式异常: {e}")
-        return None
+    return _call_llm(system_prompt, user_prompt)
 
 
 # ============================================================

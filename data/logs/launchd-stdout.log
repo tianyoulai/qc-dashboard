@@ -764,3 +764,489 @@ Traceback (most recent call last):
   File "/Users/laitianyou/WorkBuddy/20260408163242/qc-dashboard/src/collector.py", line 26, in <module>
     from db_helper import get_db_connection, _get_password as _get_db_password
 ImportError: cannot import name '_get_password' from 'db_helper' (/Users/laitianyou/WorkBuddy/20260408163242/qc-dashboard/src/db_helper.py)
+2026-04-15 18:20:05 [INFO] ============================================================
+2026-04-15 18:20:05 [INFO] 🔄 QC Dashboard 自动刷新启动
+2026-04-15 18:20:05 [INFO]    时间: 2026-04-15 18:20:05
+2026-04-15 18:20:05 [INFO]    模式: 正式执行
+2026-04-15 18:20:05 [INFO] ============================================================
+2026-04-15 18:20:05 [INFO] 📊 [1/4] 检测数据缺口...
+2026-04-15 18:20:05 [INFO]    ✅ 数据连续，最新日期: 2026-04-15
+2026-04-15 18:20:05 [INFO] 📡 [2/4] 拉取数据 (模式: playwright)...
+2026-04-15 18:20:05 [INFO]    启动 Playwright 自动下载...
+  [18:20:05] [INFO] ========================================================
+  [18:20:05] [INFO]  方案2 自动化流水线
+  [18:20:05] [INFO]  队列数: 7
+  [18:20:05] [INFO]  时间:   2026-04-15 18:20:05
+  [18:20:05] [INFO] ========================================================
+  [18:20:05] [INFO] 
+【Step 1/3】自动下载企微表格
+  [18:20:05] [INFO] 启动浏览器 (数据目录: /Users/laitianyou/WorkBuddy/20260408163242/qc-dashboard/data/browser_profile)
+  [18:20:08] [INFO] 正在打开: [投放误漏]
+  [18:20:08] [INFO]   URL: https://doc.weixin.qq.com/sheet/e3_ACgA9wbwACk4qZHejt9TJuM61u9o6?scode=AJEAIQdfA...
+  [18:20:11] [INFO] 
+==================================================
+  [18:20:11] [INFO] 开始下载: [投放误漏] (q1_toufang)
+  [18:20:11] [INFO] URL: https://doc.weixin.qq.com/sheet/e3_ACgA9wbwACk4qZHejt9TJuM61u9o6?scode=AJEAIQdfA...
+  [18:20:14] [INFO]   [Step 1] 检查页面上是否有可见的「导出」选项...
+  [18:20:14] [INFO]   [Step 2] 尝试打开文档操作菜单...
+  [18:20:14] [DEBUG]     找到按钮: .mini-list-dropdown-btn
+  [18:20:16] [INFO]     菜单截图: /Users/laitianyou/WorkBuddy/20260408163242/qc-dashboard/data/_debug_q1_toufang_menu.png
+  [18:20:17] [DEBUG]     找到按钮: [aria-label="按钮:文档列表下拉"]
+  [18:20:18] [INFO]     菜单截图: /Users/laitianyou/WorkBuddy/20260408163242/qc-dashboard/data/_debug_q1_toufang_menu.png
+  [18:20:19] [DEBUG]     找到按钮: [aria-label="按钮:文件操作"]
+  [18:20:20] [INFO]     菜单截图: /Users/laitianyou/WorkBuddy/20260408163242/qc-dashboard/data/_debug_q1_toufang_menu.png
+  [18:20:20] [SUCCESS]     找到菜单项: [导出]
+  [18:20:22] [SUCCESS]     找到子菜单项: [Excel], 点击下载...
+  [18:20:22] [INFO]     已点击导出，等待文件生成...
+  [18:20:52] [DEBUG]     [投放误漏] 等待导出完成... (30s/300s)
+  [18:21:22] [DEBUG]     [投放误漏] 等待导出完成... (60s/300s)
+  [18:21:52] [DEBUG]     [投放误漏] 等待导出完成... (90s/300s)
+  [18:22:22] [DEBUG]     [投放误漏] 等待导出完成... (120s/300s)
+  [18:22:52] [DEBUG]     [投放误漏] 等待导出完成... (150s/300s)
+  [18:23:25] [DEBUG]     [投放误漏] 等待导出完成... (183s/300s)
+  [18:23:36] [SUCCESS]     ✅ [投放误漏] 检测到新文件: 36166c43-5cb3-48e3-940d-00ae138f8005 (177.8 MB)
+  [18:23:36] [INFO]     📝 重命名为: 36166c43-5cb3-48e3-940d-00ae138f8005.xlsx
+  [18:23:36] [SUCCESS] ✅ 已保存: /Users/laitianyou/WorkBuddy/20260408163242/qc-dashboard/data/uploads/投放误漏_20260415_182336.xlsx
+  [18:23:36] [INFO] 
+==================================================
+  [18:23:36] [INFO] 开始下载: [简单二审] (q2_erjiansimple)
+  [18:23:36] [INFO] URL: https://doc.weixin.qq.com/sheet/e3_ACgA9wbwACkZmouhYUBTlyj5JbPjt?scode=AJEAIQdfA...
+  [18:23:40] [INFO]   [Step 1] 检查页面上是否有可见的「导出」选项...
+  [18:23:40] [INFO]   [Step 2] 尝试打开文档操作菜单...
+  [18:23:40] [DEBUG]     找到按钮: .mini-list-dropdown-btn
+  [18:23:42] [INFO]     菜单截图: /Users/laitianyou/WorkBuddy/20260408163242/qc-dashboard/data/_debug_q2_erjiansimple_menu.png
+  [18:23:42] [DEBUG]     找到按钮: [aria-label="按钮:文档列表下拉"]
+  [18:23:44] [INFO]     菜单截图: /Users/laitianyou/WorkBuddy/20260408163242/qc-dashboard/data/_debug_q2_erjiansimple_menu.png
+  [18:23:44] [DEBUG]     找到按钮: [aria-label="按钮:文件操作"]
+  [18:23:46] [INFO]     菜单截图: /Users/laitianyou/WorkBuddy/20260408163242/qc-dashboard/data/_debug_q2_erjiansimple_menu.png
+  [18:23:46] [SUCCESS]     找到菜单项: [导出]
+  [18:23:47] [SUCCESS]     找到子菜单项: [Excel], 点击下载...
+  [18:23:47] [INFO]     已点击导出，等待文件生成...
+  [18:24:17] [DEBUG]     [简单二审] 等待导出完成... (30s/300s)
+  [18:24:47] [DEBUG]     [简单二审] 等待导出完成... (60s/300s)
+  [18:25:17] [DEBUG]     [简单二审] 等待导出完成... (90s/300s)
+  [18:25:47] [DEBUG]     [简单二审] 等待导出完成... (120s/300s)
+  [18:26:17] [DEBUG]     [简单二审] 等待导出完成... (150s/300s)
+  [18:26:48] [DEBUG]     [简单二审] 等待导出完成... (181s/300s)
+  [18:27:20] [DEBUG]     [简单二审] 等待导出完成... (213s/300s)
+  [18:27:52] [DEBUG]     [简单二审] 等待导出完成... (245s/300s)
+  [18:28:25] [DEBUG]     [简单二审] 等待导出完成... (277s/300s)
+  [18:28:49] [WARN]     ⏰ 轮询超时 (300s)，未检测到下载文件
+  [18:28:49] [WARN]     轮询超时，文件未出现
+  [18:28:57] [SUCCESS]     ✅ [简单二审] 检测到新文件: 1794f03c-5390-4b07-a0c1-080ced624b5e (2056.0 MB)
+  [18:28:57] [INFO]     📝 重命名为: 1794f03c-5390-4b07-a0c1-080ced624b5e.xlsx
+  [18:28:57] [SUCCESS] ✅ 已保存: /Users/laitianyou/WorkBuddy/20260408163242/qc-dashboard/data/uploads/简单二审_20260415_182857.xlsx
+  [18:28:57] [INFO] 
+==================================================
+  [18:28:57] [INFO] 开始下载: [四期-二审GT] (q3_erjian_4qi_gt)
+  [18:28:57] [INFO] URL: https://doc.weixin.qq.com/sheet/e3_ACgA9wbwACkCNPZ6wydnzSRiMDToL?scode=AJEAIQdfA...
+  [18:29:01] [INFO]   [Step 1] 检查页面上是否有可见的「导出」选项...
+  [18:29:01] [INFO]   [Step 2] 尝试打开文档操作菜单...
+  [18:29:01] [DEBUG]     找到按钮: .mini-list-dropdown-btn
+  [18:29:03] [INFO]     菜单截图: /Users/laitianyou/WorkBuddy/20260408163242/qc-dashboard/data/_debug_q3_erjian_4qi_gt_menu.png
+  [18:29:03] [DEBUG]     找到按钮: [aria-label="按钮:文档列表下拉"]
+  [18:29:05] [INFO]     菜单截图: /Users/laitianyou/WorkBuddy/20260408163242/qc-dashboard/data/_debug_q3_erjian_4qi_gt_menu.png
+  [18:29:05] [DEBUG]     找到按钮: [aria-label="按钮:文件操作"]
+  [18:29:07] [INFO]     菜单截图: /Users/laitianyou/WorkBuddy/20260408163242/qc-dashboard/data/_debug_q3_erjian_4qi_gt_menu.png
+  [18:29:07] [SUCCESS]     找到菜单项: [导出]
+  [18:29:08] [SUCCESS]     找到子菜单项: [Excel], 点击下载...
+  [18:29:08] [INFO]     已点击导出，等待文件生成...
+  [18:29:38] [DEBUG]     [四期-二审GT] 等待导出完成... (30s/300s)
+  [18:30:08] [DEBUG]     [四期-二审GT] 等待导出完成... (60s/300s)
+  [18:30:41] [DEBUG]     [四期-二审GT] 等待导出完成... (93s/300s)
+  [18:31:13] [DEBUG]     [四期-二审GT] 等待导出完成... (125s/300s)
+  [18:31:16] [SUCCESS]     ✅ [四期-二审GT] 检测到新文件: 19c99bff-23a5-47b1-bf72-dcbfdb93d0e5 (479.1 MB)
+  [18:31:16] [INFO]     📝 重命名为: 19c99bff-23a5-47b1-bf72-dcbfdb93d0e5.xlsx
+  [18:31:16] [SUCCESS] ✅ 已保存: /Users/laitianyou/WorkBuddy/20260408163242/qc-dashboard/data/uploads/四期-二审GT_20260415_183116.xlsx
+  [18:31:16] [INFO] [四期-切片GT] 同一文档已下载，复用文件
+  [18:31:16] [INFO] 
+==================================================
+  [18:31:16] [INFO] 开始下载: [四期-举报] (q4_jubao_4qi)
+  [18:31:16] [INFO] URL: https://doc.weixin.qq.com/sheet/e3_ACgA9wbwACkCNLKKJB0UqRJCM3fY1?scode=AJEAIQdfA...
+  [18:31:20] [INFO]   [Step 1] 检查页面上是否有可见的「导出」选项...
+  [18:31:20] [INFO]   [Step 2] 尝试打开文档操作菜单...
+  [18:31:20] [DEBUG]     找到按钮: .mini-list-dropdown-btn
+  [18:31:22] [INFO]     菜单截图: /Users/laitianyou/WorkBuddy/20260408163242/qc-dashboard/data/_debug_q4_jubao_4qi_menu.png
+  [18:31:22] [DEBUG]     找到按钮: [aria-label="按钮:文档列表下拉"]
+  [18:31:24] [INFO]     菜单截图: /Users/laitianyou/WorkBuddy/20260408163242/qc-dashboard/data/_debug_q4_jubao_4qi_menu.png
+  [18:31:24] [DEBUG]     找到按钮: [aria-label="按钮:文件操作"]
+  [18:31:26] [INFO]     菜单截图: /Users/laitianyou/WorkBuddy/20260408163242/qc-dashboard/data/_debug_q4_jubao_4qi_menu.png
+  [18:31:26] [SUCCESS]     找到菜单项: [导出]
+  [18:31:27] [SUCCESS]     找到子菜单项: [Excel], 点击下载...
+  [18:31:27] [INFO]     已点击导出，等待文件生成...
+  [18:31:57] [DEBUG]     [四期-举报] 等待导出完成... (30s/300s)
+  [18:32:27] [DEBUG]     [四期-举报] 等待导出完成... (60s/300s)
+  [18:33:00] [DEBUG]     [四期-举报] 等待导出完成... (93s/300s)
+  [18:33:11] [SUCCESS]     ✅ [四期-举报] 检测到新文件: 0dcc23ef-85d8-4bda-96dc-2b6076e6a59a (226.9 MB)
+  [18:33:11] [INFO]     📝 重命名为: 0dcc23ef-85d8-4bda-96dc-2b6076e6a59a.xlsx
+  [18:33:11] [SUCCESS] ✅ 已保存: /Users/laitianyou/WorkBuddy/20260408163242/qc-dashboard/data/uploads/四期-举报_20260415_183311.xlsx
+  [18:33:11] [INFO] 
+==================================================
+  [18:33:11] [INFO] 开始下载: [拉黑误漏] (q5_lahei)
+  [18:33:11] [INFO] URL: https://doc.weixin.qq.com/sheet/e3_ACgA9wbwACklvJ3rQAeSlK2yvIVOE?scode=AJEAIQdfA...
+  [18:33:15] [INFO]   [Step 1] 检查页面上是否有可见的「导出」选项...
+  [18:33:15] [INFO]   [Step 2] 尝试打开文档操作菜单...
+  [18:33:15] [DEBUG]     找到按钮: .mini-list-dropdown-btn
+  [18:33:17] [INFO]     菜单截图: /Users/laitianyou/WorkBuddy/20260408163242/qc-dashboard/data/_debug_q5_lahei_menu.png
+  [18:33:18] [DEBUG]     找到按钮: [aria-label="按钮:文档列表下拉"]
+  [18:33:19] [INFO]     菜单截图: /Users/laitianyou/WorkBuddy/20260408163242/qc-dashboard/data/_debug_q5_lahei_menu.png
+  [18:33:20] [DEBUG]     找到按钮: [aria-label="按钮:文件操作"]
+  [18:33:21] [INFO]     菜单截图: /Users/laitianyou/WorkBuddy/20260408163242/qc-dashboard/data/_debug_q5_lahei_menu.png
+  [18:33:21] [SUCCESS]     找到菜单项: [导出]
+  [18:33:23] [SUCCESS]     找到子菜单项: [Excel], 点击下载...
+  [18:33:23] [INFO]     已点击导出，等待文件生成...
+  [18:33:53] [DEBUG]     [拉黑误漏] 等待导出完成... (30s/300s)
+  [18:34:23] [DEBUG]     [拉黑误漏] 等待导出完成... (60s/300s)
+  [18:34:53] [DEBUG]     [拉黑误漏] 等待导出完成... (90s/300s)
+  [18:35:23] [DEBUG]     [拉黑误漏] 等待导出完成... (120s/300s)
+  [18:35:55] [DEBUG]     [拉黑误漏] 等待导出完成... (152s/300s)
+  [18:35:58] [SUCCESS]     ✅ [拉黑误漏] 检测到新文件: f4debdcc-1d4a-49fa-af16-cf2320dd97a0 (475.9 MB)
+  [18:35:58] [INFO]     📝 重命名为: f4debdcc-1d4a-49fa-af16-cf2320dd97a0.xlsx
+  [18:35:58] [SUCCESS] ✅ 已保存: /Users/laitianyou/WorkBuddy/20260408163242/qc-dashboard/data/uploads/拉黑误漏_20260415_183558.xlsx
+  [18:35:58] [INFO] 
+==================================================
+  [18:35:58] [INFO] 开始下载: [上墙文本] (q6_shangqiang)
+  [18:35:58] [INFO] URL: https://doc.weixin.qq.com/sheet/e3_AQkAfgbQAOMMlwy0YAEStiiXPPTvR?scode=AJEAIQdfA...
+  [18:36:02] [INFO]   [Step 1] 检查页面上是否有可见的「导出」选项...
+  [18:36:02] [INFO]   [Step 2] 尝试打开文档操作菜单...
+  [18:36:02] [DEBUG]     找到按钮: .mini-list-dropdown-btn
+  [18:36:04] [INFO]     菜单截图: /Users/laitianyou/WorkBuddy/20260408163242/qc-dashboard/data/_debug_q6_shangqiang_menu.png
+  [18:36:04] [DEBUG]     找到按钮: [aria-label="按钮:文档列表下拉"]
+  [18:36:06] [INFO]     菜单截图: /Users/laitianyou/WorkBuddy/20260408163242/qc-dashboard/data/_debug_q6_shangqiang_menu.png
+  [18:36:06] [DEBUG]     找到按钮: [aria-label="按钮:文件操作"]
+  [18:36:08] [INFO]     菜单截图: /Users/laitianyou/WorkBuddy/20260408163242/qc-dashboard/data/_debug_q6_shangqiang_menu.png
+  [18:36:08] [SUCCESS]     找到菜单项: [导出]
+  [18:36:09] [SUCCESS]     找到子菜单项: [Excel], 点击下载...
+  [18:36:09] [INFO]     已点击导出，等待文件生成...
+  [18:36:35] [SUCCESS]     ✅ [上墙文本] 检测到新文件: 710401f6-11ee-40f2-954e-234f51d23126 (174.1 MB)
+  [18:36:35] [INFO]     📝 重命名为: 710401f6-11ee-40f2-954e-234f51d23126.xlsx
+  [18:36:35] [SUCCESS] ✅ 已保存: /Users/laitianyou/WorkBuddy/20260408163242/qc-dashboard/data/uploads/上墙文本_20260415_183635.xlsx
+  [18:36:35] [INFO] 
+浏览器保持打开 (登录态已保存)
+  [18:36:35] [INFO] 
+仅下载模式，跳过解析和看板更新
+2026-04-15 18:36:35 [INFO]    下载了 7 个文件(队列映射)
+2026-04-15 18:36:38 [INFO] 📂 处理文件: 投放误漏_20260415_182336.xlsx
+2026-04-15 18:36:38 [INFO]   队列匹配: 投放误漏 (精确ID匹配)
+2026-04-15 18:36:38 [INFO]   工作表: 量级登记 (共 10 个子表)
+2026-04-15 18:36:38 [INFO]   数据维度: 486 行 × 28 列
+2026-04-15 18:36:38 [INFO]   ✅ 导入 484 条记录 → 队列 [投放误漏]
+2026-04-15 18:36:38 [INFO]    ✅ 导入 [q1_toufang] 投放误漏_20260415_182336.xlsx: 484 条
+2026-04-15 18:36:38 [INFO] 📂 处理文件: 简单二审_20260415_182857.xlsx
+2026-04-15 18:36:38 [INFO]   队列匹配: 简单二审 (精确ID匹配)
+2026-04-15 18:36:41 [INFO]   工作表: 量级登记 (共 15 个子表)
+2026-04-15 18:36:42 [INFO]   数据维度: 426 行 × 90 列
+2026-04-15 18:36:42 [INFO]   ✅ 导入 165 条记录 → 队列 [简单二审]
+2026-04-15 18:36:42 [INFO]    ✅ 导入 [q2_erjiansimple] 简单二审_20260415_182857.xlsx: 165 条
+2026-04-15 18:36:42 [INFO] 📂 处理文件: 四期-二审GT_20260415_183116.xlsx
+2026-04-15 18:36:42 [INFO]   队列匹配: 四期-二审GT (精确ID匹配)
+2026-04-15 18:36:42 [INFO]   工作表: 云雀四期结算 (共 19 个子表)
+2026-04-15 18:36:42 [INFO]   数据维度: 262 行 × 126 列
+2026-04-15 18:36:42 [INFO]   ✅ 导入 174 条记录 → 队列 [四期-二审GT]
+2026-04-15 18:36:42 [INFO]    ✅ 导入 [q3_erjian_4qi_gt] 四期-二审GT_20260415_183116.xlsx: 174 条
+2026-04-15 18:36:42 [INFO] 📂 处理文件: 四期-二审GT_20260415_183116.xlsx
+2026-04-15 18:36:42 [INFO]   队列匹配: 四期-切片GT (精确ID匹配)
+2026-04-15 18:36:42 [INFO]   工作表: 云雀四期结算 (共 19 个子表)
+2026-04-15 18:36:42 [INFO]   数据维度: 262 行 × 126 列
+2026-04-15 18:36:42 [INFO]   ✅ 导入 174 条记录 → 队列 [四期-切片GT]
+2026-04-15 18:36:42 [INFO]    ✅ 导入 [q3b_erjian_4qi_qiepian] 四期-二审GT_20260415_183116.xlsx: 174 条
+2026-04-15 18:36:42 [INFO] 📂 处理文件: 四期-举报_20260415_183311.xlsx
+2026-04-15 18:36:42 [INFO]   队列匹配: 四期-举报 (精确ID匹配)
+2026-04-15 18:36:43 [INFO]   工作表: 云雀四期结算 (共 7 个子表)
+2026-04-15 18:36:43 [INFO]   数据维度: 257 行 × 43 列
+2026-04-15 18:36:43 [INFO]   ✅ 导入 253 条记录 → 队列 [四期-举报]
+2026-04-15 18:36:43 [INFO]    ✅ 导入 [q4_jubao_4qi] 四期-举报_20260415_183311.xlsx: 253 条
+2026-04-15 18:36:43 [INFO] 📂 处理文件: 拉黑误漏_20260415_183558.xlsx
+2026-04-15 18:36:43 [INFO]   队列匹配: 拉黑误漏 (精确ID匹配)
+2026-04-15 18:36:43 [INFO]   工作表: 量级登记 (共 16 个子表)
+2026-04-15 18:36:43 [INFO]   数据维度: 442 行 × 33 列
+2026-04-15 18:36:43 [INFO]   ✅ 导入 440 条记录 → 队列 [拉黑误漏]
+2026-04-15 18:36:43 [INFO]    ✅ 导入 [q5_lahei] 拉黑误漏_20260415_183558.xlsx: 440 条
+2026-04-15 18:36:43 [INFO] 📂 处理文件: 上墙文本_20260415_183635.xlsx
+2026-04-15 18:36:43 [INFO]   队列匹配: 上墙文本 (精确ID匹配)
+2026-04-15 18:36:43 [INFO]   工作表: 准确率（新） (共 6 个子表)
+2026-04-15 18:36:43 [INFO]   数据维度: 64 行 × 28 列
+2026-04-15 18:36:43 [INFO]   ✅ 导入 43 条记录 → 队列 [上墙文本]
+2026-04-15 18:36:43 [INFO]    ✅ 导入 [q6_shangqiang] 上墙文本_20260415_183635.xlsx: 43 条
+  [18:36:43] [INFO] 🗑️ 已删除 uploads/简单二审_20260415_182857.xlsx (2056.0 MB)
+  [18:36:43] [INFO] 🗑️ 已删除 uploads/拉黑误漏_20260415_183558.xlsx (475.9 MB)
+  [18:36:43] [INFO] 🗑️ 已删除 uploads/上墙文本_20260415_183635.xlsx (174.1 MB)
+  [18:36:43] [INFO] 🗑️ 已删除 uploads/四期-二审GT_20260415_183116.xlsx (479.1 MB)
+  [18:36:43] [INFO] 🗑️ 已删除 uploads/四期-举报_20260415_183311.xlsx (226.9 MB)
+  [18:36:43] [INFO] 🗑️ 已删除 uploads/投放误漏_20260415_182336.xlsx (177.8 MB)
+2026-04-15 18:36:43 [INFO]    ✅ 新增/更新 1733 条记录
+2026-04-15 18:36:43 [INFO] 🧹 [3/4] 清理未来日期...
+2026-04-15 18:36:43 [INFO]    ✅ 删除 446 条未来日期记录
+2026-04-15 18:36:43 [INFO] 📋 [4/4] 刷新完成汇总:
+2026-04-15 18:36:43 [INFO]    📥 新增记录: 1733
+2026-04-15 18:36:43 [INFO]    🧹 未来日期清理: 446
+2026-04-15 18:36:43 [INFO]    📅 数据库最新: 2026-04-15
+2026-04-15 18:36:43 [INFO]    ✅ 数据已同步到今天 (2026-04-15)
+2026-04-15 18:36:43 [INFO] ============================================================
+2026-04-15 18:36:43 [INFO] 🎉 自动刷新完成！
+2026-04-15 18:36:43 [INFO] ============================================================
+2026-04-15 18:36:43 [INFO] 📤 每日推送未启用 (push.enabled=false)
+2026-04-15 18:36:43 [INFO] 📦 [6/6] Git 推送数据库...
+2026-04-15 18:36:46 [INFO]    ✅ Git push 完成 → Streamlit Cloud 将自动同步
+2026-04-16 09:10:05 [INFO] ============================================================
+2026-04-16 09:10:05 [INFO] 📤 QC Dashboard 每日数据推送
+2026-04-16 09:10:05 [INFO]    时间: 2026-04-16 09:10:05
+2026-04-16 09:10:05 [INFO]    模式: 正式 | AI: 开启
+2026-04-16 09:10:05 [INFO] ============================================================
+2026-04-16 09:10:05 [INFO] 📊 [1/4] 读取最新指标数据...
+2026-04-16 09:10:05 [INFO]    ✅ 读取完成：7 个队列，3 个不达标
+2026-04-16 09:10:05 [INFO] 🤖 [2/4] 生成 AI 摘要...
+2026-04-16 09:10:05 [WARNING]    ⚠️ 未配置 DEEPSEEK_API_KEY，跳过 AI 摘要
+2026-04-16 09:10:05 [INFO] 📝 [3/4] 组装推送消息...
+2026-04-16 09:10:05 [INFO] 📤 [4/4] 推送企微 Webhook 消息...
+2026-04-16 09:10:05 [INFO] ✅ 企微 Webhook Markdown 推送成功
+2026-04-16 09:10:05 [INFO] ============================================================
+2026-04-16 09:10:05 [INFO] 🎉 每日数据推送完成！
+2026-04-16 09:10:05 [INFO] ============================================================
+2026-04-16 18:20:05 [INFO] ============================================================
+2026-04-16 18:20:05 [INFO] 🔄 QC Dashboard 自动刷新启动
+2026-04-16 18:20:05 [INFO]    时间: 2026-04-16 18:20:05
+2026-04-16 18:20:05 [INFO]    模式: 正式执行
+2026-04-16 18:20:05 [INFO] ============================================================
+2026-04-16 18:20:05 [INFO] 📊 [1/4] 检测数据缺口...
+2026-04-16 18:20:05 [INFO]    ✅ 数据连续，最新日期: 2026-04-15
+2026-04-16 18:20:05 [INFO] 📡 [2/4] 拉取数据 (模式: playwright)...
+2026-04-16 18:20:05 [INFO]    启动 Playwright 自动下载...
+  [18:20:05] [INFO] ========================================================
+  [18:20:05] [INFO]  方案2 自动化流水线
+  [18:20:05] [INFO]  队列数: 7
+  [18:20:05] [INFO]  时间:   2026-04-16 18:20:05
+  [18:20:05] [INFO] ========================================================
+  [18:20:05] [INFO] 
+【Step 1/3】自动下载企微表格
+  [18:20:05] [INFO] 启动浏览器 (数据目录: /Users/laitianyou/WorkBuddy/20260408163242/qc-dashboard/data/browser_profile)
+  [18:20:12] [INFO] 正在打开: [投放误漏]
+  [18:20:12] [INFO]   URL: https://doc.weixin.qq.com/sheet/e3_ACgA9wbwACk4qZHejt9TJuM61u9o6?scode=AJEAIQdfA...
+  [18:20:16] [INFO] 
+==================================================
+  [18:20:16] [INFO] 开始下载: [投放误漏] (q1_toufang)
+  [18:20:16] [INFO] URL: https://doc.weixin.qq.com/sheet/e3_ACgA9wbwACk4qZHejt9TJuM61u9o6?scode=AJEAIQdfA...
+  [18:20:19] [INFO]   [Step 1] 检查页面上是否有可见的「导出」选项...
+  [18:20:19] [INFO]   [Step 2] 尝试打开文档操作菜单...
+  [18:20:19] [DEBUG]     找到按钮: .mini-list-dropdown-btn
+  [18:20:21] [INFO]     菜单截图: /Users/laitianyou/WorkBuddy/20260408163242/qc-dashboard/data/_debug_q1_toufang_menu.png
+  [18:20:21] [DEBUG]     找到按钮: [aria-label="按钮:文档列表下拉"]
+  [18:20:23] [INFO]     菜单截图: /Users/laitianyou/WorkBuddy/20260408163242/qc-dashboard/data/_debug_q1_toufang_menu.png
+  [18:20:24] [DEBUG]     找到按钮: [aria-label="按钮:文件操作"]
+  [18:20:25] [INFO]     菜单截图: /Users/laitianyou/WorkBuddy/20260408163242/qc-dashboard/data/_debug_q1_toufang_menu.png
+  [18:20:25] [SUCCESS]     找到菜单项: [导出]
+  [18:20:26] [SUCCESS]     找到子菜单项: [Excel], 点击下载...
+  [18:20:27] [INFO]     已点击导出，等待文件生成...
+  [18:20:57] [DEBUG]     [投放误漏] 等待导出完成... (30s/300s)
+  [18:21:27] [DEBUG]     [投放误漏] 等待导出完成... (60s/300s)
+  [18:21:57] [DEBUG]     [投放误漏] 等待导出完成... (90s/300s)
+  [18:22:27] [DEBUG]     [投放误漏] 等待导出完成... (120s/300s)
+  [18:22:57] [DEBUG]     [投放误漏] 等待导出完成... (150s/300s)
+  [18:23:27] [DEBUG]     [投放误漏] 等待导出完成... (180s/300s)
+  [18:23:51] [SUCCESS]     ✅ [投放误漏] 检测到新文件: b388be89-7105-4500-9d8d-89cd9163d36a (178.2 MB)
+  [18:23:51] [INFO]     📝 重命名为: b388be89-7105-4500-9d8d-89cd9163d36a.xlsx
+  [18:23:51] [SUCCESS] ✅ 已保存: /Users/laitianyou/WorkBuddy/20260408163242/qc-dashboard/data/uploads/投放误漏_20260416_182351.xlsx
+  [18:23:51] [INFO] 
+==================================================
+  [18:23:51] [INFO] 开始下载: [简单二审] (q2_erjiansimple)
+  [18:23:51] [INFO] URL: https://doc.weixin.qq.com/sheet/e3_ACgA9wbwACkZmouhYUBTlyj5JbPjt?scode=AJEAIQdfA...
+  [18:23:55] [INFO]   [Step 1] 检查页面上是否有可见的「导出」选项...
+  [18:23:55] [INFO]   [Step 2] 尝试打开文档操作菜单...
+  [18:23:55] [DEBUG]     找到按钮: .mini-list-dropdown-btn
+  [18:23:57] [INFO]     菜单截图: /Users/laitianyou/WorkBuddy/20260408163242/qc-dashboard/data/_debug_q2_erjiansimple_menu.png
+  [18:23:58] [DEBUG]     找到按钮: [aria-label="按钮:文档列表下拉"]
+  [18:23:59] [INFO]     菜单截图: /Users/laitianyou/WorkBuddy/20260408163242/qc-dashboard/data/_debug_q2_erjiansimple_menu.png
+  [18:24:00] [DEBUG]     找到按钮: [aria-label="按钮:文件操作"]
+  [18:24:01] [INFO]     菜单截图: /Users/laitianyou/WorkBuddy/20260408163242/qc-dashboard/data/_debug_q2_erjiansimple_menu.png
+  [18:24:01] [SUCCESS]     找到菜单项: [导出]
+  [18:24:02] [SUCCESS]     找到子菜单项: [Excel], 点击下载...
+  [18:24:02] [INFO]     已点击导出，等待文件生成...
+  [18:24:33] [DEBUG]     [简单二审] 等待导出完成... (30s/300s)
+  [18:25:03] [DEBUG]     [简单二审] 等待导出完成... (60s/300s)
+  [18:25:33] [DEBUG]     [简单二审] 等待导出完成... (90s/300s)
+  [18:26:03] [DEBUG]     [简单二审] 等待导出完成... (120s/300s)
+  [18:26:33] [DEBUG]     [简单二审] 等待导出完成... (150s/300s)
+  [18:27:07] [DEBUG]     [简单二审] 等待导出完成... (184s/300s)
+  [18:27:39] [DEBUG]     [简单二审] 等待导出完成... (216s/300s)
+  [18:28:11] [DEBUG]     [简单二审] 等待导出完成... (248s/300s)
+  [18:28:44] [DEBUG]     [简单二审] 等待导出完成... (281s/300s)
+  [18:29:08] [WARN]     ⏰ 轮询超时 (300s)，未检测到下载文件
+  [18:29:08] [WARN]     轮询超时，文件未出现
+  [18:29:38] [DEBUG]     [简单二审] 等待导出完成... (30s/60s)
+  [18:29:56] [SUCCESS]     ✅ [简单二审] 检测到新文件: 14bb8551-4d2d-46f7-9af9-956c7f13c2da (2106.9 MB)
+  [18:29:56] [INFO]     📝 重命名为: 14bb8551-4d2d-46f7-9af9-956c7f13c2da.xlsx
+  [18:29:56] [SUCCESS] ✅ 已保存: /Users/laitianyou/WorkBuddy/20260408163242/qc-dashboard/data/uploads/简单二审_20260416_182956.xlsx
+  [18:29:56] [INFO] 
+==================================================
+  [18:29:56] [INFO] 开始下载: [四期-二审GT] (q3_erjian_4qi_gt)
+  [18:29:56] [INFO] URL: https://doc.weixin.qq.com/sheet/e3_ACgA9wbwACkCNPZ6wydnzSRiMDToL?scode=AJEAIQdfA...
+  [18:30:00] [INFO]   [Step 1] 检查页面上是否有可见的「导出」选项...
+  [18:30:00] [INFO]   [Step 2] 尝试打开文档操作菜单...
+  [18:30:00] [DEBUG]     找到按钮: .mini-list-dropdown-btn
+  [18:30:01] [INFO]     菜单截图: /Users/laitianyou/WorkBuddy/20260408163242/qc-dashboard/data/_debug_q3_erjian_4qi_gt_menu.png
+  [18:30:02] [DEBUG]     找到按钮: [aria-label="按钮:文档列表下拉"]
+  [18:30:03] [INFO]     菜单截图: /Users/laitianyou/WorkBuddy/20260408163242/qc-dashboard/data/_debug_q3_erjian_4qi_gt_menu.png
+  [18:30:04] [DEBUG]     找到按钮: [aria-label="按钮:文件操作"]
+  [18:30:06] [INFO]     菜单截图: /Users/laitianyou/WorkBuddy/20260408163242/qc-dashboard/data/_debug_q3_erjian_4qi_gt_menu.png
+  [18:30:06] [SUCCESS]     找到菜单项: [导出]
+  [18:30:07] [SUCCESS]     找到子菜单项: [Excel], 点击下载...
+  [18:30:07] [INFO]     已点击导出，等待文件生成...
+  [18:30:37] [DEBUG]     [四期-二审GT] 等待导出完成... (30s/300s)
+  [18:31:07] [DEBUG]     [四期-二审GT] 等待导出完成... (60s/300s)
+  [18:31:37] [DEBUG]     [四期-二审GT] 等待导出完成... (90s/300s)
+  [18:32:07] [DEBUG]     [四期-二审GT] 等待导出完成... (120s/300s)
+  [18:32:41] [DEBUG]     [四期-二审GT] 等待导出完成... (154s/300s)
+  [18:32:52] [SUCCESS]     ✅ [四期-二审GT] 检测到新文件: 1dac0970-50be-44d6-98f7-310e0d45aa3e (482.9 MB)
+  [18:32:52] [INFO]     📝 重命名为: 1dac0970-50be-44d6-98f7-310e0d45aa3e.xlsx
+  [18:32:52] [SUCCESS] ✅ 已保存: /Users/laitianyou/WorkBuddy/20260408163242/qc-dashboard/data/uploads/四期-二审GT_20260416_183252.xlsx
+  [18:32:52] [INFO] [四期-切片GT] 同一文档已下载，复用文件
+  [18:32:52] [INFO] 
+==================================================
+  [18:32:52] [INFO] 开始下载: [四期-举报] (q4_jubao_4qi)
+  [18:32:52] [INFO] URL: https://doc.weixin.qq.com/sheet/e3_ACgA9wbwACkCNLKKJB0UqRJCM3fY1?scode=AJEAIQdfA...
+  [18:32:57] [INFO]   [Step 1] 检查页面上是否有可见的「导出」选项...
+  [18:32:57] [INFO]   [Step 2] 尝试打开文档操作菜单...
+  [18:32:57] [DEBUG]     找到按钮: .mini-list-dropdown-btn
+  [18:32:59] [INFO]     菜单截图: /Users/laitianyou/WorkBuddy/20260408163242/qc-dashboard/data/_debug_q4_jubao_4qi_menu.png
+  [18:32:59] [DEBUG]     找到按钮: [aria-label="按钮:文档列表下拉"]
+  [18:33:01] [INFO]     菜单截图: /Users/laitianyou/WorkBuddy/20260408163242/qc-dashboard/data/_debug_q4_jubao_4qi_menu.png
+  [18:33:01] [DEBUG]     找到按钮: [aria-label="按钮:文件操作"]
+  [18:33:03] [INFO]     菜单截图: /Users/laitianyou/WorkBuddy/20260408163242/qc-dashboard/data/_debug_q4_jubao_4qi_menu.png
+  [18:33:03] [SUCCESS]     找到菜单项: [导出]
+  [18:33:04] [SUCCESS]     找到子菜单项: [Excel], 点击下载...
+  [18:33:04] [INFO]     已点击导出，等待文件生成...
+  [18:33:34] [DEBUG]     [四期-举报] 等待导出完成... (30s/300s)
+  [18:34:10] [DEBUG]     [四期-举报] 等待导出完成... (66s/300s)
+  [18:34:21] [SUCCESS]     ✅ [四期-举报] 检测到新文件: 4846a2ae-b69a-4caa-975e-639fc69b11b9 (227.0 MB)
+  [18:34:21] [INFO]     📝 重命名为: 4846a2ae-b69a-4caa-975e-639fc69b11b9.xlsx
+  [18:34:21] [SUCCESS] ✅ 已保存: /Users/laitianyou/WorkBuddy/20260408163242/qc-dashboard/data/uploads/四期-举报_20260416_183421.xlsx
+  [18:34:21] [INFO] 
+==================================================
+  [18:34:21] [INFO] 开始下载: [拉黑误漏] (q5_lahei)
+  [18:34:21] [INFO] URL: https://doc.weixin.qq.com/sheet/e3_ACgA9wbwACklvJ3rQAeSlK2yvIVOE?scode=AJEAIQdfA...
+  [18:34:25] [INFO]   [Step 1] 检查页面上是否有可见的「导出」选项...
+  [18:34:25] [INFO]   [Step 2] 尝试打开文档操作菜单...
+  [18:34:25] [DEBUG]     找到按钮: .mini-list-dropdown-btn
+  [18:34:27] [INFO]     菜单截图: /Users/laitianyou/WorkBuddy/20260408163242/qc-dashboard/data/_debug_q5_lahei_menu.png
+  [18:34:27] [DEBUG]     找到按钮: [aria-label="按钮:文档列表下拉"]
+  [18:34:29] [INFO]     菜单截图: /Users/laitianyou/WorkBuddy/20260408163242/qc-dashboard/data/_debug_q5_lahei_menu.png
+  [18:34:30] [DEBUG]     找到按钮: [aria-label="按钮:文件操作"]
+  [18:34:31] [INFO]     菜单截图: /Users/laitianyou/WorkBuddy/20260408163242/qc-dashboard/data/_debug_q5_lahei_menu.png
+  [18:34:31] [SUCCESS]     找到菜单项: [导出]
+  [18:34:32] [SUCCESS]     找到子菜单项: [Excel], 点击下载...
+  [18:34:32] [INFO]     已点击导出，等待文件生成...
+  [18:35:02] [DEBUG]     [拉黑误漏] 等待导出完成... (30s/300s)
+  [18:35:32] [DEBUG]     [拉黑误漏] 等待导出完成... (60s/300s)
+  [18:36:03] [DEBUG]     [拉黑误漏] 等待导出完成... (90s/300s)
+  [18:36:33] [DEBUG]     [拉黑误漏] 等待导出完成... (120s/300s)
+  [18:37:04] [DEBUG]     [拉黑误漏] 等待导出完成... (151s/300s)
+  [18:37:23] [SUCCESS]     ✅ [拉黑误漏] 检测到新文件: 2ed6ae38-2102-487d-a0ac-c526f681dacc (476.0 MB)
+  [18:37:23] [INFO]     📝 重命名为: 2ed6ae38-2102-487d-a0ac-c526f681dacc.xlsx
+  [18:37:23] [SUCCESS] ✅ 已保存: /Users/laitianyou/WorkBuddy/20260408163242/qc-dashboard/data/uploads/拉黑误漏_20260416_183723.xlsx
+  [18:37:23] [INFO] 
+==================================================
+  [18:37:23] [INFO] 开始下载: [上墙文本] (q6_shangqiang)
+  [18:37:23] [INFO] URL: https://doc.weixin.qq.com/sheet/e3_AQkAfgbQAOMMlwy0YAEStiiXPPTvR?scode=AJEAIQdfA...
+  [18:37:27] [INFO]   [Step 1] 检查页面上是否有可见的「导出」选项...
+  [18:37:27] [INFO]   [Step 2] 尝试打开文档操作菜单...
+  [18:37:27] [DEBUG]     找到按钮: .mini-list-dropdown-btn
+  [18:37:28] [INFO]     菜单截图: /Users/laitianyou/WorkBuddy/20260408163242/qc-dashboard/data/_debug_q6_shangqiang_menu.png
+  [18:37:29] [DEBUG]     找到按钮: [aria-label="按钮:文档列表下拉"]
+  [18:37:30] [INFO]     菜单截图: /Users/laitianyou/WorkBuddy/20260408163242/qc-dashboard/data/_debug_q6_shangqiang_menu.png
+  [18:37:31] [DEBUG]     找到按钮: [aria-label="按钮:文件操作"]
+  [18:37:32] [INFO]     菜单截图: /Users/laitianyou/WorkBuddy/20260408163242/qc-dashboard/data/_debug_q6_shangqiang_menu.png
+  [18:37:32] [SUCCESS]     找到菜单项: [导出]
+  [18:37:34] [SUCCESS]     找到子菜单项: [Excel], 点击下载...
+  [18:37:34] [INFO]     已点击导出，等待文件生成...
+  [18:38:00] [SUCCESS]     ✅ [上墙文本] 检测到新文件: 513a4aec-8555-43f9-9b90-987bee6cc503 (174.1 MB)
+  [18:38:00] [INFO]     📝 重命名为: 513a4aec-8555-43f9-9b90-987bee6cc503.xlsx
+  [18:38:00] [SUCCESS] ✅ 已保存: /Users/laitianyou/WorkBuddy/20260408163242/qc-dashboard/data/uploads/上墙文本_20260416_183800.xlsx
+  [18:38:00] [INFO] 
+浏览器保持打开 (登录态已保存)
+  [18:38:00] [INFO] 
+仅下载模式，跳过解析和看板更新
+2026-04-16 18:38:00 [INFO]    下载了 7 个文件(队列映射)
+2026-04-16 18:38:02 [INFO] 📂 处理文件: 投放误漏_20260416_182351.xlsx
+2026-04-16 18:38:02 [INFO]   队列匹配: 投放误漏 (精确ID匹配)
+2026-04-16 18:38:02 [INFO]   工作表: 量级登记 (共 10 个子表)
+2026-04-16 18:38:02 [INFO]   数据维度: 486 行 × 28 列
+2026-04-16 18:38:03 [INFO]   ✅ 导入 484 条记录 → 队列 [投放误漏]
+2026-04-16 18:38:03 [INFO]    ✅ 导入 [q1_toufang] 投放误漏_20260416_182351.xlsx: 484 条
+2026-04-16 18:38:03 [INFO] 📂 处理文件: 简单二审_20260416_182956.xlsx
+2026-04-16 18:38:03 [INFO]   队列匹配: 简单二审 (精确ID匹配)
+2026-04-16 18:38:06 [INFO]   工作表: 量级登记 (共 16 个子表)
+2026-04-16 18:38:06 [INFO]   数据维度: 426 行 × 91 列
+2026-04-16 18:38:06 [INFO]   ✅ 导入 165 条记录 → 队列 [简单二审]
+2026-04-16 18:38:06 [INFO]    ✅ 导入 [q2_erjiansimple] 简单二审_20260416_182956.xlsx: 165 条
+2026-04-16 18:38:06 [INFO] 📂 处理文件: 四期-二审GT_20260416_183252.xlsx
+2026-04-16 18:38:06 [INFO]   队列匹配: 四期-二审GT (精确ID匹配)
+2026-04-16 18:38:07 [INFO]   工作表: 云雀四期结算 (共 19 个子表)
+2026-04-16 18:38:07 [INFO]   数据维度: 262 行 × 126 列
+2026-04-16 18:38:07 [WARNING]   ⚠️ 导入0条！诊断: 总行=260, 空行=0, 无日期=86, 无指标=174
+2026-04-16 18:38:07 [WARNING]   📋 样本行2: date_col(AR)=二审GT, metrics={'BE': None, 'BH': None}
+2026-04-16 18:38:07 [WARNING]   📋 样本行3: date_col(AR)=审核日期, metrics={'BE': '申诉后的违规准确率', 'BH': '申诉后的漏率'}
+2026-04-16 18:38:07 [WARNING]   📋 样本行4: date_col(AR)=None, metrics={'BE': None, 'BH': None}
+2026-04-16 18:38:07 [INFO]   ✅ 导入 0 条记录 → 队列 [四期-二审GT]
+2026-04-16 18:38:07 [INFO]    ✅ 导入 [q3_erjian_4qi_gt] 四期-二审GT_20260416_183252.xlsx: 0 条
+2026-04-16 18:38:07 [INFO] 📂 处理文件: 四期-二审GT_20260416_183252.xlsx
+2026-04-16 18:38:07 [INFO]   队列匹配: 四期-切片GT (精确ID匹配)
+2026-04-16 18:38:07 [INFO]   工作表: 云雀四期结算 (共 19 个子表)
+2026-04-16 18:38:07 [INFO]   数据维度: 262 行 × 126 列
+2026-04-16 18:38:07 [WARNING]   ⚠️ 导入0条！诊断: 总行=260, 空行=0, 无日期=86, 无指标=174
+2026-04-16 18:38:07 [WARNING]   📋 样本行2: date_col(CB)=二审切片GT, metrics={'CO': None, 'CR': None}
+2026-04-16 18:38:07 [WARNING]   📋 样本行3: date_col(CB)=审核日期, metrics={'CO': '申诉后的违规准确率', 'CR': '申诉后的漏率'}
+2026-04-16 18:38:07 [WARNING]   📋 样本行4: date_col(CB)=None, metrics={'CO': None, 'CR': None}
+2026-04-16 18:38:07 [INFO]   ✅ 导入 0 条记录 → 队列 [四期-切片GT]
+2026-04-16 18:38:07 [INFO]    ✅ 导入 [q3b_erjian_4qi_qiepian] 四期-二审GT_20260416_183252.xlsx: 0 条
+2026-04-16 18:38:07 [INFO] 📂 处理文件: 四期-举报_20260416_183421.xlsx
+2026-04-16 18:38:07 [INFO]   队列匹配: 四期-举报 (精确ID匹配)
+2026-04-16 18:38:07 [INFO]   工作表: 云雀四期结算 (共 7 个子表)
+2026-04-16 18:38:07 [INFO]   数据维度: 257 行 × 43 列
+2026-04-16 18:38:07 [INFO]   ✅ 导入 253 条记录 → 队列 [四期-举报]
+2026-04-16 18:38:07 [INFO]    ✅ 导入 [q4_jubao_4qi] 四期-举报_20260416_183421.xlsx: 253 条
+2026-04-16 18:38:07 [INFO] 📂 处理文件: 拉黑误漏_20260416_183723.xlsx
+2026-04-16 18:38:07 [INFO]   队列匹配: 拉黑误漏 (精确ID匹配)
+2026-04-16 18:38:08 [INFO]   工作表: 量级登记 (共 16 个子表)
+2026-04-16 18:38:08 [INFO]   数据维度: 442 行 × 33 列
+2026-04-16 18:38:08 [INFO]   ✅ 导入 440 条记录 → 队列 [拉黑误漏]
+2026-04-16 18:38:08 [INFO]    ✅ 导入 [q5_lahei] 拉黑误漏_20260416_183723.xlsx: 440 条
+2026-04-16 18:38:08 [INFO] 📂 处理文件: 上墙文本_20260416_183800.xlsx
+2026-04-16 18:38:08 [INFO]   队列匹配: 上墙文本 (精确ID匹配)
+2026-04-16 18:38:08 [INFO]   工作表: 准确率（新） (共 6 个子表)
+2026-04-16 18:38:08 [INFO]   数据维度: 64 行 × 28 列
+2026-04-16 18:38:08 [INFO]   ✅ 导入 44 条记录 → 队列 [上墙文本]
+2026-04-16 18:38:08 [INFO]    ✅ 导入 [q6_shangqiang] 上墙文本_20260416_183800.xlsx: 44 条
+  [18:38:08] [INFO] 🗑️ 已删除 uploads/拉黑误漏_20260416_183723.xlsx (476.0 MB)
+  [18:38:08] [INFO] 🗑️ 已删除 uploads/四期-举报_20260416_183421.xlsx (227.0 MB)
+  [18:38:08] [INFO] 🗑️ 已删除 uploads/上墙文本_20260416_183800.xlsx (174.1 MB)
+  [18:38:08] [INFO] 🗑️ 已删除 uploads/简单二审_20260416_182956.xlsx (2106.9 MB)
+  [18:38:08] [INFO] 🗑️ 已删除 uploads/投放误漏_20260416_182351.xlsx (178.2 MB)
+  [18:38:08] [INFO] 🗑️ 已删除 uploads/四期-二审GT_20260416_183252.xlsx (482.9 MB)
+2026-04-16 18:38:08 [INFO]    ✅ 新增/更新 1386 条记录
+2026-04-16 18:38:08 [INFO] 🧹 [3/4] 清理未来日期...
+2026-04-16 18:38:08 [INFO]    ✅ 删除 339 条未来日期记录
+2026-04-16 18:38:08 [INFO] 📋 [4/4] 刷新完成汇总:
+2026-04-16 18:38:08 [INFO]    📥 新增记录: 1386
+2026-04-16 18:38:08 [INFO]    🧹 未来日期清理: 339
+2026-04-16 18:38:08 [INFO]    📅 数据库最新: 2026-04-16
+2026-04-16 18:38:08 [INFO]    ✅ 数据已同步到今天 (2026-04-16)
+2026-04-16 18:38:08 [INFO] ============================================================
+2026-04-16 18:38:08 [INFO] 🎉 自动刷新完成！
+2026-04-16 18:38:08 [INFO] ============================================================
+2026-04-16 18:38:08 [INFO] 📤 每日推送未启用 (push.enabled=false)
+2026-04-16 18:38:08 [INFO] 📦 [6/6] Git 推送数据库...
+2026-04-16 18:38:11 [INFO]    ✅ Git push 完成 → Streamlit Cloud 将自动同步
+2026-04-17 09:14:50 [INFO] ============================================================
+2026-04-17 09:14:50 [INFO] 📤 QC Dashboard 每日数据推送
+2026-04-17 09:14:50 [INFO]    时间: 2026-04-17 09:14:50
+2026-04-17 09:14:50 [INFO]    模式: 正式 | AI: 开启
+2026-04-17 09:14:50 [INFO] ============================================================
+2026-04-17 09:14:50 [INFO] 📊 [1/4] 读取最新指标数据...
+2026-04-17 09:14:50 [INFO]    ✅ 读取完成：7 个队列，4 个不达标
+2026-04-17 09:14:50 [INFO] 🤖 [2/4] 生成 AI 摘要...
+2026-04-17 09:14:50 [WARNING]    ⚠️ 未配置 DEEPSEEK_API_KEY，跳过 AI 摘要
+2026-04-17 09:14:50 [INFO] 📝 [3/4] 组装推送消息...
+2026-04-17 09:14:50 [INFO] 📤 [4/4] 推送企微 Webhook 消息...
+2026-04-17 09:14:50 [ERROR] ❌ 企微 Webhook 请求失败: HTTPSConnectionPool(host='qyapi.weixin.qq.com', port=443): Max retries exceeded with url: /cgi-bin/webhook/send?key=c8bed28c-bd5c-499a-b460-0e62a7376d4e (Caused by NameResolutionError("HTTPSConnection(host='qyapi.weixin.qq.com', port=443): Failed to resolve 'qyapi.weixin.qq.com' ([Errno 8] nodename nor servname provided, or not known)"))
+2026-04-17 09:14:50 [INFO]    尝试 fallback 纯文本格式...
+2026-04-17 09:14:50 [ERROR] ❌ 企微 Webhook 请求失败: HTTPSConnectionPool(host='qyapi.weixin.qq.com', port=443): Max retries exceeded with url: /cgi-bin/webhook/send?key=c8bed28c-bd5c-499a-b460-0e62a7376d4e (Caused by NameResolutionError("HTTPSConnection(host='qyapi.weixin.qq.com', port=443): Failed to resolve 'qyapi.weixin.qq.com' ([Errno 8] nodename nor servname provided, or not known)"))

@@ -1,6 +1,6 @@
 """
 ============================================================
-QC Dashboard — Streamlit 看板  v5.2（对标 HTML 模板版）
+QC Dashboard — Streamlit 看板  v5.3（紧凑7列布局）
 ============================================================
 对标 HTML 模板版 UI 风格（白底卡片/胶囊Tab/轻量走势图）
 用法:  cd qc-dashboard && streamlit run app.py
@@ -565,9 +565,9 @@ def render_dashboard(all_data):
         date_to_str = max_date
 
     # ════════════════════════════════════════════════════════════
-    #  Overview 卡片行（2行布局：第一行4个，第二行3个）
+    #  Overview 卡片行（7列一行，紧凑布局）
     # ════════════════════════════════════════════════════════════
-    N_COL_OV = 4
+    N_COL_OV = 7
     n_ov_rows = (len(QUEUES) + N_COL_OV - 1) // N_COL_OV
     for row_idx in range(n_ov_rows):
         start_i = row_idx * N_COL_OV
@@ -602,19 +602,19 @@ def render_dashboard(all_data):
                 is_ok, _, _ = check_threshold(q, pm, main_val)
                 status_icon = " ✅" if is_ok else " ⚠️"
 
-            # ── 组合显示：主指标 + 漏率（如有）──
+            # ── 组合显示：主指标 + 漏率（如有，紧凑内联）──
             if miss_val is not None:
                 miss_str = fmt_pct(miss_val)
                 # 漏率是否达标
                 miss_ok, _, _ = check_threshold(q, miss_mk, miss_val)
                 miss_tag = "✅" if miss_ok else "⚠️"
-                display_value = f"{val_str}{status_icon}\n<small style='color:#94a3b8;font-size:11px'>漏 {miss_str} {miss_tag}</small>"
+                display_value = f"{val_str}{status_icon} <span style='color:#94a3b8;font-size:9px;margin-left:4px'>| 漏 {miss_str} {miss_tag}</span>"
             else:
                 display_value = f"{val_str}{status_icon}"
 
             with ov_cols[ci]:
                 st.metric(label=f"{q['icon']} **{q['name']}**", value=display_value,
-                          delta=f"{n_days}天 · {latest_date}" if n_days > 0 else "待接入",
+                          delta=f"{n_days}d · {latest_date}" if n_days > 0 else "待接入",
                           delta_color="off" if n_days == 0 else "normal",
                           help=f"{q.get('full_name', q['name'])}\n最新日期: {latest_date}")
 
@@ -631,8 +631,8 @@ def render_dashboard(all_data):
 
     current_idx = st.session_state.active_qidx
 
-    # Tab 按钮行（2行布局，避免7个按钮挤一行导致文字换行）
-    N_COL_TAB = 4
+    # Tab 按钮行（7列一行，紧凑布局）
+    N_COL_TAB = 7
     n_tab_rows = (len(QUEUES) + N_COL_TAB - 1) // N_COL_TAB
     for row_idx in range(n_tab_rows):
         start_i = row_idx * N_COL_TAB
@@ -955,7 +955,7 @@ def render_dashboard(all_data):
                        key=f"dl_{qid}")
 
     # Footer
-    st.caption(f'📊 QC Dashboard v5.2 · {datetime.now().strftime("%Y-%m-%d %H:%M")}')
+    st.caption(f'📊 QC Dashboard v5.3 · {datetime.now().strftime("%Y-%m-%d %H:%M")}')
 
 
 # ════════════════════════════════════════════════════════════════
@@ -1145,32 +1145,33 @@ def _simple_import(progress, log):
 st.set_page_config(
     page_title="QC 质检数据看板", page_icon="📊", layout="wide",
     initial_sidebar_state="collapsed",
-    menu_items={"About": "📊 QC Dashboard v5.2", "Report a bug": None, "Get Help": None},
+    menu_items={"About": "📊 QC Dashboard v5.3", "Report a bug": None, "Get Help": None},
 )
 
 # ═══ 全局 CSS — v4.3 内联注入（对标模板版 UI）═══
-# ═══ 全局 CSS — v5.1 UI 优化版（响应式 + 精致间距）═══
-_CSS = r"""/* ══ v5.1 QC Dashboard — 响应式精致风格 ══ */
+# ═══ 全局 CSS — v5.3 紧凑7列布局版（KPI+Tab一行显示）═══
+_CSS = r"""/* ══ v5.3 QC Dashboard — 紧凑7列布局 ══ */
 :root{--bg:#f8fafc;--card:#fff;--bd:#e2e8f0;--tx:#0f172a;--tx2:#334155;--dim:#94a3b8;--ac:#3b82f6;--ac2:#1d4ed8;--ok:#16a34a;--ng:#dc2626;--warn:#f59e0b}
 .main *{font-family:-apple-system,'PingFang SC','Microsoft YaHei','Helvetica Neue',sans-serif!important;-webkit-font-smoothing:antialiased}
 body{background:var(--bg)!important;font-size:14px!important;line-height:1.55!important;color:var(--tx2)!important;padding:12px 20px!important}
 [data-testid="stSidebar"]{display:none!important}[data-testid="stAppViewBlockContainer"] [data-testid="stToolbar"]{display:none!important}#MainMenu{visibility:hidden}header{visibility:hidden}
 
-/* ── metric 卡片（优化间距和圆角阴影）── */
-[data-testid="stMetric"]{background:var(--card)!important;border:1px solid var(--bd)!important;border-radius:12px!important;box-shadow:0 1px 3px rgba(0,0,0,.04)!important;padding:16px 10px!important;transition:box-shadow .18s,transform .15s!important;margin:2px 4px!important}
-[data-testid="stMetric"]:hover{box-shadow:0 4px 16px rgba(0,0,0,.08)!important;transform:translateY(-2px)!important;border-color:rgba(59,130,246,.25)!important}
-[data-testid="stMetric"]>div>div:nth-child(1){font-size:11px!important;font-weight:600!important;color:var(--dim)!important;text-align:center!important;margin-bottom:8px!important;line-height:1.3!important;letter-spacing:.2px;white-space:nowrap!important;overflow:hidden!important;text-overflow:ellipsis!important}
-[data-testid="stMetric"]>div>div:nth-child(2){font-size:22px!important;font-weight:700!important;color:var(--tx)!important;text-align:center!important;margin-bottom:4px!important;line-height:1.15!important;font-variant-numeric:tabular-nums}
-[data-testid="stMetric"]>div>div:nth-child(3){font-size:10px!important;color:var(--dim)!important;text-align:center!important;font-weight:400!important;line-height:1.35!important;white-space:nowrap!important;overflow:hidden!important;text-overflow:ellipsis!important}
+/* ── metric 卡片（7列紧凑布局：小字号 + 紧内边距 + 小圆角）── */
+[data-testid="stMetric"]{background:var(--card)!important;border:1px solid var(--bd)!important;border-radius:8px!important;box-shadow:0 1px 2px rgba(0,0,0,.03)!important;padding:10px 6px!important;transition:box-shadow .18s,transform .15s!important;margin:2px 2px!important}
+[data-testid="stMetric"]:hover{box-shadow:0 3px 10px rgba(0,0,0,.07)!important;transform:translateY(-1px)!important;border-color:rgba(59,130,246,.25)!important}
+[data-testid="stMetric"]>div>div:nth-child(1){font-size:9.5px!important;font-weight:600!important;color:var(--dim)!important;text-align:center!important;margin-bottom:4px!important;line-height:1.2!important;letter-spacing:.15px;white-space:nowrap!important;overflow:hidden!important;text-overflow:ellipsis!important}
+[data-testid="stMetric"]>div>div:nth-child(2){font-size:17px!important;font-weight:700!important;color:var(--tx)!important;text-align:center!important;margin-bottom:2px!important;line-height:1.1!important;font-variant-numeric:tabular-nums}
+[data-testid="stMetric"]>div>div:nth-child(2) small{font-size:9.5px!important;line-height:1.2!important;display:block!important;margin-top:1px!important}
+[data-testid="stMetric"]>div>div:nth-child(3){font-size:9px!important;color:var(--dim)!important;text-align:center!important;font-weight:400!important;line-height:1.2!important;white-space:nowrap!important;overflow:hidden!important;text-overflow:ellipsis!important}
 [data-testid="stMetric"]>div>div:nth-child(3) span[aria-hidden]{display:none!important}
 [data-testid="stMetric"]>div>div:nth-child(3) *{color:var(--dim)!important}
 
 /* ── Tab 胶囊按钮（选中实心蓝底 / 非选中白底，紧凑不换行）── */
-[id^="_tab_"]{background:transparent!important;color:var(--tx2)!important;border:1.5px solid transparent!important;border-radius:22px!important;font-size:13px!important;font-weight:600!important;padding:7px 12px!important;box-shadow:none!important;transition:all .15s ease!important;text-align:center!important;white-space:nowrap!important;min-height:38px!important;line-height:1.3!important;overflow:hidden!important}
+[id^="_tab_"]{background:transparent!important;color:var(--tx2)!important;border:1.5px solid transparent!important;border-radius:20px!important;font-size:11px!important;font-weight:600!important;padding:5px 8px!important;box-shadow:none!important;transition:all .15s ease!important;text-align:center!important;white-space:nowrap!important;min-height:32px!important;line-height:1.25!important;overflow:hidden!important}
 [id^="_tab_"]:not(:focus):not(:active){background:#fff!important;border-color:#e2e8f0!important;color:var(--tx2)!important}
 [id^="_tab_"]:not(:focus):not(:active):hover{background:#f8fafc!important;border-color:#94a3b8!important}
 [id^="_tab_"]:focus,[id^="_tab_"]:active{background:var(--ac)!important;color:#fff!important;border-color:var(--ac)!important;box-shadow:0 2px 10px rgba(59,130,246,.28)!important}
-[id^="_tab_"] code{background:rgba(255,255,255,.85)!important;color:var(--ac)!important;font-size:10px!important;font-weight:700!important;padding:1px 6px!important;border-radius:10px!important;border:none!important;letter-spacing:.2px;margin-left:4px!important}
+[id^="_tab_"] code{background:rgba(255,255,255,.85)!important;color:var(--ac)!important;font-size:9px!important;font-weight:700!important;padding:0px 4px!important;border-radius:8px!important;border:none!important;letter-spacing:.15px;margin-left:3px!important}
 [id^="_tab_"]:focus code,[id^="_tab_"]:active code{background:rgba(255,255,255,.25)!important;color:#dbeafe!important}
 
 /* ── 标题体系 ── */

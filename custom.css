@@ -1,241 +1,356 @@
-/* ═══ QC Dashboard v4.0.9 — Streamlit 原生组件美化 CSS ═══ */
-/* 目标：在 st.columns() + st.metric() 原生方案下，对标 HTML 模板版视觉效果 */
+/* ═══ QC Dashboard v2.0 — 全新视觉系统 ═══ */
+/* 设计语言: 简洁、现代、数据驱动 */
 
-/* ── 全局字体与基础 ── */
+/* ── 1. 全局基础 ── */
 .main * {
-    font-family: -apple-system, 'PingFang SC', 'Microsoft YaHei', 'Helvetica Neue', sans-serif !important;
+    font-family: -apple-system, 'PingFang SC', 'Microsoft YaHei', 'Helvetica Neue', system-ui, sans-serif !important;
     -webkit-font-smoothing: antialiased;
-    -moz-osx-font-smoothing: grayscale;
 }
 body {
+    background-color: #f8fafc !important;
+    color: #1e293b !important;
     font-size: 14px !important;
-    line-height: 1.6 !important;
-    color: #334155 !important;
 }
 
-/* ── 隐藏 Streamlit 原生元素 ── */
+/* 隐藏原生侧边栏（已将筛选器移入主区域） */
 [data-testid="stSidebar"] { display: none !important; }
 [data-testid="stAppViewBlockContainer"] [data-testid="stToolbar"] { display: none !important; }
 #MainMenu { visibility: hidden; }
 header { visibility: hidden; }
 
-/* ══════════════════════════════════════
-   st.metric() 深度美化 — 核心样式
-   ══════════════════════════════════════ */
+/* ── 2. 顶部 Header ── */
+.dash-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 20px 24px 16px;
+    background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+    border-radius: 14px;
+    margin-bottom: 4px;
+    color: white;
+}
+.dash-header-left {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+}
+.dash-logo {
+    font-size: 32px;
+    line-height: 1;
+}
+.dash-title {
+    font-size: 22px;
+    font-weight: 800;
+    letter-spacing: -0.3px;
+    line-height: 1.2;
+}
+.dash-subtitle {
+    font-size: 12px;
+    opacity: 0.65;
+    margin-top: 2px;
+    font-weight: 400;
+}
+.dash-header-right {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+.dash-badge {
+    font-size: 11px;
+    padding: 4px 10px;
+    border-radius: 6px;
+    background: rgba(255,255,255,0.12);
+    color: rgba(255,255,255,0.7);
+    font-weight: 500;
+}
+.dash-badge-updated {
+    background: rgba(59,130,246,0.25);
+    color: #93c5fd;
+}
 
-/* 所有 metric 统一基础卡片样式 */
+/* ── 3. 筛选工具栏 ── */
+.filter-bar {
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    padding: 12px 20px;
+    margin-bottom: 4px;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.04);
+}
+.filter-label {
+    font-size: 13px;
+    font-weight: 600;
+    color: #475569;
+    display: block;
+    margin-top: 10px;
+}
+
+/* segmented_control 样式 */
+[data-testid="stSegmentedControlButton"] {
+    border-radius: 8px !important;
+    font-size: 12px !important;
+    font-weight: 500 !important;
+}
+
+/* ── 4. KPI 卡片系统（核心）── */
+.kpi-card {
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    padding: 18px 16px;
+    transition: all 0.2s ease;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.04), 0 1px 2px rgba(0,0,0,0.03);
+    height: 100%;
+    min-height: 110px;
+}
+.kpi-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 20px rgba(0,0,0,0.08);
+}
+.kpi-icon-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 10px;
+}
+.kpi-icon {
+    font-size: 17px;
+}
+.kpi-name {
+    font-size: 12px;
+    font-weight: 600;
+    color: #64748b;
+    letter-spacing: 0.2px;
+}
+.kpi-value-row {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    margin-bottom: 8px;
+}
+.kpi-value {
+    font-size: 28px;
+    font-weight: 800;
+    color: #0f172a;
+    line-height: 1;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -0.5px;
+}
+.trend-↑::before,
+.trend-↓::before {
+    content: "";
+}
+.trend-↑ {
+    font-weight: 700;
+    font-size: 12px;
+    letter-spacing: -0.2px;
+}
+.trend-↓ {
+    font-weight: 700;
+    font-size: 12px;
+    letter-spacing: -0.2px;
+}
+.kpi-meta {
+    font-size: 11px;
+    color: #94a3b8;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+}
+
+/* ── 5. st.metric() 美化（Tab 内统计卡）── */
 [data-testid="stMetric"] {
-    background: #ffffff !important;
+    background: linear-gradient(135deg, #ffffff, #f8fafc) !important;
     border: 1px solid #e2e8f0 !important;
     border-radius: 10px !important;
-    box-shadow: 0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04) !important;
-    padding: 16px 12px !important;
-    transition: box-shadow 0.2s ease !important;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.04) !important;
+    padding: 14px 10px !important;
+    transition: all 0.15s ease !important;
 }
 [data-testid="stMetric"]:hover {
-    box-shadow: 0 4px 12px rgba(0,0,0,0.08) !important;
+    box-shadow: 0 4px 12px rgba(59,130,246,0.1) !important;
 }
-
-/* metric label（队列名称 / 指标名）— 11px 加粗灰字 */
 [data-testid="stMetric"] > div > div:nth-child(1) {
     font-size: 11px !important;
-    font-weight: 600 !important;
+    font-weight: 650 !important;
     color: #64748b !important;
-    text-align: center !important;
-    margin-bottom: 8px !important;
-    letter-spacing: 0.3px;
-    line-height: 1.4 !important;
+    text-align: left !important;
+    margin-bottom: 6px !important;
 }
-
-/* metric value（数值）— 26px 超大加粗（对标模板版 .stat-value）*/
 [data-testid="stMetric"] > div > div:nth-child(2) {
-    font-size: 26px !important;
-    font-weight: 700 !important;
+    font-size: 22px !important;
+    font-weight: 800 !important;
     color: #0f172a !important;
-    text-align: center !important;
-    margin-bottom: 4px !important;
     line-height: 1.1 !important;
     font-variant-numeric: tabular-nums;
 }
-
-/* metric delta（天数/均值）— 11px 灰色小字 */
 [data-testid="stMetric"] > div > div:nth-child(3) {
     font-size: 11px !important;
     color: #94a3b8 !important;
-    text-align: center !important;
     font-weight: 400 !important;
-    line-height: 1.4 !important;
 }
-
-/* 隐藏 delta 的箭头图标 */
-[data-testid="stMetric"] > div > div:nth-child(3) span[aria-hidden] {
-    display: none !important;
-}
-/* delta 文字颜色不随正负变化 */
+/* delta 统一灰字，不按正负变色 */
 [data-testid="stMetric"] > div > div:nth-child(3) * {
     color: #94a3b8 !important;
 }
-
-/* Overview 卡片的数值稍小一点（20px），因为 7 列挤 */
-[data-testid="stHorizontalBlock"] > [data-testid="column"]:nth-child(n+1):nth-child(-n+7)
-  [data-testid="stMetric"] > div > div:nth-child(2) {
-    font-size: 20px !important;
+[data-testid="stMetric"] > div > div:nth-child(3) span[aria-hidden] {
+    display: none !important;
 }
 
-/* ══════════════════════════════════════
-   胶囊 Tab 按钮（st.button 美化）
-   ══════════════════════════════════════ */
-[id^="_tab_"] {
+/* ── 6. Tabs 样式 ── */
+[role="tablist"] {
+    gap: 4px !important;
+    background: transparent !important;
+}
+[role="tab"] {
+    font-size: 12px !important;
+    font-weight: 600 !important;
+    border-radius: 8px !important;
+    padding: 8px 14px !important;
+    transition: all 0.15s ease !important;
+    border: 1px solid transparent !important;
+}
+[role="tab"][aria-selected="true"] {
+    background: #0f172a !important;
+    color: white !important;
+    border-color: #0f172a !important;
+}
+[role="tab"]:not([aria-selected="true"]) {
     background: #ffffff !important;
     color: #64748b !important;
-    border: 1px solid #e2e8f0 !important;
-    border-radius: 10px !important;
-    font-size: 13px !important;
-    font-weight: 600 !important;
-    padding: 10px 8px !important;
-    box-shadow: none !important;
-    transition: all 0.2s ease !important;
-    text-align: center !important;
-    white-space: nowrap !important;
-    overflow: hidden !important;
-    text-overflow: ellipsis !important;
-    min-height: 40px !important;
-    line-height: 1.3 !important;
+    border-color: #e2e8f0 !important;
 }
-[id^="_tab_"]:hover {
-    border-color: #93c5fd !important;
-    box-shadow: 0 2px 8px rgba(59,130,246,0.15) !important;
-    transform: translateY(-1px) !important;
-}
-/* Tab 按钮激活/选中态 */
-[id^="_tab_"]:active,
-[id^="_tab_"].active {
-    background: #eff6ff !important;
-    border-color: #3b82f6 !important;
-    color: #1d4ed8 !important;
-    box-shadow: 0 2px 8px rgba(59,130,246,0.15) !important;
+[role="tab"]:not([aria-selected="true"]):hover {
+    background: #f1f5f9 !important;
+    border-color: #cbd5e1 !important;
 }
 
-/* ══════════════════════════════════════
-   页面标题区域
-   ══════════════════════════════════════ */
-.main h1 {
-    font-size: 22px !important;
-    font-weight: 700 !important;
-    color: #0f172a !important;
-    margin-bottom: 4px !important;
-    line-height: 1.3 !important;
-}
-.main h2 {
-    font-size: 18px !important;
-    font-weight: 600 !important;
+/* ── 7. 标题层级 ── */
+.main h1, .main h2, .main h3 {
     color: #1e293b !important;
-    margin-top: 20px !important;
-    margin-bottom: 12px !important;
+    font-weight: 700 !important;
 }
+.main h1 { font-size: 20px !important; }
+.main h2 { font-size: 16px !important; }
 .main h3 {
-    font-size: 14px !important;
-    font-weight: 600 !important;
-    color: #334155 !important;
-    margin-top: 18px !important;
+    font-size: 13px !important;
+    font-weight: 650 !important;
+    color: #475569 !important;
     margin-bottom: 10px !important;
 }
 
-/* ══════════════════════════════════════
-   通用组件美化
-   ══════════════════════════════════════ */
-
-/* AI 分析结果 blockquote — 渐变蓝背景 */
-.main blockquote {
-    border-left: 4px solid #3b82f6 !important;
-    background: linear-gradient(135deg, #f0f9ff, #e0f2fe) !important;
-    border-radius: 0 10px 10px 0 !important;
-    padding: 16px 20px !important;
-    font-size: 13px !important;
-    line-height: 1.7 !important;
-    color: #334155 !important;
+/* ── 8. 数据表格 ── */
+.table-header-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 10px;
 }
-.main blockquote h3,
-.main blockquote strong {
-    color: #0369a1 !important;
+.table-header-title {
+    font-size: 14px;
+    font-weight: 700;
+    color: #334155;
 }
-.main blockquote p {
-    margin: 6px 0 !important;
-    line-height: 1.7 !important;
+.table-header-count {
+    font-size: 11px;
+    color: #94a3b8;
+    background: #f1f5f9;
+    padding: 2px 8px;
+    border-radius: 4px;
 }
 
-/* 数据表格 */
 [data-testid="stDataFrame"] {
     border-radius: 10px !important;
     overflow: hidden;
     border: 1px solid #e2e8f0 !important;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.04);
 }
 [data-testid="stDataFrame"] th {
     background: #f8fafc !important;
     color: #475569 !important;
-    font-weight: 600;
-    font-size: 12px;
-    padding: 10px 12px;
+    font-weight: 650 !important;
+    font-size: 11px !important;
+    padding: 10px 14px !important;
+    border-bottom: 2px solid #e2e8f0 !important;
 }
 [data-testid="stDataFrame"] td {
-    font-size: 13px;
-    padding: 8px 12px;
+    font-size: 12px !important;
+    padding: 7px 14px !important;
+    border-bottom: 1px solid #f1f5f9 !important;
+}
+[data-testid="stDataFrame"] tr:hover td {
+    background-color: #f8fafc !important;
 }
 
-/* 文件上传区 */
-[data-testid="stFileUploader"] {
-    border: 2px dashed #cbd5e1 !important;
-    border-radius: 12px !important;
-    padding: 24px !important;
-}
-
-/* 主按钮 */
-.stButton button[kind="primary"] {
-    border-radius: 8px !important;
-    font-weight: 600 !important;
-    font-size: 13px !important;
-    background-color: #3b82f6 !important;
-    padding: 8px 16px !important;
-}
-
-/* 普通按钮 */
-.stButton button:not([kind]) {
-    border-radius: 8px !important;
-    font-size: 13px !important;
-    font-weight: 500 !important;
-}
-
-/* 分割线 */
-hr { border: none !important; border-top: 1px solid #f1f5f9 !important; margin: 16px 0; }
-
-/* Plotly 图表容器 */
+/* ── 9. Plotly 图表 ── */
 .js-plotly-plot {
     border-radius: 10px !important;
     overflow: hidden;
 }
-
-/* Caption 小字说明 */
-.stCaption {
-    color: #94a3b8 !important;
-    font-size: 12px !important;
-    line-height: 1.5 !important;
+.js-plotly-plot .modebar {
+    top: 4px !important;
+    right: 6px !important;
 }
 
-/* Info / Warning / Success 提示框 */
+/* ── 10. 分割线 ── */
+hr, .divider {
+    border: none !important;
+    border-top: 1px solid #f1f5f9 !important;
+    margin: 18px 0 !important;
+}
+
+/* ── 11. 提示框 ── */
 [data-testid="stInfo"],
 [data-testid="stWarning"],
 [data-testid="stSuccess"],
 [data-testid="stException"] {
     border-radius: 10px !important;
     font-size: 13px !important;
-    line-height: 1.6 !important;
-}
-[data-testid="stAlertContainer"] + div p {
-    font-size: 13px !important;
-    line-height: 1.6 !important;
 }
 
-/* Expander 折叠面板 */
+/* blockquote (AI分析等) */
+.main blockquote {
+    border-left: 4px solid #3b82f6 !important;
+    background: linear-gradient(135deg, #eff6ff, #dbeafe) !important;
+    border-radius: 0 10px 10px 0 !important;
+    padding: 16px 20px !important;
+    font-size: 13px !important;
+    color: #1e40af !important;
+}
+
+/* ── 12. 按钮 ── */
+.stDownloadButton button {
+    font-size: 12px !important;
+    font-weight: 600 !important;
+    border-radius: 8px !important;
+    padding: 7px 16px !important;
+    background: #0f172a !important;
+    color: white !important;
+    border: none !important;
+}
+.stDownloadButton button:hover {
+    background: #1e293b !important;
+}
+
+/* ── 13. Footer ── */
+.dash-footer {
+    text-align: center;
+    color: #94a3b8;
+    font-size: 11px;
+    padding: 16px 0 8px;
+}
+.footer-sep {
+    margin: 0 8px;
+    opacity: 0.4;
+}
+
+/* ── 14. Caption / 小字说明 ── */
+.stCaption {
+    color: #94a3b8 !important;
+    font-size: 11px !important;
+}
+
+/* ── 15. Expander ── */
 [data-testid="stExpander"] {
     border: 1px solid #e2e8f0 !important;
     border-radius: 10px !important;
@@ -243,30 +358,23 @@ hr { border: none !important; border-top: 1px solid #f1f5f9 !important; margin: 
 [data-testid="stExpanderToggle"] {
     font-size: 13px !important;
     font-weight: 600 !important;
-    color: #334155 !important;
 }
 
-/* Date Input 日期选择 */
+/* ── 16. Date Input ── */
 [data-testid="stDateInput"] input {
     font-size: 13px !important;
-}
-
-/* Download Button 导出按钮 */
-.stDownloadButton button {
-    font-size: 13px !important;
-    font-weight: 500 !important;
     border-radius: 8px !important;
 }
 
-/* ══════════════════════════════════════
-   页脚
-   ══════════════════════════════════════ */
-footer,
-.stAppFooter,
-main > div:last-child .stCaption {
+/* ── 17. Spinner ── */
+[data-testid="stStatusWidget"] {
+    font-size: 13px !important;
+}
+
+/* ── 18. 页脚区域 ── */
+footer, .stAppFooter {
     font-size: 11px !important;
     color: #94a3b8 !important;
     text-align: center !important;
-    padding: 14px 0 !important;
-    border-top: 1px solid #f1f5f9 !important;
+    padding: 10px 0 !important;
 }

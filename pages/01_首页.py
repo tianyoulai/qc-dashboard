@@ -27,65 +27,82 @@ from storage.repository import DashboardRepository
 
 st.set_page_config(page_title="质培运营看板-首页", page_icon="📊", layout="wide")
 
-# 全局CSS样式优化
+# ═══ v6.0 看板全局样式 — 明亮精致风 ═══
 st.markdown("""
 <style>
-    /* 整体字体优化 */
-    .main > div {
-        padding-top: 1rem;
-    }
-    
-    /* 卡片悬停效果 */
-    .metric-card {
-        transition: transform 0.2s ease, box-shadow 0.2s ease;
-    }
-    .metric-card:hover {
-        transform: translateY(-2px);
-        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-    }
-    
-    /* 按钮美化 */
-    .stButton > button {
-        border-radius: 0.5rem;
-        transition: all 0.2s ease;
-        font-weight: 500;
-    }
-    .stButton > button:hover {
-        transform: translateY(-1px);
-        box-shadow: 0 2px 8px rgba(59, 130, 246, 0.3);
-    }
-    
-    /* 表格美化 */
-    .stDataFrame {
-        border-radius: 0.5rem;
-        overflow: hidden;
-        border: 1px solid #E5E7EB;
-    }
-    
-    /* 折叠面板美化 */
-    .streamlit-expanderHeader {
-        background: #F8FAFC;
-        border-radius: 0.5rem;
-        border: 1px solid #E5E7EB;
-    }
-    
-    /* 段落间距优化 */
-    .block-container {
-        padding-top: 2rem;
-        padding-bottom: 2rem;
-    }
-    
-    /* 标题样式优化 */
-    h3 {
-        margin-top: 1.5rem;
-        margin-bottom: 1rem;
-    }
-    
-    /* 下划线样式 */
-    hr {
-        margin: 1.5rem 0;
-        border-color: #E5E7EB;
-    }
+/* ── 全局基础 ── */
+.main > div { padding-top: 0.75rem; }
+body { background: #f8fafb !important; }
+
+/* ── 卡片统一风格 ── */
+.stDataFrame {
+    border-radius: 12px !important;
+    overflow: hidden !important;
+    border: 1px solid #e2e8f0 !important;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.04) !important;
+}
+.stDataFrame th {
+    background: #f8fafc !important;
+    font-weight: 600 !important;
+    font-size: 11.5px !important;
+    color: #475569 !important;
+    border-bottom: 2px solid #e2e8f0 !important;
+    padding: 10px 14px !important;
+}
+.stDataFrame td {
+    font-size: 12.5px !important;
+    padding: 8px 14px !important;
+    border-bottom: 1px solid #f1f5f9 !important;
+    color: #334155 !important;
+}
+.stDataFrame tr:hover td { background: #f8fafc; }
+
+/* ── 按钮 ── */
+.stButton > button {
+    border-radius: 10px !important;
+    transition: all 0.18s ease !important;
+    font-weight: 500 !important;
+    font-size: 13px !important;
+}
+.stButton > button:hover {
+    transform: translateY(-1px) !important;
+    box-shadow: 0 4px 12px rgba(59,130,246,0.15) !important;
+}
+
+/* ── 折叠面板 ── */
+.streamlit-expanderHeader {
+    background: #ffffff !important;
+    border-radius: 12px !important;
+    border: 1px solid #e2e8f0 !important;
+    font-weight: 600 !important;
+}
+.streamlit-expanderHeader:focus { box-shadow: 0 2px 8px rgba(59,130,246,0.08); }
+
+/* ── 容器间距 ── */
+.block-container { padding-top: 1rem; padding-bottom: 1rem; }
+.block-container > div { gap: 0.75rem !important; }
+
+/* ── 标题层级 ── */
+h1 { font-size: 20px !important; font-weight: 700 !important; color: #0f172a !important; margin-bottom: 2px !important; }
+h2 { font-size: 15px !important; font-weight: 600 !important; color: #1e293b !important; margin-top: 12px !important; margin-bottom: 8px !important; display: flex; align-items: center; gap: 6px; }
+h3 { font-size: 13.5px !important; font-weight: 600 !important; color: #334155 !important; margin-top: 10px !important; margin-bottom: 6px !important; }
+hr { border: none !important; border-top: 1px solid #f1f5f9 !important; margin: 14px 0 !important; }
+
+/* ── Radio 按钮组美化 ── */
+.stRadio [role="radiogroup"] label {
+    background: #fff !important;
+    border: 1px solid #e2e8f0 !important;
+    border-radius: 8px !important;
+    padding: 6px 16px !important;
+    font-size: 13px !important;
+    font-weight: 500 !important;
+    transition: all 0.15s !important;
+}
+.stRadio [role="radiogroup"] label:hover { border-color: #93c5fd !important; background: #f0f9ff !important; }
+.stRadio [role="radiogroup"] [data-baseweb="radio"] { color: #334155; }
+
+/* ── Selectbox 美化 ── */
+.stSelectbox > div { background: #fff !important; border-color: #e2e8f0 !important; border-radius: 8px !important; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -287,39 +304,37 @@ def build_export_file_name(
 # ==================== Hero 区 ====================
 st.markdown(
     """
-    <div style="margin-bottom: 1.5rem; padding: 1.5rem; background: #ffffff; border-radius: 1rem; border-left: 4px solid #2e7d32; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
-            <h1 style="margin: 0; font-size: 2rem; font-weight: 700; color: #1a1a1a;">📊 质培运营看板</h1>
-            <div style="font-size: 0.85rem; color: #6b7280;">实时监控 · 智能告警 · 数据驱动</div>
+    <div style="margin-bottom: 1rem; padding: 1.25rem 1.5rem; background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%); border-radius: 14px; border-left: 4px solid #22c55e; box-shadow: 0 1px 3px rgba(0,0,0,0.04);">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2px;">
+            <h1 style="margin: 0; font-size: 20px; font-weight: 700; color: #14532d;">📊 质培运营看板</h1>
+            <div style="font-size: 12px; color: #166534; font-weight: 500; background: #fff; padding: 3px 10px; border-radius: 6px;">实时监控 · 智能告警 · 数据驱动</div>
         </div>
-        <div style="font-size: 0.9rem; color: #4b5563; line-height: 1.6; margin-top: 0.75rem;">
-            🎯 日看异常 · 周看复发 · 月看治理<br>
-            📍 支持下探链路：<span style="background: #f3f4f6; padding: 0.15rem 0.5rem; border-radius: 0.3rem; color: #374151;">组别</span> → 
-            <span style="background: #f3f4f6; padding: 0.15rem 0.5rem; border-radius: 0.3rem; color: #374151;">队列</span> → 
-            <span style="background: #f3f4f6; padding: 0.15rem 0.5rem; border-radius: 0.3rem; color: #374151;">审核人</span> → 
-            <span style="background: #f3f4f6; padding: 0.15rem 0.5rem; border-radius: 0.3rem; color: #374151;">问题样本</span>
+        <div style="font-size: 12.5px; color: #15803d; line-height: 1.7;">
+            🎯 日看异常 · 周看复发 · 月看治理 &nbsp;
+            📍 下探链路：<span style="background:#fff; padding:2px 8px;border-radius:4px;color:#166534;font-weight:600;margin:0 2px;">组别</span> →
+            <span style="background:#fff; padding:2px 8px;border-radius:4px;color:#166534;font-weight:600;margin:0 2px;">队列</span> →
+            <span style="background:#fff; padding:2px 8px;border-radius:4px;color:#166534;font-weight:600;margin:0 2px;">审核人</span>
         </div>
     </div>
     """,
     unsafe_allow_html=True,
 )
 
-# 快捷入口按钮（增强版）
-st.markdown("#### ⚡ 快捷入口")
-quick_col1, quick_col2, quick_col3, quick_col4 = st.columns([1, 1, 1, 1])
-with quick_col1:
+# 快捷入口按钮（紧凑横排）
+quick_c1, quick_c2, quick_c3, quick_c4 = st.columns([1, 1, 1, 1])
+with quick_c1:
     if st.button("🚨 今日异常", use_container_width=True, help="快速定位今日 P0/P1 告警"):
         st.session_state["quick_mode"] = "alert"
         st.rerun()
-with quick_col2:
+with quick_c2:
     if st.button("📉 最差队列", use_container_width=True, help="查看本周正确率最低的队列"):
         st.session_state["quick_mode"] = "worst_queue"
         st.rerun()
-with quick_col3:
+with quick_c3:
     if st.button("🔄 申诉异常", use_container_width=True, help="查看申诉改判率高的组别"):
         st.session_state["quick_mode"] = "appeal"
         st.rerun()
-with quick_col4:
+with quick_c4:
     if st.button("📊 数据总览", use_container_width=True, help="跳转到数据总览页"):
         st.switch_page("pages/02_数据总览.py")
 
@@ -410,54 +425,48 @@ if "final_error_cnt" in group_df.columns:
 else:
     total_final_errors = int(total_qa * (100 - avg_final_acc) / 100)
 
-# 核心指标卡片（美化版 - 增加图标和描述）
+# 核心指标卡片（精致版 - 带语义色背景）
 metric_col1, metric_col2, metric_col3, metric_col4, metric_col5 = st.columns(5)
 with metric_col1:
     st.markdown(f"""
-        <div style="background: #ffffff; 
-                    padding: 1.25rem; border-radius: 0.75rem; border: 1px solid #e5e7eb; box-shadow: 0 1px 2px rgba(0,0,0,0.05);">
-            <div style="font-size: 0.8rem; color: #6b7280; margin-bottom: 0.5rem; font-weight: 500;">📊 质检总量</div>
-            <div style="font-size: 2rem; font-weight: 700; margin-bottom: 0.25rem; color: #1f2937;">{int(total_qa):,}</div>
-            <div style="font-size: 0.7rem; opacity: 0.8;">累计抽检样本数</div>
+        <div style="background: #fff; padding: 14px; border-radius: 12px; border: 1px solid #e2e8f0; box-shadow: 0 1px 3px rgba(0,0,0,0.04);">
+            <div style="font-size: 11.5px; color: #64748b; margin-bottom: 6px; font-weight:500;">📊 质检总量</div>
+            <div style="font-size: 26px; font-weight: 700; color: #0f172a; margin-bottom: 2px;">{int(total_qa):,}</div>
+            <div style="font-size: 11px; color: #94a3b8;">累计抽检样本数</div>
         </div>
     """, unsafe_allow_html=True)
 with metric_col2:
-    # 环比变化
     prev_total_qa = prev_group_df["qa_cnt"].sum() if not prev_group_df.empty else None
     qa_change = f"↑{(total_qa - prev_total_qa):,}" if prev_total_qa and total_qa > prev_total_qa else (f"↓{(prev_total_qa - total_qa):,}" if prev_total_qa and total_qa < prev_total_qa else "")
     st.markdown(f"""
-        <div style="background: #ffffff; 
-                    padding: 1.25rem; border-radius: 0.75rem; border: 1px solid #e5e7eb; box-shadow: 0 1px 2px rgba(0,0,0,0.05);">
-            <div style="font-size: 0.8rem; color: #6b7280; margin-bottom: 0.5rem; font-weight: 500;">✓ 原始正确率</div>
-            <div style="font-size: 2rem; font-weight: 700; margin-bottom: 0.25rem; color: #2e7d32;">{avg_raw_acc:.2f}%</div>
-            <div style="font-size: 0.7rem; opacity: 0.8;">{qa_change if qa_change else '一审准确率'}</div>
+        <div style="background: #f0fdf4; padding: 14px; border-radius: 12px; border: 1px solid #bbf7d0; box-shadow: 0 1px 3px rgba(0,0,0,0.04);">
+            <div style="font-size: 11.5px; color: #166534; margin-bottom: 6px; font-weight:500;">✓ 原始正确率</div>
+            <div style="font-size: 26px; font-weight: 700; color: #16a34a; margin-bottom: 2px;">{avg_raw_acc:.2f}%</div>
+            <div style="font-size: 11px; color: #15803d;">{qa_change if qa_change else '一审正确率'}</div>
         </div>
     """, unsafe_allow_html=True)
 with metric_col3:
     st.markdown(f"""
-        <div style="background: #ffffff; 
-                    padding: 1.25rem; border-radius: 0.75rem; border: 1px solid #e5e7eb; box-shadow: 0 1px 2px rgba(0,0,0,0.05);">
-            <div style="font-size: 0.8rem; color: #6b7280; margin-bottom: 0.5rem; font-weight: 500;">✓✓ 最终正确率</div>
-            <div style="font-size: 2rem; font-weight: 700; margin-bottom: 0.25rem; color: #2e7d32;">{avg_final_acc:.2f}%</div>
-            <div style="font-size: 0.7rem; opacity: 0.8;">终审准确率</div>
+        <div style="background: #f0fdf4; padding: 14px; border-radius: 12px; border: 1px solid #bbf7d0; box-shadow: 0 1px 3px rgba(0,0,0,0.04);">
+            <div style="font-size: 11.5px; color: #166534; margin-bottom: 6px; font-weight:500;">✓✓ 最终正确率</div>
+            <div style="font-size: 26px; font-weight: 700; color: #16a34a; margin-bottom: 2px;">{avg_final_acc:.2f}%</div>
+            <div style="font-size: 11px; color: #15803d;">终审准确率</div>
         </div>
     """, unsafe_allow_html=True)
 with metric_col4:
     st.markdown(f"""
-        <div style="background: #ffffff; 
-                    padding: 1.25rem; border-radius: 0.75rem; border: 1px solid #e5e7eb; box-shadow: 0 1px 2px rgba(0,0,0,0.05);">
-            <div style="font-size: 0.8rem; color: #6b7280; margin-bottom: 0.5rem; font-weight: 500;">✗ 原始错误量</div>
-            <div style="font-size: 2rem; font-weight: 700; margin-bottom: 0.25rem; color: #dc2626;">{total_raw_errors:,}</div>
-            <div style="font-size: 0.7rem; opacity: 0.8;">一审错误样本</div>
+        <div style="background: #fef2f2; padding: 14px; border-radius: 12px; border: 1px solid #fecaca; box-shadow: 0 1px 3px rgba(0,0,0,0.04);">
+            <div style="font-size: 11.5px; color: #b91c1c; margin-bottom: 6px; font-weight:500;">✗ 原始错误量</div>
+            <div style="font-size: 26px; font-weight: 700; color: #dc2626; margin-bottom: 2px;">{total_raw_errors:,}</div>
+            <div style="font-size: 11px; color: #ef4444;">一审错误样本</div>
         </div>
     """, unsafe_allow_html=True)
 with metric_col5:
     st.markdown(f"""
-        <div style="background: #ffffff; 
-                    padding: 1.25rem; border-radius: 0.75rem; border: 1px solid #e5e7eb; box-shadow: 0 1px 2px rgba(0,0,0,0.05);">
-            <div style="font-size: 0.8rem; color: #6b7280; margin-bottom: 0.5rem; font-weight: 500;">✗✗ 终审错误量</div>
-            <div style="font-size: 2rem; font-weight: 700; margin-bottom: 0.25rem; color: #dc2626;">{total_final_errors:,}</div>
-            <div style="font-size: 0.7rem; opacity: 0.8;">终审错误样本</div>
+        <div style="background: #fef2f2; padding: 14px; border-radius: 12px; border: 1px solid #fecaca; box-shadow: 0 1px 3px rgba(0,0,0,0.04);">
+            <div style="font-size: 11.5px; color: #b91c1c; margin-bottom: 6px; font-weight:500;">✗✗ 终审错误量</div>
+            <div style="font-size: 26px; font-weight: 700; color: #dc2626; margin-bottom: 2px;">{total_final_errors:,}</div>
+            <div style="font-size: 11px; color: #ef4444;">终审错误样本</div>
         </div>
     """, unsafe_allow_html=True)
 

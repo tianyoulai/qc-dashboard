@@ -1,0 +1,1 @@
+{"wecom_webhook_url": "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=b174ccf6-dd35-4165-9b3f-64925c45e215", "dashboard_url": "", "tidb": {"host": "gateway01.ap-southeast-1.prod.aws.tidbcloud.com", "port": 4000, "user": "49i6F28C8NbP3SZ.root", "password": "0IvZNAFKqSk4BuLw", "database": "test", "charset": "utf8mb4"}}

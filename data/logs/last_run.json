@@ -1,7 +1,7 @@
 {
-  "timestamp": "2026-04-14T18:20:05.408581",
-  "success": false,
-  "imported": 0,
-  "latest_db_date": null,
+  "timestamp": "2026-04-16T18:38:08.477762",
+  "success": true,
+  "imported": 1386,
+  "latest_db_date": "2026-04-16",
   "gap_days": 0
 }

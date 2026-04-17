@@ -24,9 +24,9 @@ global:
     api_key: ""           # ← 留空，通过环境变量 DEEPSEEK_API_KEY 传入
     base_url: "https://api.deepseek.com"  # API 地址
 
-  # 每日推送配置
+  # 每日推送配置（18:20 数据刷新时不推送，由独立定时任务 9:10 负责）
   push:
-    enabled: true         # 是否在自动刷新后推送
+    enabled: false        # 改为 false：数据采集(18:20)和企微推送(9:10)分离
     msg_type: "markdown"  # 消息格式: markdown | text
 
   # CDP 模式配置（备选，如使用 CDP 模式需填写）

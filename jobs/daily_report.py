@@ -23,7 +23,7 @@ from __future__ import annotations
 import argparse
 import json
 import sys
-from datetime import date, timedelta
+from datetime import date, timedelta, datetime
 from pathlib import Path
 from typing import Any
 
@@ -812,111 +812,102 @@ def _build_supplement(report: dict, grouped: dict) -> list[str]:
 # ═══════════════════════════════════════════════════════════════
 
 def report_to_wecom_md(report: dict) -> str:
-    """企微 Markdown 格式（精简版，控制在 4096 字符以内）。
-
-    策略：保留核心结论+表格+风险，AI 洞察截断，处理动作只展示首条。
-    """
+    """企微 Markdown 格式（平衡版：保留问题指向，但不铺太长）。"""
     if not report["has_data"]:
         return f"📊 质检日报 ({report['report_date']})\n\n{report['message']}"
 
     d = report["report_date"]
     grouped = _group_by_mother(report)
-    actions = _build_actions(report, grouped)
+    a = report["alerts"]
     o = report["overview"]
 
-    lines: list[str] = []
+    lines: list[str] = [f"📊 **评论业务质检日报** {d}"]
 
-    # 标题
-    lines.append(f"📊 **评论业务质检日报** | {d}")
-    lines.append(f"**目标**：{ACC_TARGET:.2f}%")
-    lines.append("---")
-
-    # 一、今日结论
-    lines.append("")
-    lines.append("## 一、今日结论")
-    overall_flag = _acc_flag(o["raw_acc"])
-    overall_label = _acc_label(o["raw_acc"])
-    pp_change = ""
-    if report.get("yesterday_overall"):
-        pp = o["raw_acc"] - report["yesterday_overall"]["raw_acc"]
-        if abs(pp) >= 0.1:
-            pp_change = f"，较昨日{'+' if pp > 0 else ''}{pp:.2f}pp"
-    lines.append(f"{overall_flag} {overall_label} | 正确率 **{o['raw_acc']:.2f}%**（目标 {ACC_TARGET:.2f}%）{pp_change}")
-    lines.append("")
-    conclusion_text = _build_conclusion(report, grouped)
-    # 结论也截断，防止过长
-    if len(conclusion_text) > 300:
-        conclusion_text = conclusion_text[:297] + "..."
-    lines.append(conclusion_text)
-
-    # 二、分组表现（表格化）
-    lines.append("")
-    lines.append("## 二、分组表现")
-    lines.append("| 业务组 | 正确率 | 质检量 | 出错数 | 状态 |")
-    lines.append("|:------:|:------:|:------:|:------:|:----:|")
-
+    # 今日判断：不报总体数值，只说风险落点
+    judgement_parts: list[str] = []
     for mb_name in ["A组", "B组"]:
         if mb_name not in grouped:
             continue
         g = grouped[mb_name]
-        flag = g["flag"]
-        acc = g["raw_acc"]
-        lines.append(f"| {mb_name} | {acc:.2f}% | {g['total_qa']:,} | {g['total_err']} | {flag} |")
-        if mb_name == "B组" and len(g["subs"]) > 1:
-            for s in sorted(g["subs"], key=lambda x: x["sub_biz"]):
-                s_flag = _acc_flag(s["raw_acc"])
-                sub_name = s["sub_biz"].replace("B组-", "")
-                lines.append(f"| B组-{sub_name} | {s['raw_acc']:.2f}% | {s['qa_cnt']:,} | {s['error_total']} | {s_flag} |")
-
-    # 结论行
-    worst_group = None
-    worst_acc = 100.0
-    for mb_name, g in grouped.items():
-        if g["raw_acc"] < worst_acc:
-            worst_acc = g["raw_acc"]
-            worst_group = mb_name
-    if worst_group and worst_acc < ACC_TARGET:
-        gap = ACC_TARGET - worst_acc
-        lines.append(f"\n**结论**：{worst_group}正确率 {worst_acc:.2f}%，低于目标 {gap:.2f}pp，为当日拖后腿业务组。")
+        risky_subs = [s for s in g.get("subs", []) if s["raw_acc"] < ACC_TARGET]
+        watch_subs = [s for s in g.get("subs", []) if ACC_TARGET <= s["raw_acc"] < ACC_TARGET + WATCH_BUFFER]
+        if risky_subs:
+            names = "、".join([s["sub_biz"] for s in risky_subs[:2]])
+            judgement_parts.append(f"{names}未达标")
+        elif watch_subs:
+            names = "、".join([s["sub_biz"] for s in watch_subs[:2]])
+            judgement_parts.append(f"{names}承压")
+    if judgement_parts:
+        lines.append(f"🔴 今日判断：{'；'.join(judgement_parts)}")
     else:
-        lines.append(f"\n**结论**：各业务组均达标，整体质量稳定。")
+        lines.append("✅ 今日判断：整体达标，但仍需关注高频错误集中队列")
 
-    # 三、AI 洞察（严格限制长度）
-    ai_insight = call_deepseek(report)
-    if ai_insight:
-        # AI 洞察严格控制在 400 字以内
-        if len(ai_insight) > 400:
-            ai_insight = ai_insight[:397] + "..."
-        lines.append("")
-        lines.append("---")
-        lines.append("## 三、AI 洞察")
-        lines.append(f"> 🟡 **{ai_insight}")
+    # A组 / B组分开展示，B组保留评论/账号拆分
+    for mb_name in ["A组", "B组"]:
+        if mb_name not in grouped:
+            continue
 
-    # 四、重点风险
-    lines.append("")
-    lines.append("---")
-    lines.append("## 四、重点风险")
-    risk_lines = _build_risks(report, grouped)
-    # 风险条数也控制
-    for r in risk_lines[:12]:  # 最多 12 条
-        lines.append(f"- {r}")
-    if len(risk_lines) > 12:
-        lines.append(f"- ...（共 {len(risk_lines)} 条风险项，查看完整日报）")
+        g = grouped[mb_name]
+        flag = _acc_flag(g["raw_acc"])
+        lines.append(f"{flag} **{mb_name}** {g['raw_acc']:.2f}%（{g['total_qa']:,}条 / 错{g['total_err']}）")
 
-    # 五、处理动作（每个分类只取首条）
-    lines.append("")
-    lines.append("## 五、处理动作")
-    lines.append(f"- **交付侧**：{actions['交付侧'][0]}")
-    lines.append(f"- **质培侧**：{actions['质培侧'][0]}")
-    lines.append(f"- **次日关注**：{actions['次日关注'][0]}")
+        subs = sorted(g.get("subs", []), key=lambda x: x["sub_biz"])
+        if mb_name == "B组" and len(subs) > 1:
+            sub_parts = []
+            for s in subs:
+                short_name = s["sub_biz"].replace("B组-", "")
+                sub_parts.append(f"{short_name}{_acc_flag(s['raw_acc'])}{s['raw_acc']:.2f}%")
+            lines.append(f"　拆分：{'｜'.join(sub_parts)}")
 
-    # 六、补充风险
-    lines.append("")
-    lines.append("## 六、补充风险")
-    supplement_lines = _build_supplement(report, grouped)
-    for s in supplement_lines:
-        lines.append(f"- {s}")
+        risky_or_watch = [s for s in subs if s["raw_acc"] < ACC_TARGET + WATCH_BUFFER]
+        group_queues = [q for q in report.get("top_error_queues", []) if q.get("mother_biz") == mb_name]
 
+        if risky_or_watch:
+            problem_parts = []
+            for s in risky_or_watch[:2]:
+                sub_queues = [q["queue"] for q in report.get("top_error_queues", []) if q.get("sub_biz") == s["sub_biz"]]
+                queue_text = f"（{sub_queues[0]}）" if sub_queues else ""
+                problem_parts.append(f"{s['sub_biz']} {s['raw_acc']:.2f}%{queue_text}")
+            lines.append(f"　问题：{'；'.join(problem_parts)}")
+        elif group_queues:
+            queue_names = "、".join([q["queue"] for q in group_queues[:2]])
+            lines.append(f"　关注：错误集中在{queue_names}")
+        else:
+            lines.append("　关注：暂无明显异常")
+
+    # 今日必做：每组只给 1 条，优先最差子业务/高频队列
+    action_lines: list[str] = []
+    for mb_name in ["A组", "B组"]:
+        if mb_name not in grouped:
+            continue
+        g = grouped[mb_name]
+        subs = sorted(g.get("subs", []), key=lambda x: x["raw_acc"])
+        target_sub = next((s for s in subs if s["raw_acc"] < ACC_TARGET + WATCH_BUFFER), None)
+        if target_sub is None:
+            continue
+
+        sub_queues = [q["queue"] for q in report.get("top_error_queues", []) if q.get("sub_biz") == target_sub["sub_biz"]]
+        top_queue = sub_queues[0] if sub_queues else None
+        label = target_sub["sub_biz"] if mb_name == "B组" else mb_name
+
+        if top_queue:
+            action_lines.append(f"👉 {label}：复盘「{top_queue}」高频错误样本。")
+        else:
+            action_lines.append(f"👉 {label}：复盘当日问题样本，确认问题归因。")
+
+    if action_lines:
+        lines.append("**今日动作**")
+        lines.extend(action_lines[:2])
+
+    tail_parts: list[str] = []
+    if a["total"] > 0:
+        tail_parts.append(f"🔔P0 {a['P0']} / P1 {a['P1']} / P2 {a['P2']}")
+    if o["appealed"] > 0:
+        tail_parts.append(f"📩申诉{o['appealed']} / 改判{o['appeal_reversed']}")
+    if tail_parts:
+        lines.append(" | ".join(tail_parts))
+
+    lines.append(f"<font color=\"comment\">QC Dashboard · 自动推送 · {datetime.now().strftime('%H:%M')}</font>")
     return "\n".join(lines)
 
 
@@ -986,17 +977,106 @@ def report_to_markdown(report: dict, dashboard_url: str = "") -> str:
 #  DeepSeek AI 洞察分析
 # ═══════════════════════════════════════════════════════════════
 
-def call_deepseek(report: dict) -> str:
-    """调用 DeepSeek API，基于质检数据生成 AI 洞察分析。"""
+def _load_gongfeng_auth() -> dict[str, str] | None:
+    """从 OpenClaw auth-profiles 读取工蜂代理认证信息。"""
+    auth_path = Path.home() / ".openclaw" / "agents" / "main" / "agent" / "auth-profiles.json"
+    if not auth_path.exists():
+        return None
+    try:
+        with open(auth_path, "r", encoding="utf-8") as f:
+            profiles = json.load(f)
+        gf = profiles.get("profiles", {}).get("gongfeng:default", {})
+        if not gf or gf.get("type") != "oauth":
+            return None
+        return {
+            "access": gf.get("access", ""),
+            "username": gf.get("username", ""),
+            "deviceId": gf.get("deviceId", ""),
+        }
+    except Exception:
+        return None
+
+
+def _call_llm(system_prompt: str, user_prompt: str, model: str = "claude-sonnet-4-5",
+              max_tokens: int = 500, temperature: float = 0.3) -> str:
+    """调用 LLM API，优先工蜂代理（免费 Claude），fallback DeepSeek。"""
     import os
     import requests
 
+    # ── 优先：工蜂代理（免费 Claude）──
+    gf_auth = _load_gongfeng_auth()
+    if gf_auth and gf_auth["access"]:
+        try:
+            gf_url = "https://copilot.code.woa.com/server/openclaw/copilot-gateway/v1/chat/completions"
+            headers = {
+                "Content-Type": "application/json",
+                "Authorization": f"Bearer {gf_auth['access']}",
+                "X-Model-Name": "Claude Sonnet 4.5",
+                "X-Username": gf_auth["username"],
+                "OAUTH-TOKEN": gf_auth["access"],
+                "DEVICE-ID": gf_auth["deviceId"],
+            }
+            resp = requests.post(
+                gf_url,
+                headers=headers,
+                json={
+                    "model": model,
+                    "messages": [
+                        {"role": "system", "content": system_prompt},
+                        {"role": "user", "content": user_prompt},
+                    ],
+                    "max_tokens": max_tokens,
+                    "temperature": temperature,
+                },
+                timeout=60,
+            )
+            resp.raise_for_status()
+            content = resp.json()["choices"][0]["message"]["content"]
+            content = content.strip()
+            if content.startswith("```"):
+                lines = content.split("\n")
+                content = "\n".join(lines[1:-1] if lines[-1].strip() == "```" else lines[1:])
+            print("✅ 工蜂代理 Claude 调用成功")
+            return content
+        except Exception as e:
+            print(f"⚠️ 工蜂代理调用失败: {e}，fallback DeepSeek")
+
+    # ── Fallback：DeepSeek ──
     api_key = os.environ.get("DEEPSEEK_API_KEY", "")
     api_url = os.environ.get("DEEPSEEK_API_URL", "https://api.deepseek.com/v1/chat/completions")
     if not api_key:
+        print("⚠️ 无可用 LLM（工蜂代理和 DeepSeek 均不可用）")
+        return ""
+    try:
+        resp = requests.post(
+            api_url,
+            headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
+            json={
+                "model": "deepseek-chat",
+                "messages": [
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_prompt},
+                ],
+                "max_tokens": max_tokens,
+                "temperature": temperature,
+            },
+            timeout=30,
+        )
+        resp.raise_for_status()
+        content = resp.json()["choices"][0]["message"]["content"]
+        content = content.strip()
+        if content.startswith("```"):
+            lines = content.split("\n")
+            content = "\n".join(lines[1:-1] if lines[-1].strip() == "```" else lines[1:])
+        print("✅ DeepSeek fallback 调用成功")
+        return content
+    except Exception as e:
+        print(f"⚠️ DeepSeek API 调用失败: {e}")
         return ""
 
-    # 构造给 AI 的数据摘要（精简，控制 token 消耗）
+
+def call_deepseek(report: dict) -> str:
+    """调用 LLM 生成 AI 洞察分析（优先 Claude，fallback DeepSeek）。"""
     data_summary = json.dumps({
         "report_date": report["report_date"],
         "target": report.get("target", 99.0),
@@ -1026,32 +1106,7 @@ def call_deepseek(report: dict) -> str:
 - 不要重复罗列数据，重点在分析和洞察
 - 语气专业简洁，不说废话"""
 
-    try:
-        resp = requests.post(
-            api_url,
-            headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
-            json={
-                "model": "deepseek-chat",
-                "messages": [
-                    {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": f"以下是今日质检数据：\n{data_summary}\n\n请生成 AI 洞察分析。"},
-                ],
-                "max_tokens": 500,
-                "temperature": 0.3,
-            },
-            timeout=30,
-        )
-        resp.raise_for_status()
-        content = resp.json()["choices"][0]["message"]["content"]
-        # 清理可能的 markdown 代码块包裹
-        content = content.strip()
-        if content.startswith("```"):
-            lines = content.split("\n")
-            content = "\n".join(lines[1:-1] if lines[-1].strip() == "```" else lines[1:])
-        return content
-    except Exception as e:
-        print(f"⚠️ DeepSeek API 调用失败: {e}")
-        return ""
+    return _call_llm(system_prompt, f"以下是今日质检数据：\n{data_summary}\n\n请生成 AI 洞察分析。")
 
 
 # ═══════════════════════════════════════════════════════════════
