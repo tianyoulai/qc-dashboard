@@ -526,21 +526,21 @@ def render_dashboard(all_data):
     st.markdown(f"# 📊 质检数据统一看板")
     st.caption(f"多队列 · 按日期聚合指标 · 数据来源：企业微信智能表格 · 共 **{total_records}** 条记录 · {datetime.now().strftime('%Y-%m-%d %H:%M')}")
 
-    # ── 日期筛选行（对标HTML模板版：紧凑一行）──
-    c_d1, c_d2, c_btns = st.columns([2, 2, 4])
+    # ── 日期筛选行（紧凑一行，带标签提示）──
+    c_d1, c_d2, c_btns = st.columns([1.2, 1.2, 5])
     with c_d1:
-        d_from = st.date_input("起始", value=None, key="df", label_visibility="collapsed")
+        d_from = st.date_input("📅 起始", value=None, key="df", label_visibility="collapsed")
     with c_d2:
-        d_to = st.date_input("截止", value=None, key="dt", label_visibility="collapsed")
+        d_to = st.date_input("📅 截止", value=None, key="dt", label_visibility="collapsed")
     with c_btns:
-        bc1, bc2, bc3, bc4 = st.columns(4)
-        if bc1.button("周", use_container_width=True, key="_bw"):
+        bc1, bc2, bc3, _gap, bc4 = st.columns([0.8, 0.8, 0.8, 0.3, 1])
+        if bc1.button("7天", use_container_width=True, key="_bw"):
             if max_date: st.session_state["_quick"] = ("week", max_date); st.rerun()
-        if bc2.button("月", use_container_width=True, key="_bm"):
+        if bc2.button("30天", use_container_width=True, key="_bm"):
             if max_date: st.session_state["_quick"] = ("month", max_date); st.rerun()
         if bc3.button("全部", use_container_width=True, key="_ba"):
             st.session_state["_quick"] = ("all", None); st.rerun()
-        if bc4.button("清缓存", use_container_width=True, key="_bc"):
+        if bc4.button("🔄", use_container_width=True, key="_bc", help="清除缓存"):
             st.cache_data.clear(); st.rerun()
 
     date_from_str = d_from.strftime("%Y-%m-%d") if d_from else None
@@ -565,30 +565,37 @@ def render_dashboard(all_data):
         date_to_str = max_date
 
     # ════════════════════════════════════════════════════════════
-    #  Overview 卡片行（原生 st.columns + st.metric，兼容所有 Streamlit 版本）
+    #  Overview 卡片行（2行布局：第一行4个，第二行3个）
     # ════════════════════════════════════════════════════════════
-    ov_cols = st.columns(len(QUEUES))
-    for ci, q in enumerate(QUEUES):
-        df_f = filter_by_date(all_data.get(q["id"], pd.DataFrame()), date_from_str, date_to_str)
-        lr = find_latest_nonzero(df_f, q["metric_keys"])
-        latest_date = lr["date"] if lr is not None else "--"
-        pm = q.get("primary_metric", q["metric_keys"][0])
-        main_val = find_latest_nonzero_per_key(df_f, pm)
+    N_COL_OV = 4
+    n_ov_rows = (len(QUEUES) + N_COL_OV - 1) // N_COL_OV
+    for row_idx in range(n_ov_rows):
+        start_i = row_idx * N_COL_OV
+        end_i = min(start_i + N_COL_OV, len(QUEUES))
+        row_qs = QUEUES[start_i:end_i]
+        ov_cols = st.columns(len(row_qs))
 
-        val_str = fmt_pct(main_val) if main_val is not None else "--"
-        n_days = len(df_f)
+        for ci, q in enumerate(row_qs):
+            df_f = filter_by_date(all_data.get(q["id"], pd.DataFrame()), date_from_str, date_to_str)
+            lr = find_latest_nonzero(df_f, q["metric_keys"])
+            latest_date = lr["date"] if lr is not None else "--"
+            pm = q.get("primary_metric", q["metric_keys"][0])
+            main_val = find_latest_nonzero_per_key(df_f, pm)
 
-        # 达标/不达标标识
-        status_icon = ""
-        if main_val is not None:
-            is_ok, _, _ = check_threshold(q, pm, main_val)
-            status_icon = " ✅" if is_ok else " ⚠️"
+            val_str = fmt_pct(main_val) if main_val is not None else "--"
+            n_days = len(df_f)
 
-        with ov_cols[ci]:
-            st.metric(label=f"{q['icon']} **{q['name']}**", value=f"{val_str}{status_icon}",
-                      delta=f"{n_days}天 · {latest_date}" if n_days > 0 else "待接入",
-                      delta_color="off" if n_days == 0 else "normal",
-                      help=f"{q.get('full_name', q['name'])}\n最新日期: {latest_date}")
+            # 达标/不达标标识
+            status_icon = ""
+            if main_val is not None:
+                is_ok, _, _ = check_threshold(q, pm, main_val)
+                status_icon = " ✅" if is_ok else " ⚠️"
+
+            with ov_cols[ci]:
+                st.metric(label=f"{q['icon']} **{q['name']}**", value=f"{val_str}{status_icon}",
+                          delta=f"{n_days}天 · {latest_date}" if n_days > 0 else "待接入",
+                          delta_color="off" if n_days == 0 else "normal",
+                          help=f"{q.get('full_name', q['name'])}\n最新日期: {latest_date}")
 
     # ════════════════════════════════════════════════════════════
     #  🤖 AI 日报摘要（对标企微推送完整版）
@@ -603,29 +610,36 @@ def render_dashboard(all_data):
 
     current_idx = st.session_state.active_qidx
 
-    # Tab 按钮行
-    tab_col_row = st.columns(len(QUEUES))
-    for i, q in enumerate(QUEUES):
-        df_f = filter_by_date(all_data.get(q["id"], pd.DataFrame()), date_from_str, date_to_str)
-        n_days = len(df_f)
-        active = (i == current_idx)
-        bgt = f"{n_days}天" if n_days > 0 else "待接入"
-        q_color = q.get("color", "#3b82f6")
+    # Tab 按钮行（2行布局，避免7个按钮挤一行导致文字换行）
+    N_COL_TAB = 4
+    n_tab_rows = (len(QUEUES) + N_COL_TAB - 1) // N_COL_TAB
+    for row_idx in range(n_tab_rows):
+        start_i = row_idx * N_COL_TAB
+        end_i = min(start_i + N_COL_TAB, len(QUEUES))
+        tab_col_row = st.columns(end_i - start_i)
+        
+        for ci, i in enumerate(range(start_i, end_i)):
+            q = QUEUES[i]
+            df_f = filter_by_date(all_data.get(q["id"], pd.DataFrame()), date_from_str, date_to_str)
+            n_days = len(df_f)
+            active = (i == current_idx)
+            bgt = f"{n_days}d" if n_days > 0 else "-"  # 缩短为 d 后缀
+            q_color = q.get("color", "#3b82f6")
 
-        with tab_col_row[i]:
-            if active:
-                btn_label = f"{q['icon']} {q['name']}"
-                bgt_badge = f"`{bgt}`"
-            else:
-                btn_label = f"{q['icon']} **{q['name']}**"
-                bgt_badge = f"`{bgt}`"
+            with tab_col_row[ci]:
+                if active:
+                    btn_label = f"{q['icon']} {q['name']}"
+                    bgt_badge = f"`{bgt}`"
+                else:
+                    btn_label = f"{q['icon']} {q['name']}"
+                    bgt_badge = f"`{bgt}`"
 
-            if st.button(f"{btn_label}  {bgt_badge}",
-                         key=f"_tab_{i}", use_container_width=True,
-                         type="primary" if active else "secondary",
-                         help=f"切换到 {q['name']}" + (f" (当前选中)" if active else "")):
-                st.session_state.active_qidx = i
-                st.rerun()
+                if st.button(f"{btn_label} {bgt_badge}",
+                             key=f"_tab_{i}", use_container_width=True,
+                             type="primary" if active else "secondary",
+                             help=f"切换到 {q['name']}" + (f" (当前选中)" if active else "")):
+                    st.session_state.active_qidx = i
+                    st.rerun()
 
     # 胶囊 Tab CSS 已在 custom.css 中通过 [id^="_tab_"] 选择器生效
 
@@ -920,7 +934,7 @@ def render_dashboard(all_data):
                        key=f"dl_{qid}")
 
     # Footer
-    st.caption(f'📊 QC Dashboard v5.0 · {datetime.now().strftime("%Y-%m-%d %H:%M")}')
+    st.caption(f'📊 QC Dashboard v5.1 · {datetime.now().strftime("%Y-%m-%d %H:%M")}')
 
 
 # ════════════════════════════════════════════════════════════════
@@ -1110,71 +1124,68 @@ def _simple_import(progress, log):
 st.set_page_config(
     page_title="QC 质检数据看板", page_icon="📊", layout="wide",
     initial_sidebar_state="collapsed",
-    menu_items={"About": "📊 QC Dashboard v5.0", "Report a bug": None, "Get Help": None},
+    menu_items={"About": "📊 QC Dashboard v5.1", "Report a bug": None, "Get Help": None},
 )
 
 # ═══ 全局 CSS — v4.3 内联注入（对标模板版 UI）═══
-_CSS = r"""/* ══ v4.3 QC Dashboard — 对标模板版精致风格 ══ */
+# ═══ 全局 CSS — v5.1 UI 优化版（响应式 + 精致间距）═══
+_CSS = r"""/* ══ v5.1 QC Dashboard — 响应式精致风格 ══ */
 :root{--bg:#f8fafc;--card:#fff;--bd:#e2e8f0;--tx:#0f172a;--tx2:#334155;--dim:#94a3b8;--ac:#3b82f6;--ac2:#1d4ed8;--ok:#16a34a;--ng:#dc2626;--warn:#f59e0b}
 .main *{font-family:-apple-system,'PingFang SC','Microsoft YaHei','Helvetica Neue',sans-serif!important;-webkit-font-smoothing:antialiased}
-body{background:var(--bg)!important;font-size:14px!important;line-height:1.55!important;color:var(--tx2)!important;padding:10px 18px!important}
+body{background:var(--bg)!important;font-size:14px!important;line-height:1.55!important;color:var(--tx2)!important;padding:12px 20px!important}
 [data-testid="stSidebar"]{display:none!important}[data-testid="stAppViewBlockContainer"] [data-testid="stToolbar"]{display:none!important}#MainMenu{visibility:hidden}header{visibility:hidden}
 
-/* ── metric 卡片 ── */
-[data-testid="stMetric"]{background:var(--card)!important;border:1px solid var(--bd)!important;border-radius:10px!important;box-shadow:0 1px 2px rgba(0,0,0,.03)!important;padding:12px 8px!important;transition:box-shadow .18s,transform .12s!important;margin:1px 3px!important}
-[data-testid="stMetric"]:hover{box-shadow:0 4px 12px rgba(0,0,0,.07)!important;transform:translateY(-1px)!important}
-[data-testid="stMetric"]>div>div:nth-child(1){font-size:10px!important;font-weight:600!important;color:var(--dim)!important;text-align:center!important;margin-bottom:6px!important;line-height:1.25!important;letter-spacing:.15px}
-[data-testid="stMetric"]>div>div:nth-child(2){font-size:20px!important;font-weight:700!important;color:var(--tx)!important;text-align:center!important;margin-bottom:2px!important;line-height:1.15!important;font-variant-numeric:tabular-nums}
-[data-testid="stMetric"]>div>div:nth-child(3){font-size:10px!important;color:var(--dim)!important;text-align:center!important;font-weight:400!important;line-height:1.3!important}
+/* ── metric 卡片（优化间距和圆角阴影）── */
+[data-testid="stMetric"]{background:var(--card)!important;border:1px solid var(--bd)!important;border-radius:12px!important;box-shadow:0 1px 3px rgba(0,0,0,.04)!important;padding:16px 10px!important;transition:box-shadow .18s,transform .15s!important;margin:2px 4px!important}
+[data-testid="stMetric"]:hover{box-shadow:0 4px 16px rgba(0,0,0,.08)!important;transform:translateY(-2px)!important;border-color:rgba(59,130,246,.25)!important}
+[data-testid="stMetric"]>div>div:nth-child(1){font-size:11px!important;font-weight:600!important;color:var(--dim)!important;text-align:center!important;margin-bottom:8px!important;line-height:1.3!important;letter-spacing:.2px;white-space:nowrap!important;overflow:hidden!important;text-overflow:ellipsis!important}
+[data-testid="stMetric"]>div>div:nth-child(2){font-size:22px!important;font-weight:700!important;color:var(--tx)!important;text-align:center!important;margin-bottom:4px!important;line-height:1.15!important;font-variant-numeric:tabular-nums}
+[data-testid="stMetric"]>div>div:nth-child(3){font-size:10px!important;color:var(--dim)!important;text-align:center!important;font-weight:400!important;line-height:1.35!important;white-space:nowrap!important;overflow:hidden!important;text-overflow:ellipsis!important}
 [data-testid="stMetric"]>div>div:nth-child(3) span[aria-hidden]{display:none!important}
 [data-testid="stMetric"]>div>div:nth-child(3) *{color:var(--dim)!important}
 
-/* ── Tab 胶囊按钮（选中实心蓝底 / 非选中白底+彩色圆点）── */
-[id^="_tab_"]{background:transparent!important;color:var(--tx2)!important;border:1.5px solid transparent!important;border-radius:24px!important;font-size:13px!important;font-weight:500!important;padding:6px 14px!important;box-shadow:none!important;transition:all .15s ease!important;text-align:center!important;white-space:nowrap!important;min-height:36px!important;line-height:1.35!important}
-/* 非选中态：白底 + hover 浅灰 */
-[id^="_tab_"]:not(:focus):not(:active){background:#fff!important;border-color:#e2e8f0!important}
-[id^="_tab_"]:not(:focus):not(:active):hover{background:#f8fafc!important;border-color:#cbd5e1!important}
-/* 选中态：实心蓝色 */
-[id^="_tab_"]:focus,[id^="_tab_"]:active{background:var(--ac)!important;color:#fff!important;border-color:var(--ac)!important;box-shadow:0 2px 8px rgba(59,130,246,.25)!important;font-weight:600!important}
-/* Tab 内的 code badge（天数标签）样式 */
-[id^="_tab_"] code{background:#eff6ff!important;color:var(--ac)!important;font-size:11px!important;font-weight:600!important;padding:1px 7px!important;border-radius:10px!important;border:none!important;letter-spacing:.3px}
+/* ── Tab 胶囊按钮（选中实心蓝底 / 非选中白底，紧凑不换行）── */
+[id^="_tab_"]{background:transparent!important;color:var(--tx2)!important;border:1.5px solid transparent!important;border-radius:22px!important;font-size:13px!important;font-weight:600!important;padding:7px 12px!important;box-shadow:none!important;transition:all .15s ease!important;text-align:center!important;white-space:nowrap!important;min-height:38px!important;line-height:1.3!important;overflow:hidden!important}
+[id^="_tab_"]:not(:focus):not(:active){background:#fff!important;border-color:#e2e8f0!important;color:var(--tx2)!important}
+[id^="_tab_"]:not(:focus):not(:active):hover{background:#f8fafc!important;border-color:#94a3b8!important}
+[id^="_tab_"]:focus,[id^="_tab_"]:active{background:var(--ac)!important;color:#fff!important;border-color:var(--ac)!important;box-shadow:0 2px 10px rgba(59,130,246,.28)!important}
+[id^="_tab_"] code{background:rgba(255,255,255,.85)!important;color:var(--ac)!important;font-size:10px!important;font-weight:700!important;padding:1px 6px!important;border-radius:10px!important;border:none!important;letter-spacing:.2px;margin-left:4px!important}
+[id^="_tab_"]:focus code,[id^="_tab_"]:active code{background:rgba(255,255,255,.25)!important;color:#dbeafe!important}
 
 /* ── 标题体系 ── */
-.main h1{font-size:20px!important;font-weight:700!important;color:var(--tx)!important;margin-bottom:4px!important;line-height:1.3!important}
-.main h2{font-size:16px!important;font-weight:600!important;color:var(--tx2)!important;margin-top:18px!important;margin-bottom:10px!important;display:flex;align-items:center;gap:6px}
-.main h3{font-size:13px!important;font-weight:600!important;color:var(--tx2)!important;margin-top:16px!important;margin-bottom:8px!important}
+.main h1{font-size:22px!important;font-weight:700!important;color:var(--tx)!important;margin-bottom:6px!important;line-height:1.3!important}
+.main h2{font-size:15px!important;font-weight:600!important;color:var(--tx2)!important;margin-top:20px!important;margin-bottom:12px!important;display:flex;align-items:center;gap:6px}
+.main h3{font-size:13.5px!important;font-weight:600!important;color:var(--tx2)!important;margin-top:18px!important;margin-bottom:10px!important}
 
 /* ── AI 分析区 blockquote ── */
-.main blockquote{border-left:4px solid var(--ac)!important;background:linear-gradient(135deg,#eff6ff,#dbeafe)!important;border-radius:0 10px 10px 0!important;padding:14px 18px!important;font-size:12px!important;line-height:1.7!important;color:var(--tx2)!important}
+.main blockquote{border-left:4px solid var(--ac)!important;background:linear-gradient(135deg,#eff6ff,#dbeafe)!important;border-radius:0 12px 12px 0!important;padding:16px 20px!important;font-size:12.5px!important;line-height:1.75!important;color:var(--tx2)!important}
 .main blockquote h3,.main blockquote strong{color:#0369a1!important}
-.main blockquote p{margin:6px 0!important;line-height:1.7!important}
+.main blockquote p{margin:6px 0!important;line-height:1.75!important}
 
 /* ── 数据表格 ── */
-[data-testid="stDataFrame"]{border-radius:10px!important;overflow:hidden;border:1px solid var(--bd)!important;background:var(--card)!important}
-[data-testid="stDataFrame"] th{background:#f1f5f9!important;color:var(--tx2)!important;font-weight:600!important;font-size:11px!important;padding:9px 12px!important;border-bottom:2px solid var(--bd)!important}
-[data-testid="stDataFrame"] td{font-size:12px!important;padding:7px 12px!important;border-bottom:1px solid #f1f5f9!important}
+[data-testid="stDataFrame"]{border-radius:12px!important;overflow:hidden;border:1px solid var(--bd)!important;background:var(--card)!important}
+[data-testid="stDataFrame"] th{background:#f1f5f9!important;color:var(--tx2)!important;font-weight:600!important;font-size:11.5px!important;padding:10px 14px!important;border-bottom:2px solid var(--bd)!important}
+[data-testid="stDataFrame"] td{font-size:12px!important;padding:8px 14px!important;border-bottom:1px solid #f1f5f9!important}
 [data-testid="stDataFrame"] tr:hover td{background:#f8fafc!important}
 
 /* ── 按钮 ── */
-.stButton button[kind="primary"]{border-radius:8px!important;font-weight:600!important;font-size:12px!important;background-color:var(--ac)!important;border:none!important;padding:7px 14px!important;transition:all .15s!important;box-shadow:0 1px 3px rgba(59,130,246,.2)!important}
-.stButton button[kind="primary"]:hover{background-color:var(--ac2)!important;box-shadow:0 3px 6px rgba(59,130,246,.3)!important;transform:translateY(-1px)!important}
-.stButton button:not([kind]){border-radius:8px!important;font-size:12px!important;font-weight:500!important;padding:6px 12px!important;transition:all .15s!important}
-hr{border:none!important;border-top:1px solid #f1f5f9!important;margin:16px 0}
+.stButton button[kind="primary"]{border-radius:10px!important;font-weight:600!important;font-size:12.5px!important;background-color:var(--ac)!important;border:none!important;padding:8px 16px!important;transition:all .15s!important;box-shadow:0 2px 4px rgba(59,130,246,.2)!important}
+.stButton button[kind="primary"]:hover{background-color:var(--ac2)!important;box-shadow:0 4px 8px rgba(59,130,246,.32)!important;transform:translateY(-1px)!important}
+.stButton button:not([kind]){border-radius:10px!important;font-size:12.5px!important;font-weight:500!important;padding:7px 14px!important;transition:all .15s!important}
+hr{border:none!important;border-top:1px solid #e2e8f0!important;margin:18px 0}
 
 /* ── Plotly 图表 / Caption / 提示框 / 折叠面板 / 日期 / 导出 / 页脚 / 容器间距 ── */
-.js-plotly-plot{border-radius:10px!important;overflow:hidden;border:1px solid var(--bd)!important;background:var(--card)!important}
-.stCaption{color:var(--dim)!important;font-size:11px!important;line-height:1.45!important}
-[data-testid="stInfo"],[data-testid="stWarning"],[data-testid="stSuccess"]{border-radius:10px!important;font-size:12px!important;line-height:1.6!important;padding:12px 16px!important}
+.js-plotly-plot{border-radius:12px!important;overflow:hidden;border:1px solid var(--bd)!important;background:var(--card)!important}
+.stCaption{color:var(--dim)!important;font-size:11.5px!important;line-height:1.45!important}
+[data-testid="stInfo"],[data-testid="stWarning"],[data-testid="stSuccess"]{border-radius:12px!important;font-size:12.5px!important;line-height:1.65!important;padding:14px 18px!important}
 [data-testid="stException"]{display:none!important;height:0!important;overflow:hidden!important;margin:0!important;padding:0!important;border:none!important;opacity:0!important;pointer-events:none!important;visibility:hidden!important;max-height:0!important;position:absolute!important;left:-99999px!important}
-/* 兜底：隐藏所有可能包含 removeChild/NotFoundError 的元素 */
 .stApp [data-baseweb="notification"],.stApp [role="alert"]{display:none!important}
-[data-testid="stExpander"]{border:1px solid var(--bd)!important;border-radius:10px!important;background:var(--card)!important}
-[data-testid="stExpanderToggle"]{font-size:12px!important;font-weight:600!important;color:var(--tx2)!important}
-[data-testid="stDateInput"] input{font-size:12px!important;border-radius:6px!important}
-.stDownloadButton button{font-size:12px!important;font-weight:500!important;border-radius:8px!important}
-footer,.stAppFooter{font-size:10px!important;color:var(--dim)!important;text-align:center!important;padding:12px 0!important;border-top:1px solid #f1f5f9!important;margin-top:24px!important}
-[data-testid="stVerticalBlock"]>div{gap:2px!important}
-"""
+[data-testid="stExpander"]{border:1px solid var(--bd)!important;border-radius:12px!important;background:var(--card)!important}
+[data-testid="stExpanderToggle"]{font-size:12.5px!important;font-weight:600!important;color:var(--tx2)!important}
+[data-testid="stDateInput"] input{font-size:13px!important;border-radius:8px!important;padding:6px 10px!important}
+.stDownloadButton button{font-size:12.5px!important;font-weight:600!important;border-radius:10px!important;padding:7px 16px!important}
+footer,.stAppFooter{font-size:10.5px!important;color:var(--dim)!important;text-align:center!important;padding:14px 0!important;border-top:1px solid #e2e8f0!important;margin-top:28px!important}
+[data-testid="stVerticalBlock"]>div{gap:4px!important}"""
 st.html(f'<style>{_CSS}</style>')
 # ── JS：MutationObserver 实时消灭 Streamlit 异常提示（removeChild/NotFoundError）──
 import streamlit.components.v1 as components
