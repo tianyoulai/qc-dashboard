@@ -335,7 +335,7 @@ def build_global_ai_data(all_data):
                 if v is not None:
                     label = q["metric_labels"].get(mk, mk)
                     metrics_str[mk] = f"{label}: {fmt_pct(v)}"
-                    is_ok, alert_txt = check_threshold(q, mk, v)
+                    is_ok, alert_txt, _ = check_threshold(q, mk, v)
                     if not is_ok:
                         alerts.append(f"{label}{alert_txt}")
         items.append({
@@ -462,7 +462,7 @@ def render_queue_ai_insight(q, df):
                         pc = ok_cnt / len(vv) * 100
                         metric_lines.append(f"  - 达标率: {pc:.0f}% ({ok_cnt}/{len(vv)})")
 
-                        is_ok, alert_txt = check_threshold(q, mk, lv)
+                        is_ok, alert_txt, _ = check_threshold(q, mk, lv)
                         if not is_ok:
                             alert_lines.append(f"  - ⚠️ {label}: {fmt_pct(lv)} {alert_txt}")
 
@@ -514,7 +514,7 @@ def render_queue_ai_insight(q, df):
             if f"_ai_q_{q['id']}_html" in st.session_state:
                 st.info(f"""**🔮 AI 洞察 · {q['icon']} {q['name']}
 
-{st.session_state[f'_ai_q_{q["id"]} _html'].replace(chr(10), '  \n')}""")
+{st.session_state[f'_ai_q_{q["id"]}_html'].replace(chr(10), '  \n')}""")
 
 def render_dashboard(all_data):
     """质检数据看板主页 — 对标参考设计（纯原生组件，兼容所有 Streamlit 版本）"""
