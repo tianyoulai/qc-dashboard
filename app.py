@@ -602,19 +602,24 @@ def render_dashboard(all_data):
                 is_ok, _, _ = check_threshold(q, pm, main_val)
                 status_icon = " ✅" if is_ok else " ⚠️"
 
-            # ── 组合显示：主指标 + 漏率（如有，内联）──
-            if miss_val is not None:
-                miss_str = fmt_pct(miss_val)
-                # 漏率是否达标
-                miss_ok, _, _ = check_threshold(q, miss_mk, miss_val)
-                miss_tag = "✅" if miss_ok else "⚠️"
-                display_value = f"{val_str}{status_icon}<br><span style='color:#94a3b8;font-size:10px'>漏 {miss_str} {miss_tag}</span>"
+            # ── 组合显示：主指标（纯文本，st.metric不支持HTML）+ 漏率放入delta ──
+            display_value = f"{val_str}{status_icon}"
+
+            # delta 行组合：天数 + 日期 + 漏率
+            if n_days > 0:
+                delta_parts = [f"{n_days}d", latest_date]
+                if miss_val is not None:
+                    miss_str = fmt_pct(miss_val)
+                    miss_ok, _, _ = check_threshold(q, miss_mk, miss_val)
+                    miss_tag = "✅" if miss_ok else "⚠️"
+                    delta_parts.append(f"L:{miss_str}{miss_tag}")
+                delta_text = " · ".join(delta_parts)
             else:
-                display_value = f"{val_str}{status_icon}"
+                delta_text = "待接入"
 
             with ov_cols[ci]:
                 st.metric(label=f"{q['icon']} **{q['name']}**", value=display_value,
-                          delta=f"{n_days}d · {latest_date}" if n_days > 0 else "待接入",
+                          delta=delta_text,
                           delta_color="off" if n_days == 0 else "normal",
                           help=f"{q.get('full_name', q['name'])}\n最新日期: {latest_date}")
 
@@ -1161,12 +1166,8 @@ body{background:var(--bg)!important;font-size:14px!important;line-height:1.55!im
 [data-testid="stMetric"]:hover{box-shadow:0 3px 10px rgba(0,0,0,.07)!important;transform:translateY(-1px)!important;border-color:rgba(59,130,246,.25)!important}
 [data-testid="stMetric"]>div{width:100%!important;padding:0!important;display:flex!important;flex-direction:column!important;align-items:center!important}
 [data-testid="stMetric"]>div>div:nth-child(1){font-size:10px!important;font-weight:600!important;color:var(--dim)!important;text-align:center!important;margin-bottom:2px!important;line-height:1.2!important;letter-spacing:.1px;white-space:nowrap!important;width:100%!important}
-[data-testid="stMetric"]>div>div:nth-child(2){font-size:17px!important;font-weight:700!important;color:var(--tx)!important;text-align:center!important;margin-bottom:1px!important;line-height:1.15!important;font-variant-numeric:tabular-nums;width:100%!important}
-[data-testid="stMetric"]>div>div:nth-child(2) span{color:#94a3b8!important;font-weight:500!important;font-size:10px!important}
-[data-testid="stMetric"]>div>div:nth-child(2) br{display:none!important}
-[data-testid="stMetric"]>div>div:nth-child(3){font-size:8px!important;color:var(--dim)!important;text-align:center!important;font-weight:400!important;line-height:1.1!important;white-space:nowrap!important}
-[data-testid="stMetric"]>div>div:nth-child(3) span[aria-hidden]{display:none!important}
-[data-testid="stMetric"]>div>div:nth-child(3) *{color:var(--dim)!important}
+[data-testid="stMetric"]>div>div:nth-child(2){font-size:18px!important;font-weight:700!important;color:var(--tx)!important;text-align:center!important;margin-bottom:2px!important;line-height:1.15!important;font-variant-numeric:tabular-nums;width:100%!important}
+[data-testid="stMetric"]>div>div:nth-child(3){font-size:8.5px!important;color:var(--dim)!important;text-align:center!important;font-weight:400!important;line-height:1.15!important;white-space:nowrap!important;overflow:hidden!important;text-overflow:ellipsis!important}
 
 /* ── Tab 胶囊按钮（选中实心蓝底 / 非选中白底，紧凑不换行）── */
 [id^="_tab_"]{background:transparent!important;color:var(--tx2)!important;border:1.5px solid transparent!important;border-radius:20px!important;font-size:11.5px!important;font-weight:600!important;padding:6px 10px!important;box-shadow:none!important;transition:all .15s ease!important;text-align:center!important;white-space:nowrap!important;min-height:34px!important;line-height:1.25!important;overflow:hidden!important;flex:1 1 0!important;min-width:0!important}
