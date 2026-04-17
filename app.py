@@ -565,63 +565,58 @@ def render_dashboard(all_data):
         date_to_str = max_date
 
     # ════════════════════════════════════════════════════════════
-    #  Overview 卡片行（7列一行，紧凑布局）
+    #  Overview 卡片行（7列一行，HTML 自绘卡片）
     # ════════════════════════════════════════════════════════════
     N_COL_OV = 7
-    n_ov_rows = (len(QUEUES) + N_COL_OV - 1) // N_COL_OV
-    for row_idx in range(n_ov_rows):
-        start_i = row_idx * N_COL_OV
-        end_i = min(start_i + N_COL_OV, len(QUEUES))
-        row_qs = QUEUES[start_i:end_i]
-        ov_cols = st.columns(len(row_qs))
+    ov_cols = st.columns(N_COL_OV)
 
-        for ci, q in enumerate(row_qs):
-            df_f = filter_by_date(all_data.get(q["id"], pd.DataFrame()), date_from_str, date_to_str)
-            lr = find_latest_nonzero(df_f, q["metric_keys"])
-            latest_date = lr["date"] if lr is not None else "--"
-            pm = q.get("primary_metric", q["metric_keys"][0])
-            main_val = find_latest_nonzero_per_key(df_f, pm)
+    for ci, q in enumerate(QUEUES):
+        df_f = filter_by_date(all_data.get(q["id"], pd.DataFrame()), date_from_str, date_to_str)
+        lr = find_latest_nonzero(df_f, q["metric_keys"])
+        latest_date = lr["date"] if lr is not None else "--"
+        pm = q.get("primary_metric", q["metric_keys"][0])
+        main_val = find_latest_nonzero_per_key(df_f, pm)
 
-            # ── 查找漏率（miss_rate）作为副指标 ──
-            miss_val = None
-            miss_mk = None
-            for mk in q["metric_keys"]:
-                if "miss_rate" in mk:
-                    miss_mk = mk
-                    miss_val = find_latest_nonzero_per_key(df_f, mk)
-                    break
+        # ── 查找漏率（miss_rate）作为副指标 ──
+        miss_val = None
+        miss_mk = None
+        for mk in q["metric_keys"]:
+            if "miss_rate" in mk:
+                miss_mk = mk
+                miss_val = find_latest_nonzero_per_key(df_f, mk)
+                break
 
-            n_days = len(df_f)
+        n_days = len(df_f)
 
-            # 主指标格式化
-            val_str = fmt_pct(main_val) if main_val is not None else "--"
+        # 主指标格式化 + 达标状态
+        val_str = fmt_pct(main_val) if main_val is not None else "--"
+        status_icon = ""
+        if main_val is not None:
+            is_ok, _, _ = check_threshold(q, pm, main_val)
+            status_icon = "✅" if is_ok else "⚠️"
 
-            # 达标/不达标标识
-            status_icon = ""
-            if main_val is not None:
-                is_ok, _, _ = check_threshold(q, pm, main_val)
-                status_icon = " ✅" if is_ok else " ⚠️"
+        # 漏率格式化
+        miss_html = ""
+        if miss_val is not None:
+            miss_str = fmt_pct(miss_val)
+            miss_ok, _, _ = check_threshold(q, miss_mk, miss_val)
+            miss_tag = "✅" if miss_ok else "⚠️"
+            miss_html = f'<div class="ov-miss">漏 {miss_str} {miss_tag}</div>'
 
-            # ── 组合显示：主指标（纯文本，st.metric不支持HTML）+ 漏率放入delta ──
-            display_value = f"{val_str}{status_icon}"
+        delta_text = f"{n_days}d · {latest_date}" if n_days > 0 else "待接入"
 
-            # delta 行组合：天数 + 日期 + 漏率
-            if n_days > 0:
-                delta_parts = [f"{n_days}d", latest_date]
-                if miss_val is not None:
-                    miss_str = fmt_pct(miss_val)
-                    miss_ok, _, _ = check_threshold(q, miss_mk, miss_val)
-                    miss_tag = "✅" if miss_ok else "⚠️"
-                    delta_parts.append(f"L:{miss_str}{miss_tag}")
-                delta_text = " · ".join(delta_parts)
-            else:
-                delta_text = "待接入"
+        # ── HTML 自绘卡片 ──
+        card_html = f"""
+        <div class="ov-card">
+          <div class="ov-title">{q['icon']} {q['name']}</div>
+          <div class="ov-val">{val_str} <span class="ov-status">{status_icon}</span></div>
+          {miss_html}
+          <div class="ov-delta">{delta_text}</div>
+        </div>"""
 
-            with ov_cols[ci]:
-                st.metric(label=f"{q['icon']} **{q['name']}**", value=display_value,
-                          delta=delta_text,
-                          delta_color="off" if n_days == 0 else "normal",
-                          help=f"{q.get('full_name', q['name'])}\n最新日期: {latest_date}")
+        with ov_cols[ci]:
+            st.markdown(card_html, unsafe_allow_html=True)
+            # 隐藏 help tooltip 改用 title 属性（已在 HTML 中）
 
     # ════════════════════════════════════════════════════════════
     #  🤖 AI 日报摘要（对标企微推送完整版）
@@ -1161,13 +1156,17 @@ _CSS = r"""/* ══ v5.3 QC Dashboard — 紧凑7列布局 ══ */
 body{background:var(--bg)!important;font-size:14px!important;line-height:1.55!important;color:var(--tx2)!important;padding:12px 20px!important}
 [data-testid="stSidebar"]{display:none!important}[data-testid="stAppViewBlockContainer"] [data-testid="stToolbar"]{display:none!important}#MainMenu{visibility:hidden}header{visibility:hidden}
 
-/* ── metric 卡片（7列紧凑布局）── */
-[data-testid="stMetric"]{background:var(--card)!important;border:1px solid var(--bd)!important;border-radius:8px!important;box-shadow:0 1px 2px rgba(0,0,0,.03)!important;padding:10px 4px!important;transition:box-shadow .18s,transform .15s!important;margin:2px 1px!important;flex:1 1 0!important;min-width:0!important}
-[data-testid="stMetric"]:hover{box-shadow:0 3px 10px rgba(0,0,0,.07)!important;transform:translateY(-1px)!important;border-color:rgba(59,130,246,.25)!important}
-[data-testid="stMetric"]>div{width:100%!important;padding:0!important;display:flex!important;flex-direction:column!important;align-items:center!important}
-[data-testid="stMetric"]>div>div:nth-child(1){font-size:10px!important;font-weight:600!important;color:var(--dim)!important;text-align:center!important;margin-bottom:2px!important;line-height:1.2!important;letter-spacing:.1px;white-space:nowrap!important;width:100%!important}
-[data-testid="stMetric"]>div>div:nth-child(2){font-size:18px!important;font-weight:700!important;color:var(--tx)!important;text-align:center!important;margin-bottom:2px!important;line-height:1.15!important;font-variant-numeric:tabular-nums;width:100%!important}
-[data-testid="stMetric"]>div>div:nth-child(3){font-size:8.5px!important;color:var(--dim)!important;text-align:center!important;font-weight:400!important;line-height:1.15!important;white-space:nowrap!important;overflow:hidden!important;text-overflow:ellipsis!important}
+/* ── Overview HTML 自绘卡片（7列一行，替代 st.metric）── */
+.ov-card{background:var(--card);border:1px solid var(--bd);border-radius:8px;box-shadow:0 1px 2px rgba(0,0,0,.03);padding:10px 4px;text-align:center;transition:box-shadow .18s,transform .15s;margin:2px 1px;flex:1 1 0;min-width:0}
+.ov-card:hover{box-shadow:0 3px 10px rgba(0,0,0,.07);transform:translateY(-1px);border-color:rgba(59,130,246,.25)}
+.ov-title{font-size:10px;font-weight:600;color:var(--dim);margin-bottom:3px;line-height:1.2;letter-spacing:.15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ov-val{font-size:18px;font-weight:700;color:var(--tx);line-height:1.15;font-variant-numeric:tabular-nums}
+.ov-status{font-size:12px;margin-left:2px}
+.ov-miss{font-size:9.5px;color:#94a3b8;font-weight:500;margin-top:2px;line-height:1.2}
+.ov-delta{font-size:8px;color:var(--dim);margin-top:3px;line-height:1.15;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+/* ── metric 卡片（详情页仍用 st.metric）── */
+[data-testid="stMetric"]{background:var(--card)!important;border:1px solid var(--bd)!important;border-radius:8px!important;box-shadow:0 1px 2px rgba(0,0,0,.03)!important;padding:16px 10px!important;transition:box-shadow .18s,transform .15s!important;margin:4px!important}
 
 /* ── Tab 胶囊按钮（选中实心蓝底 / 非选中白底，紧凑不换行）── */
 [id^="_tab_"]{background:transparent!important;color:var(--tx2)!important;border:1.5px solid transparent!important;border-radius:20px!important;font-size:11.5px!important;font-weight:600!important;padding:6px 10px!important;box-shadow:none!important;transition:all .15s ease!important;text-align:center!important;white-space:nowrap!important;min-height:34px!important;line-height:1.25!important;overflow:hidden!important;flex:1 1 0!important;min-width:0!important}
