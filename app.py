@@ -1156,18 +1156,19 @@ _CSS = r"""/* ══ v5.3 QC Dashboard — 紧凑7列布局 ══ */
 body{background:var(--bg)!important;font-size:14px!important;line-height:1.55!important;color:var(--tx2)!important;padding:12px 20px!important}
 [data-testid="stSidebar"]{display:none!important}[data-testid="stAppViewBlockContainer"] [data-testid="stToolbar"]{display:none!important}#MainMenu{visibility:hidden}header{visibility:hidden}
 
-/* ── metric 卡片（7列紧凑布局：小字号 + 紧内边距 + 小圆角）── */
-[data-testid="stMetric"]{background:var(--card)!important;border:1px solid var(--bd)!important;border-radius:8px!important;box-shadow:0 1px 2px rgba(0,0,0,.03)!important;padding:10px 6px!important;transition:box-shadow .18s,transform .15s!important;margin:2px 2px!important}
+/* ── metric 卡片（7列紧凑布局：小字号 + 紧内边距）── */
+[data-testid="stMetric"]{background:var(--card)!important;border:1px solid var(--bd)!important;border-radius:8px!important;box-shadow:0 1px 2px rgba(0,0,0,.03)!important;padding:12px 8px!important;transition:box-shadow .18s,transform .15s!important;margin:2px 2px!important;flex:1 1 0!important;min-width:0!important;max-width:none!important}
 [data-testid="stMetric"]:hover{box-shadow:0 3px 10px rgba(0,0,0,.07)!important;transform:translateY(-1px)!important;border-color:rgba(59,130,246,.25)!important}
-[data-testid="stMetric"]>div>div:nth-child(1){font-size:9.5px!important;font-weight:600!important;color:var(--dim)!important;text-align:center!important;margin-bottom:4px!important;line-height:1.2!important;letter-spacing:.15px;white-space:nowrap!important;overflow:hidden!important;text-overflow:ellipsis!important}
-[data-testid="stMetric"]>div>div:nth-child(2){font-size:17px!important;font-weight:700!important;color:var(--tx)!important;text-align:center!important;margin-bottom:2px!important;line-height:1.1!important;font-variant-numeric:tabular-nums}
-[data-testid="stMetric"]>div>div:nth-child(2) small{font-size:9.5px!important;line-height:1.2!important;display:block!important;margin-top:1px!important}
+[data-testid="stMetric"]>div{width:100%!important;padding:0!important;display:flex!important;flex-direction:column!important;align-items:center!important}
+[data-testid="stMetric"]>div>div:nth-child(1){font-size:11px!important;font-weight:600!important;color:var(--dim)!important;text-align:center!important;margin-bottom:4px!important;line-height:1.25!important;letter-spacing:.15px;white-space:nowrap!important;overflow:hidden!important;text-overflow:ellipsis!important;width:100%!important}
+[data-testid="stMetric"]>div>div:nth-child(2){font-size:19px!important;font-weight:700!important;color:var(--tx)!important;text-align:center!important;margin-bottom:2px!important;line-height:1.15!important;font-variant-numeric:tabular-nums;width:100%!important;word-break:break-word!important}
+[data-testid="stMetric"]>div>div:nth-child(2) small{font-size:9.5px!important;line-height:1.2!important;display:inline!important;margin-left:3px!important;color:#94a3b8!important;font-weight:500!important;white-space:nowrap!important}
 [data-testid="stMetric"]>div>div:nth-child(3){font-size:9px!important;color:var(--dim)!important;text-align:center!important;font-weight:400!important;line-height:1.2!important;white-space:nowrap!important;overflow:hidden!important;text-overflow:ellipsis!important}
 [data-testid="stMetric"]>div>div:nth-child(3) span[aria-hidden]{display:none!important}
 [data-testid="stMetric"]>div>div:nth-child(3) *{color:var(--dim)!important}
 
 /* ── Tab 胶囊按钮（选中实心蓝底 / 非选中白底，紧凑不换行）── */
-[id^="_tab_"]{background:transparent!important;color:var(--tx2)!important;border:1.5px solid transparent!important;border-radius:20px!important;font-size:11px!important;font-weight:600!important;padding:5px 8px!important;box-shadow:none!important;transition:all .15s ease!important;text-align:center!important;white-space:nowrap!important;min-height:32px!important;line-height:1.25!important;overflow:hidden!important}
+[id^="_tab_"]{background:transparent!important;color:var(--tx2)!important;border:1.5px solid transparent!important;border-radius:20px!important;font-size:11.5px!important;font-weight:600!important;padding:6px 10px!important;box-shadow:none!important;transition:all .15s ease!important;text-align:center!important;white-space:nowrap!important;min-height:34px!important;line-height:1.25!important;overflow:hidden!important;flex:1 1 0!important;min-width:0!important}
 [id^="_tab_"]:not(:focus):not(:active){background:#fff!important;border-color:#e2e8f0!important;color:var(--tx2)!important}
 [id^="_tab_"]:not(:focus):not(:active):hover{background:#f8fafc!important;border-color:#94a3b8!important}
 [id^="_tab_"]:focus,[id^="_tab_"]:active{background:var(--ac)!important;color:#fff!important;border-color:var(--ac)!important;box-shadow:0 2px 10px rgba(59,130,246,.28)!important}
