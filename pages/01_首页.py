@@ -27,84 +27,13 @@ from storage.repository import DashboardRepository
 
 st.set_page_config(page_title="质培运营看板-首页", page_icon="📊", layout="wide")
 
-# ═══ v6.0 看板全局样式 — 明亮精致风 ═══
-st.markdown("""
-<style>
-/* ── 全局基础 ── */
-.main > div { padding-top: 0.75rem; }
-body { background: #f8fafb !important; }
-
-/* ── 卡片统一风格 ── */
-.stDataFrame {
-    border-radius: 12px !important;
-    overflow: hidden !important;
-    border: 1px solid #e2e8f0 !important;
-    box-shadow: 0 1px 3px rgba(0,0,0,0.04) !important;
-}
-.stDataFrame th {
-    background: #f8fafc !important;
-    font-weight: 600 !important;
-    font-size: 11.5px !important;
-    color: #475569 !important;
-    border-bottom: 2px solid #e2e8f0 !important;
-    padding: 10px 14px !important;
-}
-.stDataFrame td {
-    font-size: 12.5px !important;
-    padding: 8px 14px !important;
-    border-bottom: 1px solid #f1f5f9 !important;
-    color: #334155 !important;
-}
-.stDataFrame tr:hover td { background: #f8fafc; }
-
-/* ── 按钮 ── */
-.stButton > button {
-    border-radius: 10px !important;
-    transition: all 0.18s ease !important;
-    font-weight: 500 !important;
-    font-size: 13px !important;
-}
-.stButton > button:hover {
-    transform: translateY(-1px) !important;
-    box-shadow: 0 4px 12px rgba(59,130,246,0.15) !important;
-}
-
-/* ── 折叠面板 ── */
-.streamlit-expanderHeader {
-    background: #ffffff !important;
-    border-radius: 12px !important;
-    border: 1px solid #e2e8f0 !important;
-    font-weight: 600 !important;
-}
-.streamlit-expanderHeader:focus { box-shadow: 0 2px 8px rgba(59,130,246,0.08); }
-
-/* ── 容器间距 ── */
-.block-container { padding-top: 1rem; padding-bottom: 1rem; }
-.block-container > div { gap: 0.75rem !important; }
-
-/* ── 标题层级 ── */
-h1 { font-size: 20px !important; font-weight: 700 !important; color: #0f172a !important; margin-bottom: 2px !important; }
-h2 { font-size: 15px !important; font-weight: 600 !important; color: #1e293b !important; margin-top: 12px !important; margin-bottom: 8px !important; display: flex; align-items: center; gap: 6px; }
-h3 { font-size: 13.5px !important; font-weight: 600 !important; color: #334155 !important; margin-top: 10px !important; margin-bottom: 6px !important; }
-hr { border: none !important; border-top: 1px solid #f1f5f9 !important; margin: 14px 0 !important; }
-
-/* ── Radio 按钮组美化 ── */
-.stRadio [role="radiogroup"] label {
-    background: #fff !important;
-    border: 1px solid #e2e8f0 !important;
-    border-radius: 8px !important;
-    padding: 6px 16px !important;
-    font-size: 13px !important;
-    font-weight: 500 !important;
-    transition: all 0.15s !important;
-}
-.stRadio [role="radiogroup"] label:hover { border-color: #93c5fd !important; background: #f0f9ff !important; }
-.stRadio [role="radiogroup"] [data-baseweb="radio"] { color: #334155; }
-
-/* ── Selectbox 美化 ── */
-.stSelectbox > div { background: #fff !important; border-color: #e2e8f0 !important; border-radius: 8px !important; }
-</style>
-""", unsafe_allow_html=True)
+# ── 加载统一 CSS ──
+import os as _os
+_css_path = _os.path.join(_os.path.dirname(_os.path.dirname(_os.path.abspath(__file__))), "custom.css")
+if _os.path.exists(_css_path):
+    with open(_css_path, "r", encoding="utf-8") as _f:
+        _CSS = _f.read()
+    st.markdown(f'<style>{_CSS}</style>', unsafe_allow_html=True)
 
 service = DashboardService()
 repo = DashboardRepository()
@@ -265,6 +194,71 @@ def load_qa_owner_distribution_cached(grain: str, selected_date: date, group_nam
     return service.load_qa_owner_distribution(grain, selected_date, group_name, top_n)
 
 
+@st.cache_data(show_spinner=False, ttl=300)
+def load_qa_result_distribution_cached(grain: str, selected_date: date, group_name: str | None = None) -> pd.DataFrame:
+    """获取质检结果分布：正确/错判/漏判（缓存 5 分钟，三分类百分比总和=100%）"""
+    return service.load_qa_result_distribution(grain, selected_date, group_name)
+
+
+# ==================== Phase 1 新增维度缓存函数 ====================
+
+@st.cache_data(show_spinner=False, ttl=300)
+def load_error_top5_cached(grain: str, selected_date: date, group_name: str | None = None, limit: int = 5) -> pd.DataFrame:
+    """高频错误 Top5（缓存）"""
+    return repo.get_error_top5(grain, selected_date, group_name, limit)
+
+@st.cache_data(show_spinner=False, ttl=300)
+def load_label_accuracy_cached(grain: str, selected_date: date, group_name: str | None = None, min_cnt: int = 10, limit: int = 15) -> pd.DataFrame:
+    """标签准确率排行（缓存）"""
+    return repo.get_label_accuracy(grain, selected_date, group_name, min_cnt, limit)
+
+@st.cache_data(show_spinner=False, ttl=300)
+def load_content_type_distribution_cached(grain: str, selected_date: date, group_name: str | None = None) -> pd.DataFrame:
+    """内容类型分布（缓存）"""
+    return repo.get_content_type_distribution(grain, selected_date, group_name)
+
+@st.cache_data(show_spinner=False, ttl=300)
+def load_hourly_heatmap_cached(grain: str, selected_date: date, group_name: str | None = None) -> pd.DataFrame:
+    """时段质量热力图（缓存）"""
+    return repo.get_hourly_heatmap(grain, selected_date, group_name)
+
+@st.cache_data(show_spinner=False, ttl=300)
+def load_appeal_analysis_cached(grain: str, selected_date: date, group_name: str | None = None) -> dict:
+    """申诉分析多维指标（缓存）"""
+    return repo.get_appeal_analysis(grain, selected_date, group_name)
+
+# ==================== Phase 2 新增维度缓存函数 ====================
+
+@st.cache_data(show_spinner=False, ttl=300)
+def load_error_type_trend_cached(selected_date: date, group_name: str | None = None, days: int = 14, top_n: int = 3) -> pd.DataFrame:
+    """错误类型日趋势（缓存）"""
+    return repo.get_error_type_trend(selected_date, group_name, days, top_n)
+
+@st.cache_data(show_spinner=False, ttl=300)
+def load_error_affected_reviewers_cached(grain: str, selected_date: date, group_name: str | None = None, error_type: str | None = None, top_n: int = 10) -> pd.DataFrame:
+    """错误类型受影响审核人（缓存）"""
+    return repo.get_error_affected_reviewers(grain, selected_date, group_name, error_type, top_n)
+
+@st.cache_data(show_spinner=False, ttl=300)
+def load_data_health_cached(selected_date: date) -> dict:
+    """数据健康指标（缓存）"""
+    return repo.get_data_health_indicators(selected_date)
+
+@st.cache_data(show_spinner=False, ttl=300)
+def load_error_reason_wordcloud_cached(grain: str, selected_date: date, group_name: str | None = None, top_n: int = 20) -> pd.DataFrame:
+    """error_reason 词频统计（缓存）"""
+    return repo.get_error_reason_wordcloud(grain, selected_date, group_name, top_n)
+
+@st.cache_data(show_spinner=False, ttl=300)
+def load_inspect_type_cached(grain: str, selected_date: date, group_name: str | None = None) -> pd.DataFrame:
+    """inspect_type 分布（缓存）"""
+    return repo.get_inspect_type_distribution(grain, selected_date, group_name)
+
+@st.cache_data(show_spinner=False, ttl=300)
+def load_workforce_type_cached(grain: str, selected_date: date, group_name: str | None = None) -> pd.DataFrame:
+    """workforce_type 分布（缓存）"""
+    return repo.get_workforce_type_distribution(grain, selected_date, group_name)
+
 @st.cache_data(show_spinner=False)
 def to_csv_bytes(df: pd.DataFrame) -> bytes:
     export_df = df.copy()
@@ -320,6 +314,9 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
+# 处理快捷模式（从上次按钮点击恢复）
+_quick_mode = st.session_state.pop("quick_mode", None)
+
 # 快捷入口按钮（紧凑横排）
 quick_c1, quick_c2, quick_c3, quick_c4 = st.columns([1, 1, 1, 1])
 with quick_c1:
@@ -337,6 +334,14 @@ with quick_c3:
 with quick_c4:
     if st.button("📊 数据总览", use_container_width=True, help="跳转到数据总览页"):
         st.switch_page("pages/02_数据总览.py")
+
+# quick_mode 模式提示
+if _quick_mode == "alert":
+    st.info("🚨 **今日异常模式** — 已定位到告警区域，请查看下方告警详情")
+elif _quick_mode == "worst_queue":
+    st.info("📉 **最差队列模式** — 队列表已按正确率升序排列，问题队列优先展示")
+elif _quick_mode == "appeal":
+    st.info("🔄 **申诉异常模式** — 请在下方队列选择器中选择组别查看申诉数据")
 
 # 获取数据日期范围，设置默认日期为数据最新日期
 _data_min_date, _data_max_date = get_data_date_range()
@@ -361,13 +366,35 @@ with mode_col4:
 
 st.markdown("---")
 
-# ==================== 加载数据 ====================
-payload = load_group_overview(grain, selected_date)
-group_df: pd.DataFrame = payload["group_df"]
-alerts_df: pd.DataFrame = payload["alerts_df"]
-alert_summary: dict[str, int] = payload["alert_summary"]
-alert_status_summary = service.summarize_alert_status(alerts_df)
-alert_sla_summary = service.summarize_alert_sla(alerts_df)
+# ==================== 加载数据（带容错处理） ====================
+_db_error_msg = None
+try:
+    payload = load_group_overview(grain, selected_date)
+    group_df: pd.DataFrame = payload["group_df"]
+    alerts_df: pd.DataFrame = payload["alerts_df"]
+    alert_summary: dict[str, int] = payload["alert_summary"]
+except Exception as e:
+    # 数据库连接失败或 SQL 执行错误时的友好提示
+    import traceback as tb
+    _db_error_msg = str(e)
+    _db_tb = tb.format_exc()
+    st.error(f"⚠️ 数据加载失败：{_db_error_msg[:200]}")
+    st.markdown(f"""
+    <details>
+    <summary>🔧 技术详情（点击展开）</summary>
+    <pre style="font-size:12px; overflow:auto;">{_db_tb}</pre>
+    </details>
+    """, unsafe_allow_html=True)
+    group_df = pd.DataFrame()
+    alerts_df = pd.DataFrame()
+    alert_summary: dict[str, int] = {"total": 0, "P0": 0, "P1": 0, "P2": 0}
+
+if not _db_error_msg:
+    alert_status_summary = service.summarize_alert_status(alerts_df)
+    alert_sla_summary = service.summarize_alert_sla(alerts_df)
+else:
+    alert_status_summary = {}
+    alert_sla_summary = {}
 
 # 预先获取选中的组别（用于队列数据过滤）
 selected_group = st.session_state.get("selected_group")
@@ -375,6 +402,11 @@ if not selected_group and not group_df.empty:
     # 默认选中第一个组别
     selected_group = group_df.iloc[0]["group_name"]
     st.session_state["selected_group"] = selected_group
+
+# 数据库错误时提前终止，避免后续查询继续报错
+if _db_error_msg:
+    st.warning("看板数据无法加载，请检查 TiDB 连接配置或联系管理员。")
+    st.stop()
 
 # 加载队列概览数据（跟随选中的组别）
 # B组整体：展示所有 B组开头的队列
@@ -410,6 +442,45 @@ def calc_change(current_rate: float, prev_rate: float | None) -> str:
     else:
         return f"<span style='color:#EF4444; font-size:0.7rem;'>↓{abs(delta):.2f}%</span>"
 
+
+def _metric_card(label: str, value: str, delta_html: str, fallback_text: str,
+                 theme: str = "neutral"):
+    """渲染单个核心指标卡片。
+    theme: neutral(白底) / good(绿底) / bad(红底)
+    """
+    themes = {
+        "neutral": {"bg": "#fff", "border": "#e2e8f0", "label_color": "#64748b",
+                     "value_color": "#0f172a", "delta_color": "#94a3b8"},
+        "good":    {"bg": "#f0fdf4", "border": "#bbf7d0", "label_color": "#166534",
+                     "value_color": "#16a34a", "delta_color": "#15803d"},
+        "bad":     {"bg": "#fef2f2", "border": "#fecaca", "label_color": "#b91c1c",
+                     "value_color": "#dc2626", "delta_color": "#ef4444"},
+    }
+    t = themes.get(theme, themes["neutral"])
+    st.markdown(f"""
+        <div style="background: {t['bg']}; padding: 14px; border-radius: 12px; border: 1px solid {t['border']}; box-shadow: 0 1px 3px rgba(0,0,0,0.04);">
+            <div style="font-size: 11.5px; color: {t['label_color']}; margin-bottom: 6px; font-weight:500;">{label}</div>
+            <div style="font-size: 26px; font-weight: 700; color: {t['value_color']}; margin-bottom: 2px;">{value}</div>
+            <div style="font-size: 11px; color: {t['delta_color']};">{delta_html if delta_html else fallback_text}</div>
+        </div>
+    """, unsafe_allow_html=True)
+
+
+def _calc_abs_delta(current: int, prev: int | None, up_good: bool = True) -> str:
+    """计算绝对值环比，返回 delta HTML。up_good=True 时上升为绿。"""
+    if prev is None:
+        return ""
+    diff = current - prev
+    if diff == 0:
+        return "<span style='color:#64748B; font-size:0.7rem;'>→0</span>"
+    good_color, bad_color = ("#10B981", "#EF4444") if up_good else ("#EF4444", "#10B981")
+    if diff > 0:
+        color = good_color if up_good else bad_color
+    else:
+        color = bad_color if up_good else good_color
+    arrow = "↑" if diff > 0 else "↓"
+    return f"<span style='color:{color}; font-size:0.7rem;'>{arrow}{abs(diff):,}</span>"
+
 # ==================== 第一行：核心指标 ====================
 st.markdown("#### 📈 核心指标概览")
 total_qa = group_df["qa_cnt"].sum()
@@ -425,50 +496,34 @@ if "final_error_cnt" in group_df.columns:
 else:
     total_final_errors = int(total_qa * (100 - avg_final_acc) / 100)
 
-# 核心指标卡片（精致版 - 带语义色背景）
+# 核心指标卡片（用公共函数渲染）
 metric_col1, metric_col2, metric_col3, metric_col4, metric_col5 = st.columns(5)
+
+# 计算环比
+prev_total_qa = prev_group_df["qa_cnt"].sum() if not prev_group_df.empty else 0
+prev_raw = (prev_group_df["raw_accuracy_rate"] * prev_group_df["qa_cnt"]).sum() / prev_total_qa if prev_total_qa > 0 else None
+prev_final = (prev_group_df["final_accuracy_rate"] * prev_group_df["qa_cnt"]).sum() / prev_total_qa if prev_total_qa > 0 else None
+prev_raw_errors = int(prev_total_qa * (100 - (prev_group_df["raw_accuracy_rate"] * prev_group_df["qa_cnt"]).sum() / prev_total_qa) / 100) if prev_total_qa > 0 else None
+prev_final_errors = int(prev_total_qa * (100 - (prev_group_df["final_accuracy_rate"] * prev_group_df["qa_cnt"]).sum() / prev_total_qa) / 100) if prev_total_qa > 0 else None
+
 with metric_col1:
-    st.markdown(f"""
-        <div style="background: #fff; padding: 14px; border-radius: 12px; border: 1px solid #e2e8f0; box-shadow: 0 1px 3px rgba(0,0,0,0.04);">
-            <div style="font-size: 11.5px; color: #64748b; margin-bottom: 6px; font-weight:500;">📊 质检总量</div>
-            <div style="font-size: 26px; font-weight: 700; color: #0f172a; margin-bottom: 2px;">{int(total_qa):,}</div>
-            <div style="font-size: 11px; color: #94a3b8;">累计抽检样本数</div>
-        </div>
-    """, unsafe_allow_html=True)
+    _metric_card("📊 质检总量", f"{int(total_qa):,}",
+                 _calc_abs_delta(int(total_qa), prev_total_qa, up_good=True),
+                 "累计抽检样本数", "neutral")
 with metric_col2:
-    prev_total_qa = prev_group_df["qa_cnt"].sum() if not prev_group_df.empty else None
-    qa_change = f"↑{(total_qa - prev_total_qa):,}" if prev_total_qa and total_qa > prev_total_qa else (f"↓{(prev_total_qa - total_qa):,}" if prev_total_qa and total_qa < prev_total_qa else "")
-    st.markdown(f"""
-        <div style="background: #f0fdf4; padding: 14px; border-radius: 12px; border: 1px solid #bbf7d0; box-shadow: 0 1px 3px rgba(0,0,0,0.04);">
-            <div style="font-size: 11.5px; color: #166534; margin-bottom: 6px; font-weight:500;">✓ 原始正确率</div>
-            <div style="font-size: 26px; font-weight: 700; color: #16a34a; margin-bottom: 2px;">{avg_raw_acc:.2f}%</div>
-            <div style="font-size: 11px; color: #15803d;">{qa_change if qa_change else '一审正确率'}</div>
-        </div>
-    """, unsafe_allow_html=True)
+    _metric_card("✓ 原始正确率", f"{avg_raw_acc:.2f}%",
+                 calc_change(avg_raw_acc, prev_raw), "一审正确率", "good")
 with metric_col3:
-    st.markdown(f"""
-        <div style="background: #f0fdf4; padding: 14px; border-radius: 12px; border: 1px solid #bbf7d0; box-shadow: 0 1px 3px rgba(0,0,0,0.04);">
-            <div style="font-size: 11.5px; color: #166534; margin-bottom: 6px; font-weight:500;">✓✓ 最终正确率</div>
-            <div style="font-size: 26px; font-weight: 700; color: #16a34a; margin-bottom: 2px;">{avg_final_acc:.2f}%</div>
-            <div style="font-size: 11px; color: #15803d;">终审准确率</div>
-        </div>
-    """, unsafe_allow_html=True)
+    _metric_card("✓✓ 最终正确率", f"{avg_final_acc:.2f}%",
+                 calc_change(avg_final_acc, prev_final), "终审准确率", "good")
 with metric_col4:
-    st.markdown(f"""
-        <div style="background: #fef2f2; padding: 14px; border-radius: 12px; border: 1px solid #fecaca; box-shadow: 0 1px 3px rgba(0,0,0,0.04);">
-            <div style="font-size: 11.5px; color: #b91c1c; margin-bottom: 6px; font-weight:500;">✗ 原始错误量</div>
-            <div style="font-size: 26px; font-weight: 700; color: #dc2626; margin-bottom: 2px;">{total_raw_errors:,}</div>
-            <div style="font-size: 11px; color: #ef4444;">一审错误样本</div>
-        </div>
-    """, unsafe_allow_html=True)
+    _metric_card("✗ 原始错误量", f"{total_raw_errors:,}",
+                 _calc_abs_delta(total_raw_errors, prev_raw_errors, up_good=False),
+                 "一审错误样本", "bad")
 with metric_col5:
-    st.markdown(f"""
-        <div style="background: #fef2f2; padding: 14px; border-radius: 12px; border: 1px solid #fecaca; box-shadow: 0 1px 3px rgba(0,0,0,0.04);">
-            <div style="font-size: 11.5px; color: #b91c1c; margin-bottom: 6px; font-weight:500;">✗✗ 终审错误量</div>
-            <div style="font-size: 26px; font-weight: 700; color: #dc2626; margin-bottom: 2px;">{total_final_errors:,}</div>
-            <div style="font-size: 11px; color: #ef4444;">终审错误样本</div>
-        </div>
-    """, unsafe_allow_html=True)
+    _metric_card("✗✗ 终审错误量", f"{total_final_errors:,}",
+                 _calc_abs_delta(total_final_errors, prev_final_errors, up_good=False),
+                 "终审错误样本", "bad")
 
 st.markdown("---")
 
@@ -638,6 +693,12 @@ for idx, (_, row) in enumerate(display_groups.iterrows()):
         status_text = "需关注"
         status_color = "#991B1B"
     
+    # 读取错判率、漏判率
+    misjudge_rate = row.get("misjudge_rate", 0) or 0
+    missjudge_rate = row.get("missjudge_rate", 0) or 0
+    misjudge_color = '#EF4444' if misjudge_rate > 0.5 else '#F59E0B' if misjudge_rate > 0.3 else '#10B981'
+    missjudge_color = '#EF4444' if missjudge_rate > 0.35 else '#F59E0B' if missjudge_rate > 0.2 else '#10B981'
+    
     is_selected = selected_group == group_name
     border = f"3px solid #3B82F6" if is_selected else f"2px solid {border_color}"
     shadow = "0 8px 16px rgba(59, 130, 246, 0.2)" if is_selected else "0 2px 8px rgba(0,0,0,0.1)"
@@ -646,29 +707,37 @@ for idx, (_, row) in enumerate(display_groups.iterrows()):
     with group_cols[idx]:
         st.markdown(
             f"""
-            <div style="padding: 1.25rem; border-radius: 1rem; background: {bg_gradient}; border: {border}; margin-bottom: 0.5rem; box-shadow: {shadow}; transition: all 0.3s ease; min-height: 180px;">
+            <div style="padding: 1.25rem; border-radius: 1rem; background: {bg_gradient}; border: {border}; margin-bottom: 0.5rem; box-shadow: {shadow}; transition: all 0.3s ease; min-height: 220px;">
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem;">
                     <div style="font-weight: 700; font-size: 1.1rem; color: #1E293B;">{display_name}</div>
                     <div style="font-size: 0.75rem; color: {status_color}; font-weight: 600; background: white; padding: 0.25rem 0.5rem; border-radius: 0.5rem;">{status_icon} {status_text}</div>
                 </div>
-                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; margin-bottom: 0.5rem;">
-                    <div style="background: white; padding: 0.75rem; border-radius: 0.5rem; text-align: center; border: 1px solid #E5E7EB;">
-                        <div style="font-size: 0.7rem; color: #64748B; margin-bottom: 0.25rem;">原始正确率</div>
-                        <div style="font-size: 1.25rem; font-weight: 700; color: {'#10B981' if raw_rate >= 99 else '#EF4444'};">{raw_rate:.2f}%</div>
-                        <div style="font-size: 0.65rem; margin-top: 0.25rem; height: 0.9rem;">{raw_change}</div>
+                <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 0.4rem; margin-bottom: 0.5rem;">
+                    <div style="background: white; padding: 0.6rem; border-radius: 0.5rem; text-align: center; border: 1px solid #E5E7EB;">
+                        <div style="font-size: 0.65rem; color: #64748B; margin-bottom: 0.15rem;">原始正确率</div>
+                        <div style="font-size: 1.1rem; font-weight: 700; color: {'#10B981' if raw_rate >= 99 else '#EF4444'};">{raw_rate:.2f}%</div>
+                        <div style="font-size: 0.6rem; margin-top: 0.15rem; height: 0.8rem;">{raw_change}</div>
                     </div>
-                    <div style="background: white; padding: 0.75rem; border-radius: 0.5rem; text-align: center; border: 1px solid #E5E7EB;">
-                        <div style="font-size: 0.7rem; color: #64748B; margin-bottom: 0.25rem;">最终正确率</div>
-                        <div style="font-size: 1.25rem; font-weight: 700; color: {'#10B981' if final_rate >= 99 else '#EF4444'};">{final_rate:.2f}%</div>
-                        <div style="font-size: 0.65rem; margin-top: 0.25rem; height: 0.9rem;">{final_change}</div>
+                    <div style="background: white; padding: 0.6rem; border-radius: 0.5rem; text-align: center; border: 1px solid #E5E7EB;">
+                        <div style="font-size: 0.65rem; color: #64748B; margin-bottom: 0.15rem;">最终正确率</div>
+                        <div style="font-size: 1.1rem; font-weight: 700; color: {'#10B981' if final_rate >= 99 else '#EF4444'};">{final_rate:.2f}%</div>
+                        <div style="font-size: 0.6rem; margin-top: 0.15rem; height: 0.8rem;">{final_change}</div>
                     </div>
-                    <div style="background: white; padding: 0.75rem; border-radius: 0.5rem; text-align: center; border: 1px solid #E5E7EB;">
-                        <div style="font-size: 0.7rem; color: #64748B; margin-bottom: 0.25rem;">质检量</div>
-                        <div style="font-size: 1.25rem; font-weight: 700; color: #1E293B;">{qa_cnt:,}</div>
+                    <div style="background: white; padding: 0.6rem; border-radius: 0.5rem; text-align: center; border: 1px solid #E5E7EB;">
+                        <div style="font-size: 0.65rem; color: #64748B; margin-bottom: 0.15rem;">质检量</div>
+                        <div style="font-size: 1.1rem; font-weight: 700; color: #1E293B;">{qa_cnt:,}</div>
                     </div>
-                    <div style="background: white; padding: 0.75rem; border-radius: 0.5rem; text-align: center; border: 1px solid #E5E7EB;">
-                        <div style="font-size: 0.7rem; color: #64748B; margin-bottom: 0.25rem;">原始错误量</div>
-                        <div style="font-size: 1.1rem; font-weight: 700; color: #EF4444;">{raw_error_cnt:,}</div>
+                    <div style="background: white; padding: 0.6rem; border-radius: 0.5rem; text-align: center; border: 1px solid #E5E7EB;">
+                        <div style="font-size: 0.65rem; color: #64748B; margin-bottom: 0.15rem;">原始错误量</div>
+                        <div style="font-size: 1rem; font-weight: 700; color: #EF4444;">{raw_error_cnt:,}</div>
+                    </div>
+                    <div style="background: white; padding: 0.6rem; border-radius: 0.5rem; text-align: center; border: 1px solid #E5E7EB;">
+                        <div style="font-size: 0.65rem; color: #64748B; margin-bottom: 0.15rem;">错判率</div>
+                        <div style="font-size: 1rem; font-weight: 700; color: {misjudge_color};">{misjudge_rate:.2f}%</div>
+                    </div>
+                    <div style="background: white; padding: 0.6rem; border-radius: 0.5rem; text-align: center; border: 1px solid #E5E7EB;">
+                        <div style="font-size: 0.65rem; color: #64748B; margin-bottom: 0.15rem;">漏判率</div>
+                        <div style="font-size: 1rem; font-weight: 700; color: {missjudge_color};">{missjudge_rate:.2f}%</div>
                     </div>
                 </div>
             </div>
@@ -700,7 +769,7 @@ with queue_col:
         fig_pie = px.pie(pie_df, values="total_qa_cnt", names="queue_name", hole=0.4)
         
         # 计算总量用于占比计算
-        total_qa = pie_df["total_qa_cnt"].sum()
+        pie_total_qa = pie_df["total_qa_cnt"].sum()
         
         # 自定义 hover 显示：名称、占比、量级
         fig_pie.update_traces(
@@ -743,10 +812,17 @@ with trend_col:
             hovertemplate="<b>%{x|%Y-%m-%d}</b><br>原始正确率: %{text}<extra></extra>"
         ))
         fig.add_hline(y=99.0, line_dash="dash", line_color=COLOR_WARN, annotation_text="目标 99%", annotation_position="right")
+        # 动态 y 轴范围：数据在 99% 以上时不截断
+        all_rates = pd.concat([trend_df["final_accuracy_rate"], trend_df["raw_accuracy_rate"]]).dropna()
+        if not all_rates.empty:
+            y_min = max(0, all_rates.min() - 1)
+            y_max = min(101, all_rates.max() + 1)
+        else:
+            y_min, y_max = 95, 100.5
         fig.update_layout(
             height=300, margin=dict(l=20, r=20, t=10, b=30),
             legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
-            yaxis_range=[95, 100.5], yaxis_title="正确率 (%)",
+            yaxis_range=[y_min, y_max], yaxis_title="正确率 (%)",
             xaxis=dict(tickformat="%Y-%m-%d", tickangle=-45),
             paper_bgcolor='rgba(0,0,0,0)',
             plot_bgcolor='rgba(0,0,0,0)'
@@ -767,7 +843,200 @@ with trend_col:
 
 st.markdown("---")
 
-# ==================== 第五行：队列排名 + 下探 ====================
+# ==================== 第四行半：Phase 1 新增维度 ====================
+st.markdown("### 🔍 深度维度分析")
+st.caption("💡 高频错误、申诉分析、标签准确率 — 数据已有但之前未展示的维度")
+
+# ── 加载 Phase 1 新数据 ──
+_error_top5_df = load_error_top5_cached(grain, selected_date, selected_group)
+_appeal_analysis = load_appeal_analysis_cached(grain, selected_date, selected_group)
+_label_accuracy_df = load_label_accuracy_cached(grain, selected_date, selected_group)
+
+error_col, appeal_col = st.columns([1, 1.2])
+
+with error_col:
+    st.markdown("#### 🔥 高频错误 Top5")
+    if not _error_top5_df.empty:
+        # 横条图
+        _err_display = _error_top5_df.sort_values("error_cnt", ascending=True)
+        fig_err = px.bar(
+            _err_display, x="error_cnt", y="error_type",
+            orientation="h",
+            text=_err_display["pct"].apply(lambda x: f"{x}%"),
+            color="error_cnt",
+            color_continuous_scale="Reds",
+        )
+        fig_err.update_traces(textposition="outside", textfont_size=11)
+        fig_err.update_layout(
+            height=280, margin=dict(l=20, r=20, t=10, b=20),
+            xaxis_title="错误量", yaxis_title="",
+            showlegend=False, coloraxis_showscale=False,
+            paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)'
+        )
+        st.plotly_chart(fig_err, use_container_width=True)
+        st.caption(f"共 {_error_top5_df['error_cnt'].sum():,} 条错误记录")
+    else:
+        st.info("暂无错误类型数据")
+
+with appeal_col:
+    st.markdown("#### 🔄 申诉分析")
+    if _appeal_analysis.get("summary"):
+        _s = _appeal_analysis["summary"]
+        _total_qa = _s.get("total_qa", 0) or 0
+        _appeal_cnt = _s.get("appeal_cnt", 0) or 0
+        _appeal_rate = _s.get("appeal_rate", 0) or 0
+        _reversed_cnt = _s.get("reversed_cnt", 0) or 0
+        _reverse_rate = _s.get("reverse_success_rate", 0) or 0
+
+        # 申诉概览卡片
+        ac1, ac2, ac3, ac4 = st.columns(4)
+        with ac1:
+            st.metric("申诉量", f"{_appeal_cnt:,}", delta=f"{_appeal_rate}% 占比")
+        with ac2:
+            st.metric("改判成功", f"{_reversed_cnt:,}", delta=f"{_reverse_rate}% 成功率")
+        with ac3:
+            st.metric("总质检量", f"{int(_total_qa):,}")
+        with ac4:
+            st.metric("未申诉率", f"{100 - _appeal_rate:.1f}%")
+
+        # Top 申诉理由
+        if not _appeal_analysis.get("reasons", pd.DataFrame()).empty:
+            _reasons = _appeal_analysis["reasons"]
+            st.markdown("**📝 Top 申诉理由：**")
+            _reason_show = pd.DataFrame()
+            _reason_show["申诉理由"] = _reasons["appeal_reason"].apply(lambda x: x[:30] + "..." if len(str(x)) > 30 else x)
+            _reason_show["次数"] = _reasons["cnt"]
+            _reason_show["占比"] = _reasons["pct"].apply(lambda x: f"{x}%")
+            st.dataframe(_reason_show, use_container_width=True, hide_index=True, height=max(120, min(200, 35 * len(_reasons) + 40)))
+    else:
+        st.info("暂无申诉数据")
+
+# ==================== Phase 2 新增：错误趋势 + 下探 + 词频 ====================
+st.markdown("---")
+st.markdown("### 📈 错误深度分析（Phase 2 新增）")
+st.caption("💡 Top3错误类型趋势 · 点击错误类型下探到审核人 · 错误原因词频")
+
+# ── 1. 错误类型趋势面积图 ──
+_error_trend_df = load_error_type_trend_cached(selected_date, selected_group, days=14, top_n=3)
+
+st.markdown("#### 📉 Top3 错误类型趋势（近14天）")
+if not _error_trend_df.empty:
+    fig_trend = px.area(
+        _error_trend_df, x="biz_date", y="error_cnt", color="error_type",
+        markers=True,
+        color_discrete_sequence=px.colors.qualitative.Set2,
+    )
+    fig_trend.update_traces(hovertemplate="<b>%{fullData.name}</b><br>日期: %{x}<br>错误量: %{y:,}<extra></extra>")
+    fig_trend.update_layout(
+        height=280, margin=dict(l=20, r=20, t=10, b=30),
+        xaxis_title="日期", yaxis_title="错误量",
+        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+        paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)'
+    )
+    st.plotly_chart(fig_trend, use_container_width=True)
+else:
+    st.info("暂无错误趋势数据")
+
+# ── 2. 错误类型→受影响审核人 下探 ──
+st.markdown("#### 🎯 错误类型下探 → 受影响审核人")
+_error_types_for_select = _error_top5_df["error_type"].tolist() if not _error_top5_df.empty else []
+if _error_types_for_select:
+    probe_col1, probe_col2 = st.columns([1, 2])
+    with probe_col1:
+        selected_error_type = st.selectbox(
+            "选择错误类型", options=_error_types_for_select,
+            key="error_type_probe", index=0
+        )
+    with probe_col2:
+        if selected_error_type:
+            _affected_df = load_error_affected_reviewers_cached(grain, selected_date, selected_group, selected_error_type, top_n=10)
+            if not _affected_df.empty:
+                aff_show = pd.DataFrame()
+                aff_show["审核人"] = _affected_df["reviewer_name"].apply(lambda x: x.split("-")[-1] if "-" in x else x)
+                aff_show["队列"] = _affected_df["queue_name"]
+                aff_show["错误量"] = _affected_df["error_cnt"].apply(lambda x: f"{int(x):,}")
+                aff_show["错误率"] = _affected_df["error_rate"].apply(lambda x: f"{x:.1f}%")
+                st.dataframe(aff_show, use_container_width=True, hide_index=True,
+                             height=max(120, min(320, 35 * len(_affected_df) + 40)))
+            else:
+                st.info(f"「{selected_error_type}」暂无受影响审核人数据")
+else:
+    st.info("暂无错误类型可选")
+
+# ── 3. error_reason 词频统计 ──
+_reason_freq_df = load_error_reason_wordcloud_cached(grain, selected_date, selected_group, top_n=15)
+st.markdown("#### 📝 错误原因 Top15")
+if not _reason_freq_df.empty:
+    reason_col1, reason_col2 = st.columns([1.2, 1])
+    with reason_col1:
+        _reason_display = _reason_freq_df.sort_values("cnt", ascending=True)
+        fig_reason = px.bar(
+            _reason_display, x="cnt", y="error_reason",
+            orientation="h",
+            text=_reason_display["cnt"].apply(lambda x: f"{int(x):,}"),
+            color="cnt",
+            color_continuous_scale="Oranges",
+        )
+        fig_reason.update_traces(textposition="outside", textfont_size=10)
+        fig_reason.update_layout(
+            height=max(250, 22 * len(_reason_display) + 40),
+            margin=dict(l=20, r=20, t=10, b=20),
+            xaxis_title="频次", yaxis_title="",
+            showlegend=False, coloraxis_showscale=False,
+            yaxis=dict(tickfont=dict(size=10)),
+            paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)'
+        )
+        st.plotly_chart(fig_reason, use_container_width=True)
+    with reason_col2:
+        # 文本形式的表格
+        rr_show = pd.DataFrame()
+        rr_show["错误原因"] = _reason_freq_df["error_reason"].apply(lambda x: str(x)[:40] + "..." if len(str(x)) > 40 else x)
+        rr_show["频次"] = _reason_freq_df["cnt"].apply(lambda x: f"{int(x):,}")
+        rr_show["占比"] = (_reason_freq_df["cnt"] / _reason_freq_df["cnt"].sum() * 100).apply(lambda x: f"{x:.1f}%")
+        st.dataframe(rr_show, use_container_width=True, hide_index=True,
+                     height=max(250, 22 * len(_reason_freq_df) + 40))
+else:
+    st.info("暂无 error_reason 数据")
+
+# ==================== 质检结果分布（正确/错判/漏判） ====================
+st.markdown("### 🏷️ 质检标签分布")
+_result_dist_df = load_qa_result_distribution_cached(grain, selected_date, selected_group)
+if not _result_dist_df.empty:
+    _total_qa_records = int(_result_dist_df["cnt"].sum())
+    st.caption(f"前10个标签（按质检量降序），共 {_total_qa_records:,} 条质检记录")
+    _result_display = _result_dist_df.copy()
+    # 按数量降序排列（正确最多排最后，横向条形图视觉上从上到下递增）
+    _result_display = _result_display.sort_values("cnt", ascending=True)
+
+    # 颜色映射
+    _result_colors = {"正确": "#1e3a5f", "错判": "#ef4444", "漏判": "#f97316"}
+
+    fig_result = px.bar(
+        _result_display, x="cnt", y="result_label",
+        orientation="h",
+        text=_result_display.apply(
+            lambda r: f"{r['pct']}%" if r['result_label'] in ('错判', '漏判') else f"{int(r['cnt']):,}",
+            axis=1,
+        ),
+        color="result_label",
+        color_discrete_map=_result_colors,
+    )
+    fig_result.update_traces(textposition="outside", textfont_size=12)
+    fig_result.update_layout(
+        height=260, margin=dict(l=20, r=20, t=10, b=20),
+        xaxis_title="质检量", yaxis_title="",
+        showlegend=False,
+        paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
+    )
+    st.plotly_chart(fig_result, use_container_width=True)
+
+    # 验证：显示百分比总和（调试用，确认 = 100%）
+    _pct_sum = _result_dist_df["pct"].sum()
+    if abs(_pct_sum - 100.0) > 0.1:
+        st.caption(f"⚠️ 百分比总和={_pct_sum}%（应接近100%，如有偏差请检查数据完整性）")
+else:
+    st.info("暂无质检结果分布数据")
+
 st.markdown("### 🔍 数据下探分析")
 st.caption("💡 通过选择队列和审核人，逐层下探到具体问题样本")
 
@@ -806,22 +1075,27 @@ with select_col3:
     """, unsafe_allow_html=True)
 
 # 快捷筛选按钮（优化样式）
+_quick_filter = st.session_state.get("quick_filter")
 st.markdown("##### ⚡ 快捷筛选")
 quick_filter_col1, quick_filter_col2, quick_filter_col3, quick_filter_col4, _ = st.columns([1.2, 1.2, 1.2, 1.2, 0.8])
 with quick_filter_col1:
     if st.button("🔴 错误量TOP5", use_container_width=True, help="筛选错误量最多的5个队列"):
         st.session_state["quick_filter"] = "error_top5"
+        st.rerun()
 with quick_filter_col2:
     if st.button("📉 正确率<99%", use_container_width=True, help="筛选正确率低于99%的队列"):
         st.session_state["quick_filter"] = "low_rate"
+        st.rerun()
 with quick_filter_col3:
     if st.button("⚠️ 有错判/漏判", use_container_width=True, help="筛选有错判或漏判的队列"):
         st.session_state["quick_filter"] = "has_judge_error"
+        st.rerun()
 with quick_filter_col4:
     if st.button("🔄 重置筛选", use_container_width=True, help="清除所有筛选条件"):
         st.session_state["quick_filter"] = None
         st.session_state["queue_selector"] = "(全部)"
         st.session_state["auditor_selector"] = "(全部)"
+        st.rerun()
 
 # 根据选择重新加载数据
 if selected_queue != "(全部)" or selected_auditor != "(全部)":
@@ -840,32 +1114,126 @@ rank_col, auditor_col = st.columns([1.2, 1])
 with rank_col:
     st.markdown("#### 🏆 队列正确率排名")
     if not detail_queue_df.empty:
-        # 添加提示信息
-        st.caption(f"共 {len(detail_queue_df)} 个队列，按最终正确率升序排列（问题队列优先展示）")
+        # 应用快捷筛选
+        display_queue_df = detail_queue_df.copy()
+        filter_label = "按最终正确率升序排列（问题队列优先展示）"
+        if _quick_filter == "error_top5":
+            display_queue_df = display_queue_df.nlargest(5, "final_error_cnt")
+            filter_label = "🔴 错误量 TOP5"
+        elif _quick_filter == "low_rate":
+            display_queue_df = display_queue_df[display_queue_df["final_accuracy_rate"] < 99]
+            filter_label = "📉 正确率 < 99% 的队列"
+        elif _quick_filter == "has_judge_error":
+            display_queue_df = display_queue_df[
+                (display_queue_df.get("misjudge_rate", 0) > 0) | (display_queue_df.get("missjudge_rate", 0) > 0)
+            ] if "misjudge_rate" in display_queue_df.columns else display_queue_df
+            filter_label = "⚠️ 有错判/漏判的队列"
+        
+        st.caption(f"共 {len(display_queue_df)} 个队列 · {filter_label}")
         
         queue_show = pd.DataFrame()
-        queue_show["队列"] = detail_queue_df["queue_name"]
-        queue_show["质检量"] = detail_queue_df["qa_cnt"]
-        queue_show["出错量"] = detail_queue_df["final_error_cnt"]
-        queue_show["原始正确率"] = detail_queue_df["raw_accuracy_rate"]
-        queue_show["最终正确率"] = detail_queue_df["final_accuracy_rate"]
-        queue_show["错判率"] = detail_queue_df["misjudge_rate"]
-        queue_show["漏判率"] = detail_queue_df["missjudge_rate"]
+        queue_show["队列"] = display_queue_df["queue_name"]
+        queue_show["质检量"] = display_queue_df["qa_cnt"].astype(int)
+        # 审核人数（mart 表有 reviewer_cnt 字段）
+        if "reviewer_cnt" in display_queue_df.columns:
+            queue_show["审核人数"] = display_queue_df["reviewer_cnt"].fillna(0).astype(int)
+        # 出错量：优先 final_error_cnt，否则用 qa_cnt - final_correct_cnt
+        if "final_error_cnt" in display_queue_df.columns:
+            queue_show["出错量"] = display_queue_df["final_error_cnt"].fillna(0).astype(int)
+        else:
+            queue_show["出错量"] = (display_queue_df["qa_cnt"] - display_queue_df.get("final_correct_cnt", display_queue_df["qa_cnt"])).fillna(0).astype(int)
+        queue_show["原始正确率"] = display_queue_df["raw_accuracy_rate"]
+        queue_show["最终正确率"] = display_queue_df["final_accuracy_rate"]
+        queue_show["错判率"] = display_queue_df["misjudge_rate"]
+        queue_show["漏判率"] = display_queue_df["missjudge_rate"]
+        # 申诉改判率
+        if "appeal_reverse_rate" in display_queue_df.columns:
+            queue_show["申诉改判率"] = display_queue_df["appeal_reverse_rate"].fillna(0)
+        # 达标标记：最终正确率 < 99% 标记为 ⚠️
+        queue_show["达标"] = display_queue_df["final_accuracy_rate"].apply(
+            lambda x: "⚠️ 不达标" if pd.notna(x) and x < 99 else "✅ 达标"
+        )
+
+        # 条件高亮：低于阈值的单元格标红
+        def _highlight_queue(val, col_name):
+            """队列表格条件格式化"""
+            if col_name in ("原始正确率", "最终正确率"):
+                if pd.notna(val) and val < 99:
+                    return "color: #dc2626; font-weight: 700; background-color: #fef2f2"
+                if pd.notna(val) and val < 99.5:
+                    return "color: #d97706; font-weight: 600; background-color: #fffbeb"
+            if col_name == "漏判率":
+                if pd.notna(val) and val > 0.35:
+                    return "color: #dc2626; font-weight: 700; background-color: #fef2f2"
+            if col_name == "错判率":
+                if pd.notna(val) and val > 0.5:
+                    return "color: #d97706; font-weight: 600; background-color: #fffbeb"
+            if col_name == "申诉改判率":
+                if pd.notna(val) and val > 18:
+                    return "color: #dc2626; font-weight: 700; background-color: #fef2f2"
+            return ""
+
+        styled_queue = queue_show.style
+        # 逐列应用条件高亮
+        for col in ["原始正确率", "最终正确率", "漏判率", "错判率", "申诉改判率"]:
+            if col in queue_show.columns:
+                styled_queue = styled_queue.map(
+                    lambda val, c=col: _highlight_queue(val, c), subset=[col]
+                )
+
+        # 达标列颜色
+        if "达标" in queue_show.columns:
+            styled_queue = styled_queue.map(
+                lambda val: "color: #dc2626; font-weight: 700" if "不达标" in str(val) else "color: #16a34a",
+                subset=["达标"]
+            )
+
+        # ── 预格式化所有数值列为字符串（绕过 Glide Data Grid 类型推断）──
+        _qfmt = {
+            "质检量": lambda v: f"{int(v):,}" if pd.notna(v) else "—",
+            "审核人数": lambda v: f"{int(v):,}" if pd.notna(v) else "—",
+            "出错量": lambda v: f"{int(v):,}" if pd.notna(v) else "—",
+            "原始正确率": lambda v: f"{float(v):.2f}%" if pd.notna(v) else "—",
+            "最终正确率": lambda v: f"{float(v):.2f}%" if pd.notna(v) else "—",
+            "错判率": lambda v: f"{float(v):.2f}%" if pd.notna(v) else "—",
+            "漏判率": lambda v: f"{float(v):.2f}%" if pd.notna(v) else "—",
+            "申诉改判率": lambda v: f"{float(v):.2f}%" if pd.notna(v) else "—",
+        }
+        for _col, _fn in _qfmt.items():
+            if _col in queue_show.columns:
+                queue_show[_col] = queue_show[_col].apply(_fn)
+
+        # 对已格式化的字符串 DataFrame 应用高亮
+        _str_highlight_map = {
+            "最终正确率": lambda v: ("color: #dc2626; font-weight: 700; background-color: #fef2f2"
+                              if "⚠️" not in str(v) and float(str(v).replace('%','')) < 99 else ""),
+            "原始正确率": lambda v: ("color: #dc2626; font-weight: 700; background-color: #fef2f2"
+                              if "⚠️" not in str(v) and float(str(v).replace('%','')) < 99 else ""),
+            "漏判率": lambda v: "color: #dc2626; font-weight: 700; background-color: #fef2f2"
+                           if pd.notna(v) and float(str(v).replace('%','')) > 0.35 else "",
+            "错判率": lambda v: "color: #d97706; font-weight: 600; background-color: #fffbeb"
+                           if pd.notna(v) and float(str(v).replace('%','')) > 0.5 else "",
+            "申诉改判率": lambda v: "color: #dc2626; font-weight: 700; background-color: #fef2f2"
+                                if pd.notna(v) and float(str(v).replace('%','')) > 18 else "",
+        }
+        styled_queue = queue_show.style
+        for _col, _fn in _str_highlight_map.items():
+            if _col in queue_show.columns:
+                try:
+                    styled_queue = styled_queue.map(_fn, subset=[_col])
+                except (ValueError, TypeError):
+                    pass
+        if "达标" in queue_show.columns:
+            styled_queue = styled_queue.map(
+                lambda val: "color: #dc2626; font-weight: 700" if "不达标" in str(val) else "color: #16a34a",
+                subset=["达标"]
+            )
 
         st.dataframe(
-            queue_show,
+            styled_queue,
             use_container_width=True,
             hide_index=True,
             height=320,
-            column_config={
-                "队列": st.column_config.TextColumn("队列", width="medium"),
-                "质检量": st.column_config.NumberColumn("质检量", width="small", format="d"),
-                "出错量": st.column_config.NumberColumn("出错量", width="small", format="d"),
-                "原始正确率": st.column_config.NumberColumn("原始正确率", width="small", format="%.2f%%"),
-                "最终正确率": st.column_config.NumberColumn("最终正确率", width="small", format="%.2f%%"),
-                "错判率": st.column_config.NumberColumn("错判率", width="small", format="%.2f%%"),
-                "漏判率": st.column_config.NumberColumn("漏判率", width="small", format="%.2f%%"),
-            }
         )
     else:
         st.info("暂无队列数据")
@@ -879,72 +1247,232 @@ with auditor_col:
         auditor_show = pd.DataFrame()
         auditor_show["审核人"] = final_auditor_df["reviewer_name"]
         auditor_show["质检量"] = final_auditor_df["qa_cnt"]
-        auditor_show["原始正确率"] = final_auditor_df["raw_accuracy_rate"]
-        auditor_show["最终正确率"] = final_auditor_df["final_accuracy_rate"]
         auditor_show["错判量"] = final_auditor_df["misjudge_cnt"]
         auditor_show["漏判量"] = final_auditor_df["missjudge_cnt"]
+        auditor_show["原始正确率"] = final_auditor_df["raw_accuracy_rate"]
+        auditor_show["最终正确率"] = final_auditor_df["final_accuracy_rate"]
+        auditor_show["错判率"] = final_auditor_df["misjudge_rate"]
+        auditor_show["漏判率"] = final_auditor_df["missjudge_rate"]
+        # 申诉改判率
+        if "appeal_reverse_rate" in final_auditor_df.columns:
+            auditor_show["申诉改判率"] = final_auditor_df["appeal_reverse_rate"].fillna(0)
+        # 达标标记
+        auditor_show["达标"] = final_auditor_df["final_accuracy_rate"].apply(
+            lambda x: "⚠️ 不达标" if pd.notna(x) and x < 99 else "✅ 达标"
+        )
+
+        # 条件高亮：审核人视图
+        def _highlight_auditor(val, col_name):
+            """审核人表格条件格式化"""
+            if col_name in ("原始正确率", "最终正确率"):
+                if pd.notna(val) and val < 99:
+                    return "color: #dc2626; font-weight: 700; background-color: #fef2f2"
+                if pd.notna(val) and val < 99.5:
+                    return "color: #d97706; font-weight: 600; background-color: #fffbeb"
+            if col_name == "漏判率":
+                if pd.notna(val) and val > 0.35:
+                    return "color: #dc2626; font-weight: 700; background-color: #fef2f2"
+            if col_name == "错判率":
+                if pd.notna(val) and val > 0.5:
+                    return "color: #d97706; font-weight: 600; background-color: #fffbeb"
+            if col_name == "申诉改判率":
+                if pd.notna(val) and val > 18:
+                    return "color: #dc2626; font-weight: 700; background-color: #fef2f2"
+            return ""
+
+        styled_auditor = auditor_show.style
+        for col in ["原始正确率", "最终正确率", "漏判率", "错判率", "申诉改判率"]:
+            if col in auditor_show.columns:
+                styled_auditor = styled_auditor.map(
+                    lambda val, c=col: _highlight_auditor(val, c), subset=[col]
+                )
+        # 达标列颜色
+        if "达标" in auditor_show.columns:
+            styled_auditor = styled_auditor.map(
+                lambda val: "color: #dc2626; font-weight: 700" if "不达标" in str(val) else "color: #16a34a",
+                subset=["达标"]
+            )
+
+        # ── 预格式化所有数值列为字符串（同上，绕过 GDG 类型推断）──
+        _afmt = {
+            "质检量": lambda v: f"{int(v):,}" if pd.notna(v) else "—",
+            "错判量": lambda v: f"{int(v):,}" if pd.notna(v) else "—",
+            "漏判量": lambda v: f"{int(v):,}" if pd.notna(v) else "—",
+            "原始正确率": lambda v: f"{float(v):.2f}%" if pd.notna(v) else "—",
+            "最终正确率": lambda v: f"{float(v):.2f}%" if pd.notna(v) else "—",
+            "错判率": lambda v: f"{float(v):.2f}%" if pd.notna(v) else "—",
+            "漏判率": lambda v: f"{float(v):.2f}%" if pd.notna(v) else "—",
+            "申诉改判率": lambda v: f"{float(v):.2f}%" if pd.notna(v) else "—",
+        }
+        for _col, _fn in _afmt.items():
+            if _col in auditor_show.columns:
+                auditor_show[_col] = auditor_show[_col].apply(_fn)
+
+        # 对已格式化的字符串 DataFrame 应用高亮
+        styled_auditor = auditor_show.style
+        for _col in ["原始正确率", "最终正确率"]:
+            if _col in auditor_show.columns:
+                try:
+                    styled_auditor = styled_auditor.map(
+                        lambda v: ("color: #dc2626; font-weight: 700; background-color: #fef2f2"
+                                  if "⚠️" not in str(v) and float(str(v).replace('%','')) < 99 else ""),
+                        subset=[_col]
+                    )
+                except (ValueError, TypeError):
+                    pass
+        for _col, _thresh in [("漏判率", 0.35), ("错判率", 0.5)]:
+            if _col in auditor_show.columns:
+                try:
+                    styled_auditor = styled_auditor.map(
+                        lambda v, t=_thresh: ("color: #dc2626; font-weight: 700; background-color: #fef2f2"
+                                        if pd.notna(v) and float(str(v).replace('%','')) > t else ""),
+                        subset=[_col]
+                    )
+                except (ValueError, TypeError):
+                    pass
+        if "申诉改判率" in auditor_show.columns:
+            try:
+                styled_auditor = styled_auditor.map(
+                    lambda v: "color: #dc2626; font-weight: 700; background-color: #fef2f2"
+                             if pd.notna(v) and float(str(v).replace('%','')) > 18 else "",
+                    subset=["申诉改判率"]
+                )
+            except (ValueError, TypeError):
+                pass
+        if "达标" in auditor_show.columns:
+            styled_auditor = styled_auditor.map(
+                lambda val: "color: #dc2626; font-weight: 700" if "不达标" in str(val) else "color: #16a34a",
+                subset=["达标"]
+            )
 
         st.dataframe(
-            auditor_show,
+            styled_auditor,
             use_container_width=True,
             hide_index=True,
             height=320,
-            column_config={
-                "审核人": st.column_config.TextColumn("审核人", width="medium"),
-                "质检量": st.column_config.NumberColumn("质检量", width="small", format="d"),
-                "原始正确率": st.column_config.NumberColumn("原始正确率", width="small", format="%.2f%%"),
-                "最终正确率": st.column_config.NumberColumn("最终正确率", width="small", format="%.2f%%"),
-                "错判量": st.column_config.NumberColumn("错判量", width="small", format="d"),
-                "漏判量": st.column_config.NumberColumn("漏判量", width="small", format="d"),
-            }
         )
     else:
         st.info("暂无审核人数据")
 
-# ==================== 第六行：质检标签分布 + 质检员工作量 ====================
+# ==================== 第六行：Phase 1 升级 — 标签准确率排行 + 内容类型/时段 ====================
 st.markdown("---")
-st.markdown("### 📊 质检维度分析")
-st.caption("💡 了解质检标签分布和质检员工作量分布，帮助识别问题高发区域")
+st.markdown("### 📊 质量深度分析（Phase 1 新增）")
+st.caption("💡 标签准确率 → 哪些标签最难判 · 内容类型差异 · 时段质量波动")
 
-label_col, owner_col = st.columns([1, 1])
+# ── 加载新维度数据 ──
+_content_type_df = load_content_type_distribution_cached(grain, selected_date, selected_group)
+_hourly_df = load_hourly_heatmap_cached(grain, selected_date, selected_group)
 
-with label_col:
-    st.markdown("#### 🏷️ 质检标签分布")
-    label_df = load_qa_label_distribution_cached(grain, selected_date, selected_group, top_n=10)
-    if not label_df.empty:
-        # 添加统计信息
-        total_labels = label_df["cnt"].sum()
-        st.caption(f"前10个标签（按质检量降序），共 {total_labels:,} 条质检记录")
-        
-        # 使用水平条形图展示
-        fig_label = px.bar(
-            label_df.sort_values("cnt", ascending=True),
-            x="cnt", y="label_name",
+# 左：标签准确率排行
+# 右：内容类型分布
+label_col2, ct_col = st.columns([1.2, 1])
+
+with label_col2:
+    st.markdown("#### 🏷️ 标签准确率排行")
+    if not _label_accuracy_df.empty:
+        st.caption(f"按正确率升序排列（最难判的标签在前），共 {_label_accuracy_df['qa_cnt'].sum():,} 条记录")
+        # 横条图，x轴=正确率，颜色=质检量级
+        _lab_display = _label_accuracy_df.copy()
+        fig_lab = px.bar(
+            _lab_display, x="accuracy_rate", y="label_name",
             orientation="h",
-            text=label_df.sort_values("cnt", ascending=True)["pct"].apply(lambda x: f"{x:.1f}%"),
-            color="cnt",
-            color_continuous_scale="Blues"
+            text=_lab_display.apply(lambda r: f"{r['accuracy_rate']}% ({int(r['qa_cnt']):,})", axis=1),
+            color="qa_cnt",
+            color_continuous_scale="Blues",
+            range_x=[0, 100],
         )
-        fig_label.update_traces(textposition="outside", textfont_size=11)
-        fig_label.update_layout(
-            height=320, margin=dict(l=20, r=20, t=10, b=20),
-            xaxis_title="质检量", yaxis_title="",
+        fig_lab.add_vline(x=99, line_dash="dash", line_color="#F59E0B", annotation_text="99%目标", annotation_position="top")
+        fig_lab.update_traces(textposition="outside", textfont_size=10)
+        fig_lab.update_layout(
+            height=max(280, 30 * len(_lab_display) + 40),
+            margin=dict(l=20, r=20, t=10, b=20),
+            xaxis_title="正确率 (%)", yaxis_title="",
             showlegend=False, coloraxis_showscale=False,
-            paper_bgcolor='rgba(0,0,0,0)',
-            plot_bgcolor='rgba(0,0,0,0)'
+            paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)'
         )
-        st.plotly_chart(fig_label, use_container_width=True)
+        st.plotly_chart(fig_lab, use_container_width=True)
     else:
         st.info("暂无标签数据")
 
-with owner_col:
-    st.markdown("#### 👨‍💼 质检员工作量")
+with ct_col:
+    st.markdown("#### 📂 内容类型分布")
+    if not _content_type_df.empty:
+        # 饼图 + 表格组合
+        ct_pie = px.pie(_content_type_df, values="qa_cnt", names="content_type", hole=0.45)
+        ct_pie.update_traces(
+            textposition="inside", textinfo="percent+label", textfont_size=11,
+            hovertemplate="<b>%{label}</b><br>占比: %{percent}<br>量级: %{value:,} <extra></extra>"
+        )
+        ct_pie.update_layout(height=260, margin=dict(l=10, r=10, t=10, b=10),
+                            showlegend=False, paper_bgcolor='rgba(0,0,0,0)')
+        st.plotly_chart(ct_pie, use_container_width=True)
+
+        # 简要表格
+        ct_show = pd.DataFrame()
+        ct_show["内容类型"] = _content_type_df["content_type"]
+        ct_show["量级"] = _content_type_df["qa_cnt"].apply(lambda x: f"{int(x):,}")
+        ct_show["正确率"] = _content_type_df["accuracy_rate"].apply(lambda x: f"{x:.1f}%")
+        st.dataframe(ct_show, use_container_width=True, hide_index=True, height=min(180, 35 * len(_content_type_df) + 40))
+    else:
+        st.info("暂无内容类型数据")
+
+# ── 第七行：时段质量热力图 ──
+st.markdown("#### 📅 时段质量热力图")
+if not _hourly_df.empty:
+    import numpy as np
+
+    # 补全天 0-23 小时
+    all_hours = set(range(24))
+    exist_hours = set(_hourly_df["hour"].tolist())
+    for h in all_hours - exist_hours:
+        _hourly_df = pd.concat([_hourly_df, pd.DataFrame([{"hour": h, "qa_cnt": 0, "correct_cnt": 0, "accuracy_rate": None}])], ignore_index=True)
+    _hourly_df = _hourly_df.sort_values("hour").reset_index(drop=True)
+
+    # 热力图用 Plotly heatmap
+    fig_heat = go.Figure()
+    # 用色阶表示正确率，气泡大小表示质检量
+    fig_heat.add_trace(go.Bar(
+        x=[f"{h:02d}:00" for h in _hourly_df["hour"]],
+        y=_hourly_df["qa_cnt"],
+        marker_color=_hourly_df["accuracy_rate"],
+        marker_colorscale="RdYlGn",
+        marker_line_color="#E5E7EB",
+        marker_line_width=1,
+        name="质检量",
+        hovertemplate=(
+            "<b>%{x}</b><br>"
+            "质检量: %{y:,}<br>"
+            "正确率: %{marker.color:.1f}%<extra></extra>"
+        ),
+    ))
+    # 目标线 99%
+    fig_heat.add_hline(y=99, line_dash="dash", line_color="#F59E0B", annotation_text="99%目标线", annotation_position="right")
+
+    # 计算均值标注低峰时段
+    avg_acc = _hourly_df[_hourly_df["qa_cnt"] > 0]["accuracy_rate"].mean()
+    fig_heat.update_layout(
+        height=250,
+        margin=dict(l=20, r=20, t=10, b=40),
+        xaxis_title="时间段 (小时)", yaxistitle="质检量",
+        xaxis=dict(tickangle=-45),
+        paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
+        annotations=[
+            dict(x=0.98, y=0.95, xref="paper", yref="paper",
+                 text=f"平均正确率: {avg_acc:.1f}%", showarrow=False, font=dict(size=11, color="#64748B"))
+        ]
+    )
+    st.plotly_chart(fig_heat, use_container_width=True)
+    st.caption(f"💡 颜色深浅代表正确率（绿高红低），柱高代表质检量 | 平均正确率: **{avg_acc:.1f}%**")
+else:
+    st.info("暂无时段数据（需要 qa_time 字段有精确时间）")
+
+# ── 质检员工作量（保留原有功能） ──
+st.markdown("---")
+owner_col2 = st.container()
+with owner_col2:
+    st.markdown("#### 👨‍💼 质检员工作量 Top10")
     owner_df = load_qa_owner_distribution_cached(grain, selected_date, selected_group, top_n=10)
     if not owner_df.empty:
-        # 添加统计信息
-        st.caption(f"前10名质检员（按质检量降序）")
-        
-        # 表格展示
         owner_show = pd.DataFrame()
         owner_show["质检员"] = owner_df["owner_name"].apply(lambda x: x.split("-")[-1] if "-" in x else x)
         owner_show["质检量"] = owner_df["qa_cnt"].apply(lambda x: f"{int(x):,}")
@@ -952,9 +1480,9 @@ with owner_col:
         owner_show["出错量"] = owner_df["error_cnt"].apply(lambda x: f"{int(x):,}")
         
         st.dataframe(
-            owner_show, 
-            use_container_width=True, 
-            hide_index=True, 
+            owner_show,
+            use_container_width=True,
+            hide_index=True,
             height=320,
             column_config={
                 "质检员": st.column_config.TextColumn("质检员", width="medium"),
@@ -965,6 +1493,111 @@ with owner_col:
         )
     else:
         st.info("暂无质检员数据")
+
+# ==================== inspect_type / workforce_type 分布（Phase 3 #11） ====================
+st.markdown("---")
+st.markdown("### 🏷️ 质检类型 & 人员类型分布（Phase 3 新增）")
+st.caption("💡 外检/内检分类 · 正式/新人/复培/外检人员类型")
+
+_it_df = load_inspect_type_cached(grain, selected_date, selected_group)
+_wt_df = load_workforce_type_cached(grain, selected_date, selected_group)
+
+it_col1, it_col2 = st.columns(2)
+
+with it_col1:
+    st.markdown("#### 🔍 质检类型（inspect_type）")
+    if not _it_df.empty:
+        fig_it = px.pie(
+            _it_df, names="inspect_type", values="qa_cnt",
+            hole=0.45,
+            color="inspect_type",
+            color_discrete_map={"internal": "#4CAF50", "external": "#2196F3", "未知": "#9E9E9E"},
+        )
+        fig_it.update_traces(
+            textposition="inside",
+            textinfo="label+percent+value",
+            hovertemplate="<b>%{label}</b><br>数量: %{value:,}<br>占比: %{percent}<extra></extra>",
+        )
+        fig_it.update_layout(height=260, margin=dict(l=10, r=10, t=10, b=10), showlegend=False)
+        st.plotly_chart(fig_it, use_container_width=True)
+        # 表格
+        it_show = pd.DataFrame()
+        it_show["类型"] = _it_df["inspect_type"]
+        it_show["数量"] = _it_df["qa_cnt"].apply(lambda x: f"{int(x):,}")
+        it_show["正确率"] = _it_df["accuracy_rate"].apply(lambda x: f"{x:.2f}%")
+        st.dataframe(it_show, use_container_width=True, hide_index=True, height=min(120, 35 * len(_it_df) + 40))
+    else:
+        st.info("暂无 inspect_type 数据")
+
+with it_col2:
+    st.markdown("#### 👥 人员类型（workforce_type）")
+    if not _wt_df.empty:
+        fig_wt = px.bar(
+            _wt_df, x="workforce_type", y="qa_cnt",
+            color="accuracy_rate",
+            color_continuous_scale="RdYlGn",
+            text=_wt_df["qa_cnt"].apply(lambda x: f"{int(x):,}"),
+        )
+        fig_wt.update_traces(textposition="outside", textfont_size=10)
+        fig_wt.update_layout(
+            height=260, margin=dict(l=10, r=10, t=10, b=30),
+            xaxis_title="", yaxis_title="质检量",
+            showlegend=False, coloraxis_showscale=False,
+            paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)'
+        )
+        st.plotly_chart(fig_wt, use_container_width=True)
+        # 表格
+        wt_show = pd.DataFrame()
+        wt_show["类型"] = _wt_df["workforce_type"]
+        wt_show["数量"] = _wt_df["qa_cnt"].apply(lambda x: f"{int(x):,}")
+        wt_show["正确率"] = _wt_df["accuracy_rate"].apply(lambda x: f"{x:.2f}%")
+        st.dataframe(wt_show, use_container_width=True, hide_index=True, height=min(120, 35 * len(_wt_df) + 40))
+    else:
+        st.info("暂无 workforce_type 数据")
+
+# ==================== 数据健康指示器（Phase 2 #10） ====================
+st.markdown("---")
+st.markdown("### 🏥 数据健康指示器")
+st.caption("💡 监控数据质量：关联匹配率、缺失主键率、重复率")
+
+_health = load_data_health_cached(selected_date)
+
+health_col1, health_col2, health_col3, health_col4 = st.columns(4)
+
+with health_col1:
+    _am = _health.get("appeal_match", {})
+    _total_qa_h = _am.get("total_qa", 0) or 0
+    _amr = _am.get("appeal_match_rate", 0) or 0
+    _am_color = "🟢" if _amr >= 10 else ("🟡" if _amr >= 5 else "🔴")
+    st.metric(f"{_am_color} 申诉关联率", f"{_amr}%",
+              delta=f"总质检 {_total_qa_h:,}",
+              delta_color="off")
+
+with health_col2:
+    _mk = _health.get("missing_key", {})
+    _missing_rate = _mk.get("missing_rate", 0) or 0
+    _missing_cnt = _mk.get("missing_cnt", 0) or 0
+    _mk_color = "🟢" if _missing_rate <= 1 else ("🟡" if _missing_rate <= 5 else "🔴")
+    st.metric(f"{_mk_color} 缺失主键率", f"{_missing_rate}%",
+              delta=f"{_missing_cnt:,} 条缺失",
+              delta_color="inverse")
+
+with health_col3:
+    _dp = _health.get("duplicate", {})
+    _dup_rate = _dp.get("dup_rate", 0) or 0
+    _dup_cnt = _dp.get("dup_cnt", 0) or 0
+    _dp_color = "🟢" if _dup_rate <= 0.5 else ("🟡" if _dup_rate <= 2 else "🔴")
+    st.metric(f"{_dp_color} 重复数据率", f"{_dup_rate}%",
+              delta=f"{_dup_cnt:,} 条重复",
+              delta_color="inverse")
+
+with health_col4:
+    _al = _health.get("appeal_link", {})
+    _link_rate = _al.get("link_rate", 0) or 0
+    _al_color = "🟢" if _link_rate >= 90 else ("🟡" if _link_rate >= 70 else "🔴")
+    st.metric(f"{_al_color} 申诉→质检关联率", f"{_link_rate}%",
+              delta="申诉表能关联到质检事件的比例",
+              delta_color="off")
 
 # ==================== 底部说明 ====================
 st.markdown("---")

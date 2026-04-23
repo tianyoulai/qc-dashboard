@@ -725,3 +725,10 @@ class DashboardService:
         """获取质检员工作量分布"""
         anchor_date = self.normalize_anchor_date(grain, selected_date)
         return self.repo.get_qa_owner_distribution(grain, anchor_date, group_name, top_n)
+
+    def load_qa_result_distribution(
+        self, grain: str, selected_date: date, group_name: str | None = None,
+    ) -> pd.DataFrame:
+        """获取质检结果分布：正确/错判/漏判（三分类百分比总和=100%）"""
+        anchor_date = self.normalize_anchor_date(grain, selected_date)
+        return self.repo.get_qa_result_distribution(grain, anchor_date, group_name)
