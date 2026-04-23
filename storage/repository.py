@@ -593,11 +593,12 @@ class DashboardRepository:
     def get_qa_result_distribution(
         self, grain: str, anchor_date: date, group_name: str | None = None,
     ) -> pd.DataFrame:
-        """质检结果分布：正确 / 错判 / 漏判 三分类汇总（百分比总和保证为100%）。
+        """质检结果分布：正确 / 错判 / 漏判 三分类汇总（百分比总和保证=100%）。
 
-        关键设计：
-        - 分母 = WHERE 条件后的总记录数（与分子同一数据集）
-        - 每条记录有且仅有一种状态，三分类 pct 之和 = 100%
+        设计要点：
+        - 先用单次 COUNT(*) 查出分母总记录数
+        - 三分类 CASE 条件保证完备分区：正确=非错判且非漏判
+        - 在 Python 侧计算百分比，避免 SQL 嵌套子查询的参数展开问题
         """
         grain_column = self._grain_column(grain)
         conditions = [f"{grain_column} = %s"]
@@ -608,48 +609,51 @@ class DashboardRepository:
             params.append(group_name)
 
         where_sql = " AND ".join(conditions)
-        # 先查总记录数作为分母
-        total_sql = f"SELECT COUNT(*) AS total FROM vw_qa_base WHERE {where_sql}"
 
+        # ① 查分母：满足条件的总记录数
+        total_row = self.fetch_one(f"SELECT COUNT(*) AS total FROM vw_qa_base WHERE {where_sql}", params)
+        total_cnt = int(total_row["total"]) if total_row else 0
+
+        if total_cnt == 0:
+            return pd.DataFrame(columns=["result_label", "cnt", "pct"])
+
+        # ② 三分类汇总（单次扫描）
         sql = f"""
-        SELECT * FROM (
-            SELECT
-                '正确' AS result_label,
-                SUM(CASE WHEN COALESCE(is_misjudge, 0) = 0
-                         AND COALESCE(is_missjudge, 0) = 0
-                    THEN 1 ELSE 0 END) AS cnt,
-                ROUND(SUM(CASE WHEN COALESCE(is_misjudge, 0) = 0
-                                 AND COALESCE(is_missjudge, 0) = 0
-                            THEN 1 ELSE 0 END) * 100.0
-                    / NULLIF(({total_sql}), 0), 2) AS pct
-            FROM vw_qa_base WHERE {where_sql}
-
-            UNION ALL
-
-            SELECT
-                '错判' AS result_label,
-                SUM(CASE WHEN COALESCE(is_misjudge, 0) = 1 THEN 1 ELSE 0 END) AS cnt,
-                ROUND(SUM(CASE WHEN COALESCE(is_misjudge, 0) = 1 THEN 1 ELSE 0 END) * 100.0
-                    / NULLIF(({total_sql}), 0), 2) AS pct
-            FROM vw_qa_base WHERE {where_sql}
-
-            UNION ALL
-
-            SELECT
-                '漏判' AS result_label,
-                SUM(CASE WHEN COALESCE(is_missjudge, 0) = 1 THEN 1 ELSE 0 END) AS cnt,
-                ROUND(SUM(CASE WHEN COALESCE(is_missjudge, 0) = 1 THEN 1 ELSE 0 END) * 100.0
-                    / NULLIF(({total_sql}), 0), 2) AS pct
-            FROM vw_qa_base WHERE {where_sql}
-        ) t
-        ORDER BY CASE result_label
-                     WHEN '正确' THEN 1
-                     WHEN '错判' THEN 2
-                     WHEN '漏判' THEN 3
-                 END
+        SELECT
+            SUM(CASE WHEN COALESCE(is_misjudge, 0) = 0
+                     AND COALESCE(is_missjudge, 0) = 0
+                THEN 1 ELSE 0 END) AS correct_cnt,
+            SUM(CASE WHEN COALESCE(is_misjudge, 0) = 1 THEN 1 ELSE 0 END) AS misjudge_cnt,
+            SUM(CASE WHEN COALESCE(is_missjudge, 0) = 1 THEN 1 ELSE 0 END) AS missjudge_cnt
+        FROM vw_qa_base
+        WHERE {where_sql}
         """
-        # total_sql 需要被展开两次（UNION ALL 每个子查询各一次），params 也需要重复
-        return self.fetch_df(sql, params + params + params + params)
+        row = self.fetch_one(sql, params)
+        if not row:
+            return pd.DataFrame(columns=["result_label", "cnt", "pct"])
+
+        correct_cnt = int(row["correct_cnt"] or 0)
+        misjudge_cnt = int(row["misjudge_cnt"] or 0)
+        missjudge_cnt = int(row["missjudge_cnt"] or 0)
+
+        # ③ 校验：三分类之和应等于总数
+        classified = correct_cnt + misjudge_cnt + missjudge_cnt
+        # 差异部分归入"未分类"（通常是因为 is_misjudge/is_missjudge 都为 NULL 且 is_final_correct=0 的裸错记录）
+        unclassified_cnt = total_cnt - classified
+
+        # ④ 构建结果 DataFrame
+        result_rows = [
+            ("正确", correct_cnt, round(correct_cnt * 100.0 / total_cnt, 2)),
+            ("错判", misjudge_cnt, round(misjudge_cnt * 100.0 / total_cnt, 2)),
+            ("漏判", missjudge_cnt, round(missjudge_cnt * 100.0 / total_cnt, 2)),
+        ]
+        if unclassified_cnt > 0:
+            result_rows.append(("未分类", unclassified_cnt, round(unclassified_cnt * 100.0 / total_cnt, 2)))
+
+        df = pd.DataFrame(result_rows, columns=["result_label", "cnt", "pct"])
+        # 按 cnt 降序排列（正确最多排最后）
+        df = df.sort_values("cnt", ascending=True).reset_index(drop=True)
+        return df
 
     # ==================== Phase 1 新增维度查询 ====================
 

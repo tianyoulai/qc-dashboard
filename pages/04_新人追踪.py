@@ -28,6 +28,29 @@ if _os.path.exists(_css_path):
 service = DashboardService()
 repo = DashboardRepository()
 
+# ==================== 共享工具函数（不依赖首页） ====================
+
+@st.cache_data(show_spinner=False, ttl=300)
+def _get_data_date_range() -> tuple[date, date]:
+    """获取数据库中的日期范围（独立实现，不依赖首页模块）"""
+    row = repo.fetch_one("SELECT MIN(biz_date) AS min_d, MAX(biz_date) AS max_d FROM fact_qa_event")
+    if not row or row.get("min_d") is None:
+        return date.today(), date.today()
+    min_val = row["min_d"]
+    max_val = row["max_d"]
+    if hasattr(min_val, "date"):
+        min_val = min_val.date()
+    if hasattr(max_val, "date"):
+        max_val = max_val.date()
+    return min_val, max_val
+
+
+def _normalize_anchor_date(grain: str, sel_date: date) -> date:
+    """将选定日期规范化为对应粒度的锚点日期（简化版，不依赖 service 层）"""
+    # 对于 day 粒度直接返回选中日期；week/month 可根据需要扩展
+    return sel_date
+
+
 # ==================== 缓存数据加载函数 ====================
 
 @st.cache_data(show_spinner=False, ttl=300)
@@ -132,7 +155,7 @@ _grain_labels = list(_grain_options.keys())
 _selected_grain_label = st.radio("看板模式", options=_grain_labels, horizontal=True, label_visibility="collapsed")
 _grain = _grain_options[_selected_grain_label]
 
-_data_min, _data_max = get_data_date_range() if 'get_data_date_range' in dir() else (date.today(), date.today())
+_data_min, _data_max = _get_data_date_range()
 _default = _data_max if _data_max <= date.today() else date.today()
 selected_date = st.date_input("业务日期", value=_default, label_visibility="collapsed")
 
@@ -140,7 +163,7 @@ selected_date = st.date_input("业务日期", value=_default, label_visibility="
 st.markdown("---")
 st.markdown("#### 📋 新人批次概览")
 
-batches_df = get_newcomer_batches(_grain, service.normalize_anchor_date(_grain, selected_date))
+batches_df = get_newcomer_batches(_grain, _normalize_anchor_date(_grain, selected_date))
 
 if batches_df.empty:
     st.warning("暂无新人数据。请确认：\n1. fact_qa_event 中有包含 10816 队列或 workforce_type='新人' 的记录\n2. 已运行 ETL 刷新 mart 表")
@@ -195,23 +218,24 @@ st.markdown("### 👤 个人追踪")
 st.caption("个人追踪页只展示单人样本正确率和错误明细，不展示聚合层的人均正确率。")
 
 # 加载个人详情
-person_data = get_newcomer_person_detail(_grain, service.normalize_anchor_date(_grain, selected_date), sel_name, sel_queue)
+person_data = get_newcomer_person_detail(_grain, _normalize_anchor_date(_grain, selected_date), sel_name, sel_queue)
 
 person_summary = person_data["summary"]
 person_errors = person_data["error_detail"]
 
 if not person_summary.empty:
     row = person_summary.iloc[0]
-    # 计算入职天数
+    total_qa = int(row.get("total_qa", 0) or 0)
+
+    # 即使 total_qa=0 也展示信息卡片（帮助排查为什么没数据）
     first_dt = row.get("first_qa_date")
     days_on_board = (selected_date - first_dt).days if pd.notna(first_dt) and hasattr(first_dt, 'day') else 15
 
-    # 信息卡片
     st.markdown(f"""
     <div style="background: linear-gradient(135deg, #F8FAFC 0%, #F1F5F9 100%); padding: 1.25rem; border-radius: 12px; border: 1px solid #E2E8F0; margin-bottom: 1rem;">
         <div style="font-size: 1.4rem; font-weight: 700; color: #1E293B; margin-bottom: 0.5rem;">{sel_name}</div>
         <div style="font-size: 0.9rem; color: #64748B; margin-bottom: 0.25rem;">
-            {sel_batch or '未知批次'} · 入职 {days_on_board} 天
+            {sel_queue or sel_batch or '未知队列'} · 入职约 {max(days_on_board, 0)} 天
         </div>
         <div style="font-size: 0.85rem; color: #94A3B8;">
             联营管理：待填充 · 交付PM：未填写 · 质培owner：天有 · 导师/质检：宋效愚
@@ -219,11 +243,9 @@ if not person_summary.empty:
     </div>
     """, unsafe_allow_html=True)
 
-    # 四个核心指标
     raw_acc = row.get("raw_accuracy_rate", 0) or 0
     final_acc = row.get("final_accuracy_rate", 0) or 0
-    formal_acc = final_acc  # 暂时等同最终正确率
-    total_qa = int(row.get("total_qa", 0) or 0)
+    formal_acc = final_acc
 
     kpi_c1, kpi_c2, kpi_c3, kpi_c4 = st.columns(4)
     with kpi_c1:
@@ -234,6 +256,20 @@ if not person_summary.empty:
         st.metric(":green: 正式正确率", f"{formal_acc:.1f}%")
     with kpi_c4:
         st.metric(":package: 累计质检量", f"{total_qa:,}")
+
+    # 如果 total_qa=0 给出明确诊断
+    if total_qa == 0:
+        st.warning(f"""
+        ⚠️ **该审核人在当前筛选条件下无质检记录**，可能原因：
+        1. **日期不匹配**：选定日期 `{selected_date}` 可能没有此人的质检数据
+        2. **粒度不匹配**：当前模式「{_grain}」可能不覆盖此人的数据周期
+        3. **数据未导入**：此人的质检文件可能尚未导入系统
+
+        💡 建议：
+        - 切换到「周复盘」或「月管理」模式试试
+        - 选择更早的日期范围
+        - 在「数据导入」页确认已上传包含此人的质检文件
+        """)
 
     # 最近80条错误明细
     st.markdown("---")

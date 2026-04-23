@@ -447,6 +447,36 @@ def _color_val(val: float, warn_thresh: float, bad_thresh: float, suffix: str = 
     return text
 
 
+def _df_to_html_table(df: pd.DataFrame, max_height: int = 320) -> str:
+    """将纯字符串 DataFrame 渲染为带样式的 HTML 表格，彻底绕过 GDG 类型推断。
+
+    用法：先通过 _fmt_queue_row / _fmt_auditor_row 将数据格式化为字符串 DataFrame，
+    再调用此函数转为 HTML，最后用 st.markdown(html, unsafe_allow_html=True) 渲染。
+    """
+    # 表头
+    th_html = "".join(f"<th>{col}</th>" for col in df.columns)
+    # 表体
+    rows_html = ""
+    for _, row in df.iterrows():
+        cells = "".join(f"<td>{row[col]}</td>" for col in df.columns)
+        rows_html += f"<tr>{cells}</tr>\n"
+    return f"""
+    <div style="overflow-x:auto; max-height:{max_height}px; overflow-y:auto; border-radius:8px; border:1px solid #e2e8f0;">
+    <table style="width:100%; border-collapse:collapse; font-size:13px; min-width:800px;">
+      <thead style="position:sticky; top:0; z-index:1;">
+        <tr style="background:#f8fafc;">{th_html}</tr>
+      </thead>
+      <tbody>{rows_html}</tbody>
+    </table>
+    </div>
+    <style>
+    table th {{ padding:8px 10px; text-align:left; font-weight:600; color:#475569; border-bottom:2px solid #e2e8f0; white-space:nowrap; }}
+    table td {{ padding:7px 10px; border-bottom:1px solid #f1f5f9; white-space:nowrap; vertical-align:middle; }}
+    table tbody tr:hover {{ background:#f8fafc; }}
+    </style>
+    """
+
+
 def calc_change(current_rate: float, prev_rate: float | None) -> str:
     if prev_rate is None or pd.isna(prev_rate):
         return ""
@@ -1186,24 +1216,8 @@ with rank_col:
 
         queue_show = display_queue_df.apply(_fmt_queue_row, axis=1)
 
-        # 构建列配置：全部强制为 TextColumn，绕过 GDG 类型推断
-        _qcc = {"队列": st.column_config.TextColumn("队列", width="medium")}
-        for _cn in ["质检量", "审核人数", "出错量"]:
-            if _cn in queue_show.columns:
-                _qcc[_cn] = st.column_config.TextColumn(_cn, width="small")
-        for _cn in ["原始正确率", "最终正确率", "错判率", "漏判率", "申诉改判率"]:
-            if _cn in queue_show.columns:
-                _qcc[_cn] = st.column_config.TextColumn(_cn, width="small")
-        if "达标" in queue_show.columns:
-            _qcc["达标"] = st.column_config.TextColumn("达标", width="small")
-
-        st.dataframe(
-            queue_show,
-            use_container_width=True,
-            hide_index=True,
-            height=320,
-            column_config=_qcc,
-        )
+        # 用 HTML 表格彻底绕过 GDG 类型推断（解决数字列显示"d"的问题）
+        st.markdown(_df_to_html_table(queue_show, max_height=340), unsafe_allow_html=True)
     else:
         st.info("暂无队列数据")
 
@@ -1241,23 +1255,8 @@ with auditor_col:
 
         auditor_show = final_auditor_df.apply(_fmt_auditor_row, axis=1)
 
-        # 构建列配置：全部强制为 TextColumn
-        _acc = {"审核人": st.column_config.TextColumn("审核人", width="medium")}
-        for _cn in ["质检量", "错判量", "漏判量"]:
-            _acc[_cn] = st.column_config.TextColumn(_cn, width="small")
-        for _cn in ["原始正确率", "最终正确率", "错判率", "漏判率", "申诉改判率"]:
-            if _cn in auditor_show.columns:
-                _acc[_cn] = st.column_config.TextColumn(_cn, width="small")
-        if "达标" in auditor_show.columns:
-            _acc["达标"] = st.column_config.TextColumn("达标", width="small")
-
-        st.dataframe(
-            auditor_show,
-            use_container_width=True,
-            hide_index=True,
-            height=320,
-            column_config=_acc,
-        )
+        # 用 HTML 表格彻底绕过 GDG 类型推断
+        st.markdown(_df_to_html_table(auditor_show, max_height=340), unsafe_allow_html=True)
     else:
         st.info("暂无审核人数据")
 
