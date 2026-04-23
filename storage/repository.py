@@ -615,12 +615,10 @@ class DashboardRepository:
         SELECT * FROM (
             SELECT
                 '正确' AS result_label,
-                SUM(CASE WHEN COALESCE(is_final_correct, 0) = 1
-                         AND COALESCE(is_misjudge, 0) = 0
+                SUM(CASE WHEN COALESCE(is_misjudge, 0) = 0
                          AND COALESCE(is_missjudge, 0) = 0
                     THEN 1 ELSE 0 END) AS cnt,
-                ROUND(SUM(CASE WHEN COALESCE(is_final_correct, 0) = 1
-                                 AND COALESCE(is_misjudge, 0) = 0
+                ROUND(SUM(CASE WHEN COALESCE(is_misjudge, 0) = 0
                                  AND COALESCE(is_missjudge, 0) = 0
                             THEN 1 ELSE 0 END) * 100.0
                     / NULLIF(({total_sql}), 0), 2) AS pct

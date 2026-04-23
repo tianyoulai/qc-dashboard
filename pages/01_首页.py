@@ -431,6 +431,22 @@ if group_df.empty:
     st.stop()
 
 # 计算环比变化
+def _color_val(val: float, warn_thresh: float, bad_thresh: float, suffix: str = "%", inverse: bool = False) -> str:
+    """将数值格式化为字符串，根据阈值自动标色（用于 st.dataframe TextColumn 模式）。
+    inverse=True 时，越大越好（如申诉改判率）。
+    """
+    text = f"{val:.2f}{suffix}"
+    if inverse:
+        if val > warn_thresh:
+            return f'<span style="color: #dc2626; font-weight: 700;">{text}</span>'
+        return text
+    if val < bad_thresh:
+        return f'<span style="color: #dc2626; font-weight: 700;">{text}</span>'
+    if val < warn_thresh:
+        return f'<span style="color: #d97706; font-weight: 600;">{text}</span>'
+    return text
+
+
 def calc_change(current_rate: float, prev_rate: float | None) -> str:
     if prev_rate is None or pd.isna(prev_rate):
         return ""
@@ -1133,107 +1149,60 @@ with rank_col:
         
         queue_show = pd.DataFrame()
         queue_show["队列"] = display_queue_df["queue_name"]
-        queue_show["质检量"] = display_queue_df["qa_cnt"].astype(int)
         # 审核人数（mart 表有 reviewer_cnt 字段）
-        if "reviewer_cnt" in display_queue_df.columns:
-            queue_show["审核人数"] = display_queue_df["reviewer_cnt"].fillna(0).astype(int)
+        _reviewer_cnt_col = display_queue_df["reviewer_cnt"] if "reviewer_cnt" in display_queue_df.columns else None
         # 出错量：优先 final_error_cnt，否则用 qa_cnt - final_correct_cnt
         if "final_error_cnt" in display_queue_df.columns:
-            queue_show["出错量"] = display_queue_df["final_error_cnt"].fillna(0).astype(int)
+            _error_cnt_col = display_queue_df["final_error_cnt"].fillna(0)
         else:
-            queue_show["出错量"] = (display_queue_df["qa_cnt"] - display_queue_df.get("final_correct_cnt", display_queue_df["qa_cnt"])).fillna(0).astype(int)
-        queue_show["原始正确率"] = display_queue_df["raw_accuracy_rate"]
-        queue_show["最终正确率"] = display_queue_df["final_accuracy_rate"]
-        queue_show["错判率"] = display_queue_df["misjudge_rate"]
-        queue_show["漏判率"] = display_queue_df["missjudge_rate"]
+            _error_cnt_col = (display_queue_df["qa_cnt"] - display_queue_df.get("final_correct_cnt", display_queue_df["qa_cnt"])).fillna(0)
         # 申诉改判率
-        if "appeal_reverse_rate" in display_queue_df.columns:
-            queue_show["申诉改判率"] = display_queue_df["appeal_reverse_rate"].fillna(0)
-        # 达标标记：最终正确率 < 99% 标记为 ⚠️
-        queue_show["达标"] = display_queue_df["final_accuracy_rate"].apply(
-            lambda x: "⚠️ 不达标" if pd.notna(x) and x < 99 else "✅ 达标"
-        )
+        _appeal_col = display_queue_df.get("appeal_reverse_rate")
 
-        # 条件高亮：低于阈值的单元格标红
-        def _highlight_queue(val, col_name):
-            """队列表格条件格式化"""
-            if col_name in ("原始正确率", "最终正确率"):
-                if pd.notna(val) and val < 99:
-                    return "color: #dc2626; font-weight: 700; background-color: #fef2f2"
-                if pd.notna(val) and val < 99.5:
-                    return "color: #d97706; font-weight: 600; background-color: #fffbeb"
-            if col_name == "漏判率":
-                if pd.notna(val) and val > 0.35:
-                    return "color: #dc2626; font-weight: 700; background-color: #fef2f2"
-            if col_name == "错判率":
-                if pd.notna(val) and val > 0.5:
-                    return "color: #d97706; font-weight: 600; background-color: #fffbeb"
-            if col_name == "申诉改判率":
-                if pd.notna(val) and val > 18:
-                    return "color: #dc2626; font-weight: 700; background-color: #fef2f2"
-            return ""
+        # ── 一步到位：全部格式化为带条件的字符串（Styler / GDG 兼容）──
+        def _fmt_queue_row(row):
+            """将一行数据格式化为最终显示字符串，阈值自动标色。"""
+            qa = row["qa_cnt"]
+            rc = row["raw_accuracy_rate"]
+            fc = row["final_accuracy_rate"]
+            mj = row.get("misjudge_rate", 0) or 0
+            msj = row.get("missjudge_rate", 0) or 0
+            ar = _appeal_col.get(row.name) if _appeal_col is not None and hasattr(_appeal_col, 'get') else (_appeal_col.iloc[row.name] if _appeal_col is not None else 0)
+            rcnt = _reviewer_cnt_col.iloc[row.name] if _reviewer_cnt_col is not None else None
+            ec = _error_cnt_col.iloc[row.name] if hasattr(_error_cnt_col, 'iloc') else _error_cnt_col
 
-        styled_queue = queue_show.style
-        # 逐列应用条件高亮
-        for col in ["原始正确率", "最终正确率", "漏判率", "错判率", "申诉改判率"]:
-            if col in queue_show.columns:
-                styled_queue = styled_queue.map(
-                    lambda val, c=col: _highlight_queue(val, c), subset=[col]
-                )
+            return pd.Series({
+                "队列": str(row["queue_name"]),
+                "质检量": f"{int(qa):,}",
+                "审核人数": f"{int(rcnt):,}" if rcnt is not None and pd.notna(rcnt) else "—",
+                "出错量": f"{int(ec):,}" if pd.notna(ec) else "—",
+                "原始正确率": _color_val(float(rc), 99.5, 99),
+                "最终正确率": _color_val(float(fc), 99.5, 99),
+                "错判率": _color_val(float(mj), 0.5, 0.3),
+                "漏判率": _color_val(float(msj), 0.35, 0.2),
+                "申诉改判率": _color_val(float(ar) if pd.notna(ar) else 0, 18, 999, inverse=True) if pd.notna(ar) else "—",
+                "达标": "⚠️ 不达标" if pd.notna(fc) and fc < 99 else "✅ 达标",
+            })
 
-        # 达标列颜色
+        queue_show = display_queue_df.apply(_fmt_queue_row, axis=1)
+
+        # 构建列配置：全部强制为 TextColumn，绕过 GDG 类型推断
+        _qcc = {"队列": st.column_config.TextColumn("队列", width="medium")}
+        for _cn in ["质检量", "审核人数", "出错量"]:
+            if _cn in queue_show.columns:
+                _qcc[_cn] = st.column_config.TextColumn(_cn, width="small")
+        for _cn in ["原始正确率", "最终正确率", "错判率", "漏判率", "申诉改判率"]:
+            if _cn in queue_show.columns:
+                _qcc[_cn] = st.column_config.TextColumn(_cn, width="small")
         if "达标" in queue_show.columns:
-            styled_queue = styled_queue.map(
-                lambda val: "color: #dc2626; font-weight: 700" if "不达标" in str(val) else "color: #16a34a",
-                subset=["达标"]
-            )
-
-        # ── 预格式化所有数值列为字符串（绕过 Glide Data Grid 类型推断）──
-        _qfmt = {
-            "质检量": lambda v: f"{int(v):,}" if pd.notna(v) else "—",
-            "审核人数": lambda v: f"{int(v):,}" if pd.notna(v) else "—",
-            "出错量": lambda v: f"{int(v):,}" if pd.notna(v) else "—",
-            "原始正确率": lambda v: f"{float(v):.2f}%" if pd.notna(v) else "—",
-            "最终正确率": lambda v: f"{float(v):.2f}%" if pd.notna(v) else "—",
-            "错判率": lambda v: f"{float(v):.2f}%" if pd.notna(v) else "—",
-            "漏判率": lambda v: f"{float(v):.2f}%" if pd.notna(v) else "—",
-            "申诉改判率": lambda v: f"{float(v):.2f}%" if pd.notna(v) else "—",
-        }
-        for _col, _fn in _qfmt.items():
-            if _col in queue_show.columns:
-                queue_show[_col] = queue_show[_col].apply(_fn)
-
-        # 对已格式化的字符串 DataFrame 应用高亮
-        _str_highlight_map = {
-            "最终正确率": lambda v: ("color: #dc2626; font-weight: 700; background-color: #fef2f2"
-                              if "⚠️" not in str(v) and float(str(v).replace('%','')) < 99 else ""),
-            "原始正确率": lambda v: ("color: #dc2626; font-weight: 700; background-color: #fef2f2"
-                              if "⚠️" not in str(v) and float(str(v).replace('%','')) < 99 else ""),
-            "漏判率": lambda v: "color: #dc2626; font-weight: 700; background-color: #fef2f2"
-                           if pd.notna(v) and float(str(v).replace('%','')) > 0.35 else "",
-            "错判率": lambda v: "color: #d97706; font-weight: 600; background-color: #fffbeb"
-                           if pd.notna(v) and float(str(v).replace('%','')) > 0.5 else "",
-            "申诉改判率": lambda v: "color: #dc2626; font-weight: 700; background-color: #fef2f2"
-                                if pd.notna(v) and float(str(v).replace('%','')) > 18 else "",
-        }
-        styled_queue = queue_show.style
-        for _col, _fn in _str_highlight_map.items():
-            if _col in queue_show.columns:
-                try:
-                    styled_queue = styled_queue.map(_fn, subset=[_col])
-                except (ValueError, TypeError):
-                    pass
-        if "达标" in queue_show.columns:
-            styled_queue = styled_queue.map(
-                lambda val: "color: #dc2626; font-weight: 700" if "不达标" in str(val) else "color: #16a34a",
-                subset=["达标"]
-            )
+            _qcc["达标"] = st.column_config.TextColumn("达标", width="small")
 
         st.dataframe(
-            styled_queue,
+            queue_show,
             use_container_width=True,
             hide_index=True,
             height=320,
+            column_config=_qcc,
         )
     else:
         st.info("暂无队列数据")
@@ -1244,112 +1213,50 @@ with auditor_col:
         # 添加提示信息
         st.caption(f"共 {len(final_auditor_df)} 位审核人，按最终正确率升序排列（需关注的审核人优先展示）")
         
-        auditor_show = pd.DataFrame()
-        auditor_show["审核人"] = final_auditor_df["reviewer_name"]
-        auditor_show["质检量"] = final_auditor_df["qa_cnt"]
-        auditor_show["错判量"] = final_auditor_df["misjudge_cnt"]
-        auditor_show["漏判量"] = final_auditor_df["missjudge_cnt"]
-        auditor_show["原始正确率"] = final_auditor_df["raw_accuracy_rate"]
-        auditor_show["最终正确率"] = final_auditor_df["final_accuracy_rate"]
-        auditor_show["错判率"] = final_auditor_df["misjudge_rate"]
-        auditor_show["漏判率"] = final_auditor_df["missjudge_rate"]
-        # 申诉改判率
-        if "appeal_reverse_rate" in final_auditor_df.columns:
-            auditor_show["申诉改判率"] = final_auditor_df["appeal_reverse_rate"].fillna(0)
-        # 达标标记
-        auditor_show["达标"] = final_auditor_df["final_accuracy_rate"].apply(
-            lambda x: "⚠️ 不达标" if pd.notna(x) and x < 99 else "✅ 达标"
-        )
+        # ── 一步到位：全部格式化为带条件的字符串（Styler / GDG 兼容）──
+        _auditor_appeal_col = final_auditor_df.get("appeal_reverse_rate")
 
-        # 条件高亮：审核人视图
-        def _highlight_auditor(val, col_name):
-            """审核人表格条件格式化"""
-            if col_name in ("原始正确率", "最终正确率"):
-                if pd.notna(val) and val < 99:
-                    return "color: #dc2626; font-weight: 700; background-color: #fef2f2"
-                if pd.notna(val) and val < 99.5:
-                    return "color: #d97706; font-weight: 600; background-color: #fffbeb"
-            if col_name == "漏判率":
-                if pd.notna(val) and val > 0.35:
-                    return "color: #dc2626; font-weight: 700; background-color: #fef2f2"
-            if col_name == "错判率":
-                if pd.notna(val) and val > 0.5:
-                    return "color: #d97706; font-weight: 600; background-color: #fffbeb"
-            if col_name == "申诉改判率":
-                if pd.notna(val) and val > 18:
-                    return "color: #dc2626; font-weight: 700; background-color: #fef2f2"
-            return ""
+        def _fmt_auditor_row(row):
+            qa = row["qa_cnt"]
+            mj_cnt = row.get("misjudge_cnt", 0) or 0
+            msj_cnt = row.get("missjudge_cnt", 0) or 0
+            rc = row["raw_accuracy_rate"]
+            fc = row["final_accuracy_rate"]
+            mj_rate = row.get("misjudge_rate", 0) or 0
+            msj_rate = row.get("missjudge_rate", 0) or 0
+            ar = _auditor_appeal_col.iloc[row.name] if _auditor_appeal_col is not None else 0
 
-        styled_auditor = auditor_show.style
-        for col in ["原始正确率", "最终正确率", "漏判率", "错判率", "申诉改判率"]:
-            if col in auditor_show.columns:
-                styled_auditor = styled_auditor.map(
-                    lambda val, c=col: _highlight_auditor(val, c), subset=[col]
-                )
-        # 达标列颜色
+            return pd.Series({
+                "审核人": str(row["reviewer_name"]),
+                "质检量": f"{int(qa):,}",
+                "错判量": f"{int(mj_cnt):,}" if pd.notna(mj_cnt) else "—",
+                "漏判量": f"{int(msj_cnt):,}" if pd.notna(msj_cnt) else "—",
+                "原始正确率": _color_val(float(rc), 99.5, 99),
+                "最终正确率": _color_val(float(fc), 99.5, 99),
+                "错判率": _color_val(float(mj_rate), 0.5, 0.3),
+                "漏判率": _color_val(float(msj_rate), 0.35, 0.2),
+                "申诉改判率": _color_val(float(ar) if pd.notna(ar) else 0, 18, 999, inverse=True) if pd.notna(ar) else "—",
+                "达标": "⚠️ 不达标" if pd.notna(fc) and fc < 99 else "✅ 达标",
+            })
+
+        auditor_show = final_auditor_df.apply(_fmt_auditor_row, axis=1)
+
+        # 构建列配置：全部强制为 TextColumn
+        _acc = {"审核人": st.column_config.TextColumn("审核人", width="medium")}
+        for _cn in ["质检量", "错判量", "漏判量"]:
+            _acc[_cn] = st.column_config.TextColumn(_cn, width="small")
+        for _cn in ["原始正确率", "最终正确率", "错判率", "漏判率", "申诉改判率"]:
+            if _cn in auditor_show.columns:
+                _acc[_cn] = st.column_config.TextColumn(_cn, width="small")
         if "达标" in auditor_show.columns:
-            styled_auditor = styled_auditor.map(
-                lambda val: "color: #dc2626; font-weight: 700" if "不达标" in str(val) else "color: #16a34a",
-                subset=["达标"]
-            )
-
-        # ── 预格式化所有数值列为字符串（同上，绕过 GDG 类型推断）──
-        _afmt = {
-            "质检量": lambda v: f"{int(v):,}" if pd.notna(v) else "—",
-            "错判量": lambda v: f"{int(v):,}" if pd.notna(v) else "—",
-            "漏判量": lambda v: f"{int(v):,}" if pd.notna(v) else "—",
-            "原始正确率": lambda v: f"{float(v):.2f}%" if pd.notna(v) else "—",
-            "最终正确率": lambda v: f"{float(v):.2f}%" if pd.notna(v) else "—",
-            "错判率": lambda v: f"{float(v):.2f}%" if pd.notna(v) else "—",
-            "漏判率": lambda v: f"{float(v):.2f}%" if pd.notna(v) else "—",
-            "申诉改判率": lambda v: f"{float(v):.2f}%" if pd.notna(v) else "—",
-        }
-        for _col, _fn in _afmt.items():
-            if _col in auditor_show.columns:
-                auditor_show[_col] = auditor_show[_col].apply(_fn)
-
-        # 对已格式化的字符串 DataFrame 应用高亮
-        styled_auditor = auditor_show.style
-        for _col in ["原始正确率", "最终正确率"]:
-            if _col in auditor_show.columns:
-                try:
-                    styled_auditor = styled_auditor.map(
-                        lambda v: ("color: #dc2626; font-weight: 700; background-color: #fef2f2"
-                                  if "⚠️" not in str(v) and float(str(v).replace('%','')) < 99 else ""),
-                        subset=[_col]
-                    )
-                except (ValueError, TypeError):
-                    pass
-        for _col, _thresh in [("漏判率", 0.35), ("错判率", 0.5)]:
-            if _col in auditor_show.columns:
-                try:
-                    styled_auditor = styled_auditor.map(
-                        lambda v, t=_thresh: ("color: #dc2626; font-weight: 700; background-color: #fef2f2"
-                                        if pd.notna(v) and float(str(v).replace('%','')) > t else ""),
-                        subset=[_col]
-                    )
-                except (ValueError, TypeError):
-                    pass
-        if "申诉改判率" in auditor_show.columns:
-            try:
-                styled_auditor = styled_auditor.map(
-                    lambda v: "color: #dc2626; font-weight: 700; background-color: #fef2f2"
-                             if pd.notna(v) and float(str(v).replace('%','')) > 18 else "",
-                    subset=["申诉改判率"]
-                )
-            except (ValueError, TypeError):
-                pass
-        if "达标" in auditor_show.columns:
-            styled_auditor = styled_auditor.map(
-                lambda val: "color: #dc2626; font-weight: 700" if "不达标" in str(val) else "color: #16a34a",
-                subset=["达标"]
-            )
+            _acc["达标"] = st.column_config.TextColumn("达标", width="small")
 
         st.dataframe(
-            styled_auditor,
+            auditor_show,
             use_container_width=True,
             hide_index=True,
             height=320,
+            column_config=_acc,
         )
     else:
         st.info("暂无审核人数据")
