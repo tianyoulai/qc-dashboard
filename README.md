@@ -2,6 +2,14 @@
 
 > **一句话说明**：把散落在 6 个企业微信文档里的质检数据，自动汇聚到一个可视化看板上。
 
+## 项目身份（2026-04-17 校准）
+
+- **当前线上地址**：`https://f4qv5p8uuurnb369isiudq.streamlit.app/`
+- **项目定位**：这是 **TAO 看板** 当前本地项目。
+- **本地定时任务**：`com.qc-dashboard.daily-push`（09:15 推送）、`com.qc-dashboard.auto-refresh`（18:25 刷新）
+- **易混淆的兄弟项目**：评论质量看板在 `/Users/laitianyou/WorkBuddy/20260326191218/`，线上地址是 `https://quality-dashboard-2026.streamlit.app/`
+- **特别说明**：本目录内的 `jobs/daily_report.py`、`scripts/push_comment.py`、`config/report_pmt.md` 属于评论质量日报残留文件，**不属于 TAO 的日常 push / refresh 任务链**。
+
 ---
 
 ## 🎯 这是什么？
@@ -104,7 +112,7 @@ open dashboard/index.html        # macOS
 └─────────────┘    └──────────────────┘    └──────────────┘
 ```
 
-如果设置了定时任务，第 1 步可以省略——每天早上 9 点自动执行。
+如果设置了定时任务，第 1 步可以省略——**每天 18:25 自动刷新数据，次日 09:15 独立推送日报**。
 
 ### 常用命令速查
 
@@ -114,6 +122,7 @@ open dashboard/index.html        # macOS
 | `python3 src/collector.py fetch` | 通过 wecom-cli API 自动拉取所有队列数据 |
 | `python3 src/collector.py fetch --queue q6_shangqiang` | 只拉取某个队列 |
 | `python3 src/collector.py import` | 从 Excel 导入数据（备选方案） |
+| `python3 src/collector.py live-sync --queue q3_erjian_4qi_gt` | 直读企微网页内置计算结果，适合 q3/q3b 这类公式队列兜底 |
 | `python3 src/collector.py status` | 查看各队列数据状态 + wecom-cli 连通性 |
 | `python3 src/collector.py export-json` | 导出全部数据为 JSON |
 | `python3 src/collector.py export-html` | 导出带数据的独立 HTML 文件 |
@@ -172,11 +181,13 @@ queues:
 运行安装脚本时会提示你是否设置定时任务。
 也可以手动添加：
 ```bash
-# macOS
+# macOS / Linux（仅手动维护时使用；当前默认推荐 launchd）
 crontab -e
-# 加入这行（每天 9 点执行）:
-0 9 * * * cd /你的路径/qc-dashboard && python3 src/collector.py fetch >> data/cron.log 2>&1
+# 加入这行（每天 18:25 刷新数据）:
+25 18 * * * cd /你的路径/qc-dashboard && python3 src/collector.py fetch >> data/cron.log 2>&1
 ```
+
+> 当前 TAO 默认调度口径：**18:25 刷新数据，次日 09:15 独立推送日报**。
 
 ### Q: 数据安全吗？
 ✅ 所有数据保存在你本地电脑的 SQLite 文件中  

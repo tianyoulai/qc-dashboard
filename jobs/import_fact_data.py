@@ -142,6 +142,8 @@ QA_INSERT_COLUMNS = [
     "scene_name",
     "channel_name",
     "content_type",
+    "inspect_type",
+    "workforce_type",
     "reviewer_name",
     "qa_owner_name",
     "trainer_name",
@@ -210,6 +212,8 @@ QA_COLUMN_ALIASES = {
     "scene_name": ["场景", "场景名"],
     "channel_name": ["渠道", "渠道名"],
     "content_type": ["内容类型", "内容体裁"],
+    "inspect_type": ["检查类型", "质检类型", "检验类型"],
+    "workforce_type": ["用工类型", "人员类型", "员工类型"],
     "reviewer_name": ["审核人", "审核员", "reviewer", "审核账号", "一审员", "一审人员", "原始答案.operatorName", "operatorName"],
     "qa_owner_name": ["质检人", "质检员", "qa负责人", "qaowner", "抽检人"],
     "trainer_name": ["培训负责人", "培训人", "trainer"],
@@ -483,6 +487,31 @@ def prepare_qa_frame(raw_df: pd.DataFrame, source_file_name: str, batch_id: str,
     queue_name = coalesce_series(clean_text(mapped["queue_name"]), clean_text(mapped["sub_biz"]))
     reviewer_name = clean_text(mapped["reviewer_name"])
     qa_owner_name = clean_text(mapped["qa_owner_name"])
+
+    # ── inspect_type / workforce_type 自动推断 ──
+    # 规则（与 QC 看板4模块分类体系一致）：
+    #   inspect_type: qa_owner_name 含"内部团队"前缀或在短名列表 → internal，否则 external
+    #   workforce_type: queue_name 含"10816"→新人, 含"18365"→复培
+    #                  其余按 inspect_type 分：internal→正式, external→外检
+    INTERNAL_OWNER_NAMES = {"邓生位", "刘玉虹", "刘东旭", "张玺", "v_shgwedeng"}
+    _owner_text = clean_text(mapped["qa_owner_name"]).fillna("").str.strip()
+    _is_internal = (
+        _owner_text.str.contains("内部团队", na=False, case=False) |
+        _owner_text.isin(INTERNAL_OWNER_NAMES)
+    )
+    inspect_type = pd.Series("external", index=index, dtype="string")
+    inspect_type = inspect_type.mask(_is_internal, "internal")
+    # 如果数据里有显式字段，优先用
+    inspect_type = coalesce_series(clean_text(mapped["inspect_type"]), inspect_type, dtype="string")
+
+    _queue_text = clean_text(mapped["queue_name"]).fillna("").str.strip()
+    workforce_type = pd.Series("正式", index=index, dtype="string")
+    workforce_type = workforce_type.mask(_is_internal, "正式")  # 内部团队默认正式
+    workforce_type = workforce_type.mask(_queue_text.str.contains("10816", na=False), "新人")
+    workforce_type = workforce_type.mask(_queue_text.str.contains("18365", na=False), "复培")
+    workforce_type = workforce_type.mask(~_is_internal & ~(_queue_text.str.contains("10816|18365", na=False)), "外检")
+    workforce_type = coalesce_series(clean_text(mapped["workforce_type"]), workforce_type, dtype="string")
+
     raw_judgement = clean_text(mapped["raw_judgement"])
     final_judgement = clean_text(mapped["final_judgement"])
     qa_result = clean_text(mapped["qa_result"])
@@ -544,6 +573,8 @@ def prepare_qa_frame(raw_df: pd.DataFrame, source_file_name: str, batch_id: str,
             "scene_name": clean_text(mapped["scene_name"]),
             "channel_name": clean_text(mapped["channel_name"]),
             "content_type": clean_text(mapped["content_type"]),
+            "inspect_type": inspect_type,
+            "workforce_type": workforce_type,
             "reviewer_name": reviewer_name,
             "qa_owner_name": qa_owner_name,
             "trainer_name": clean_text(mapped["trainer_name"]),

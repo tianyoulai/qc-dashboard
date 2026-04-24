@@ -1,13 +1,16 @@
-"""新人追踪页：批次管理 + 成员列表 + 个人追踪（近80条错误明细）。
+"""新人追踪页：批次上传 + 批次管理 + 成员列表 + 个人追踪（近80条错误明细）。
 
 数据来源：
 - 新人名单：vw_qa_base WHERE workforce_type = '新人'（或 queue_name 含 10816）
 - 个人指标：从 vw_qa_base 聚合计算
 - 错误明细：is_final_correct = 0 或 is_raw_correct = 0 的原始记录
+- 上传名单：本地 data/newcomers.json 持久化（支持 xlsx 上传匹配）
 """
 from __future__ import annotations
 
+import json
 from datetime import date, timedelta
+from pathlib import Path
 
 import pandas as pd
 import plotly.express as px
@@ -27,6 +30,135 @@ if _os.path.exists(_css_path):
 
 service = DashboardService()
 repo = DashboardRepository()
+
+# ==================== 新人名单本地存储路径 ====================
+_NEWCOMER_FILE = Path(__file__).resolve().parents[1] / "data" / "newcomers.json"
+
+
+def load_stored_newcomers() -> list[dict]:
+    """加载已存储的新人名单"""
+    if _NEWCOMER_FILE.exists():
+        try:
+            return json.loads(_NEWCOMER_FILE.read_text(encoding="utf-8"))
+        except Exception:
+            return []
+    return []
+
+
+def save_newcomers(records: list[dict]) -> None:
+    """保存新人名单到本地 JSON"""
+    _NEWCOMER_FILE.parent.mkdir(parents=True, exist_ok=True)
+    _NEWCOMER_FILE.write_text(json.dumps(records, ensure_ascii=False, indent=2), encoding="utf-8")
+
+
+# ==================== 新人批次上传区域 ====================
+def render_batch_upload():
+    """渲染新人批次上传区域"""
+    st.markdown("#### 📤 新人批次上传")
+    st.caption("上传包含「人员名称」+「批次」列的 Excel 文件，系统自动识别并纳入新人追踪")
+
+    uploaded = st.file_uploader(
+        "选择新人名单文件（.xlsx / .xls）",
+        type=["xlsx", "xls"],
+        key="newcomer_uploader",
+        help="需包含「人员名称」和「批次」两列，支持多个批次混合",
+    )
+
+    if not uploaded:
+        # 显示已有数据概况
+        existing = load_stored_newcomers()
+        if existing:
+            batches = {}
+            for r in existing:
+                b = r.get("batch_raw", "未知")
+                batches[b] = batches.get(b, 0) + 1
+            b_summary = ", ".join([f"{k}({v}人)" for k, v in sorted(batches.items())])
+            st.info(f"📋 已有 **{len(existing)}** 人名单 — {b_summary}")
+        return
+
+    try:
+        df_raw = pd.read_excel(uploaded)
+    except Exception as e:
+        st.error(f"❌ 文件读取失败：{e}")
+        return
+
+    # 列名自动识别（兼容多种命名）
+    col_map = {}
+    for c in df_raw.columns:
+        cs = str(c).strip()
+        if "姓名" in cs or "人员" in cs or "名称" in cs or cs == "reviewer_name":
+            col_map["name"] = c
+        elif "批次" in cs or "batch" in cs.lower() or cs == "batch":
+            col_map["batch"] = c
+
+    if "name" not in col_map or "batch" not in col_map:
+        st.markdown(f"""
+        <div class="alert-box warning">
+        ⚠️ 未识别到标准列名。检测到的列：<code>{', '.join(df_raw.columns.tolist())}</code><br>
+        请确保文件包含「人员名称」（或 姓名/ reviewer_name）和「批次」（或 batch）两列。
+        </div>
+        """, unsafe_allow_html=True)
+        with st.expander("📄 原始数据预览", expanded=False):
+            st.dataframe(df_raw.head(10), use_container_width=True)
+        return
+
+    # 构建标准化记录
+    records = []
+    for _, row in df_raw.iterrows():
+        name = str(row[col_map["name"]]).strip()
+        batch_raw = str(row[col_map["batch"])].strip()
+        if not name or name.lower() == "nan":
+            continue
+        records.append({
+            "reviewer_name": name,
+            "batch_raw": batch_raw,
+            "workforce_type": "新人",
+            "is_practice_sample": 0,
+            "uploaded_at": date.today().isoformat(),
+        })
+
+    if not records:
+        st.error("❌ 文件中没有有效的数据行")
+        return
+
+    # 预览
+    prev_df = pd.DataFrame(records)
+    batch_counts = prev_df["batch_raw"].value_counts()
+
+    col_prev, col_btn = st.columns([3, 1])
+    with col_prev:
+        st.markdown(f"""<div class="alert-box info">📋 识别到 **{len(records)}** 人，
+            **{len(batch_counts)}** 个批次</div>""", unsafe_allow_html=True)
+        st.dataframe(
+            prev_df[["reviewer_name", "batch_raw", "workforce_type"]],
+            use_container_width=True, hide_index=True,
+            height=min(200, 28 * len(prev_df) + 40),
+        )
+
+    with col_btn:
+        st.markdown("<br>", unsafe_allow_html=True)
+        if st.button("✅ 确认导入", key="btn_import_newcomers", type="primary", use_container_width=True):
+            # 合并去重（基于 reviewer_name + batch）
+            existing = load_stored_newcomers()
+            existing_keys = {(r["reviewer_name"], r.get("batch_raw", "")) for r in existing}
+            new_records = [r for r in records if (r["reviewer_name"], r["batch_raw"]) not in existing_keys]
+            dup_count = len(records) - len(new_records)
+
+            all_records = existing + new_records
+            save_newcomers(all_records)
+
+            if new_records:
+                st.success(f"✅ 导入成功！新增 **{len(new_records)}** 人{f'，跳过重复 {dup_count} 人' if dup_count else ''}")
+                st.rerun()
+            else:
+                st.warning(f"⚠️ 全部 {len(records)} 人均为重复，未新增。当前共 {len(existing)} 人。")
+
+        # 清空操作
+        if st.button("🗑️ 清空名单", key="btn_clear_newcomers", use_container_width=True):
+            if _NEWCOMER_FILE.exists():
+                _NEWCOMER_FILE.unlink()
+            st.success("🗑️ 已清空新人名单")
+            st.rerun()
 
 # ==================== 共享工具函数（不依赖首页） ====================
 
@@ -86,18 +218,22 @@ def get_newcomer_batches(grain: str, anchor_date: date) -> pd.DataFrame:
 def get_newcomer_person_detail(
     grain: str, anchor_date: date, reviewer_name: str, batch_queue: str | None = None,
 ) -> dict:
-    """获取单个新人的详细指标 + 近80条错误明细"""
+    """获取单个新人的详细指标 + 近80条错误明细
+
+    汇总指标：受 grain + anchor_date 限制（看特定时间窗口表现）
+    错误明细：不受 grain 日期限制，查该审核人全部历史错误（新人数据量少、分布散）
+    """
     grain_column = repo._grain_column(grain)
-    conditions = [f"{grain_column} = %s", "reviewer_name = %s"]
-    params: list = [anchor_date, reviewer_name]
+    summary_conditions = [f"{grain_column} = %s", "reviewer_name = %s"]
+    summary_params: list = [anchor_date, reviewer_name]
 
     if batch_queue:
-        conditions.append("queue_name = %s")
-        params.append(batch_queue)
+        summary_conditions.append("queue_name = %s")
+        summary_params.append(batch_queue)
 
-    where_sql = " AND ".join(conditions)
+    summary_where_sql = " AND ".join(summary_conditions)
 
-    # ---- 汇总指标 ----
+    # ---- 汇总指标（受 grain 日期限制）----
     summary_sql = f"""
     SELECT
         reviewer_name,
@@ -114,12 +250,21 @@ def get_newcomer_person_detail(
         MIN(biz_date) AS first_qa_date,
         MAX(biz_date) AS last_qa_date
     FROM vw_qa_base
-    WHERE {where_sql}
+    WHERE {summary_where_sql}
     GROUP BY reviewer_name, queue_name
     """
-    summary_df = repo.fetch_df(summary_sql, params)
+    summary_df = repo.fetch_df(summary_sql, summary_params)
 
-    # ---- 近80条错误明细 ----
+    # ---- 近80条错误明细（不受 grain 日期限制，查全部历史）----
+    error_conditions = ["reviewer_name = %s"]
+    error_params: list = [reviewer_name]
+    if batch_queue:
+        error_conditions.append("queue_name = %s")
+        error_params.append(batch_queue)
+    # 新人限定条件
+    error_conditions.append("(queue_name LIKE '%%10816%%' OR workforce_type = '新人')")
+    error_where_sql = " AND ".join(error_conditions)
+
     error_sql = f"""
     SELECT
         biz_date,
@@ -135,12 +280,12 @@ def get_newcomer_person_detail(
         END AS judge_error_type,
         comment_text
     FROM vw_qa_base
-    WHERE {where_sql}
+    WHERE {error_where_sql}
       AND (COALESCE(is_final_correct, 0) = 0 OR COALESCE(is_misjudge, 0) = 1 OR COALESCE(is_missjudge, 0) = 1)
     ORDER BY biz_date DESC
     LIMIT 80
     """
-    error_df = repo.fetch_df(error_sql, params)
+    error_df = repo.fetch_df(error_sql, error_params)
 
     return {"summary": summary_df, "error_detail": error_df}
 
@@ -148,6 +293,9 @@ def get_newcomer_person_detail(
 # ==================== 页面主体 ====================
 st.markdown("# 👤 新人追踪")
 st.caption("新人质检表现监控 · 个人下探到错误样本")
+
+# ── 新人批次上传区域（置顶）──
+render_batch_upload()
 
 # 日期选择
 _grain_options = {"日监控": "day", "周复盘": "week", "月管理": "month"}

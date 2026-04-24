@@ -14,24 +14,41 @@ from storage.repository import DashboardRepository
 
 st.set_page_config(page_title="质培运营看板-数据总览", page_icon="📈", layout="wide")
 
-# 全局CSS样式优化
-st.markdown("""
-<style>
-    .main > div { padding-top: 1rem; }
-    .stDataFrame { 
-        border-radius: 0.75rem; 
-        overflow: hidden; 
-        border: 1px solid #E5E7EB;
-        box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-    }
-    .block-container { padding-top: 2rem; padding-bottom: 2rem; }
-    h1 { margin-bottom: 0.5rem; }
-    h3 { margin-top: 1.5rem; margin-bottom: 1rem; }
-    hr { margin: 1.5rem 0; border-color: #E5E7EB; }
-</style>
-""", unsafe_allow_html=True)
+# ── 加载统一 CSS ──
+import os as _os
+_css_path = _os.path.join(_os.path.dirname(_os.path.dirname(_os.path.abspath(__file__))), "custom.css")
+if _os.path.exists(_css_path):
+    with open(_css_path, "r", encoding="utf-8") as _f:
+        _CSS = _f.read()
+    st.markdown(f'<style>{_CSS}</style>', unsafe_allow_html=True)
+
 
 repo = DashboardRepository()
+
+# ── 粒度配置 ──
+GRAIN_CONFIG = {
+    "day": {
+        "label": "📅 日维度",
+        "table": "mart_day_group",
+        "date_col": "biz_date",
+        "start_key": "day_start",
+        "end_key": "day_end",
+    },
+    "week": {
+        "label": "📆 周维度",
+        "table": "mart_week_group",
+        "date_col": "week_begin_date",
+        "start_key": "week_start",
+        "end_key": "week_end",
+    },
+    "month": {
+        "label": "🗓️ 月维度",
+        "table": "mart_month_group",
+        "date_col": "month_begin_date",
+        "start_key": "month_start",
+        "end_key": "month_end",
+    },
+}
 
 
 @st.cache_data(show_spinner=False, ttl=300)
@@ -49,301 +66,260 @@ def get_date_range() -> tuple[date, date]:
 
 
 @st.cache_data(show_spinner=False, ttl=300)
-def load_all_group_daily() -> pd.DataFrame:
-    return repo.fetch_df("SELECT * FROM mart_day_group ORDER BY biz_date, group_name")
+def load_group_data(grain: str) -> pd.DataFrame:
+    cfg = GRAIN_CONFIG[grain]
+    return repo.fetch_df(f"SELECT * FROM {cfg['table']} ORDER BY {cfg['date_col']}, group_name")
 
 
-@st.cache_data(show_spinner=False, ttl=300)
-def load_all_group_weekly() -> pd.DataFrame:
-    return repo.fetch_df("SELECT * FROM mart_week_group ORDER BY week_begin_date, group_name")
+# ── 公共函数 ──
+
+def calc_group_ranking(df: pd.DataFrame) -> pd.DataFrame:
+    """计算全量组别加权排名"""
+    if df.empty:
+        return pd.DataFrame()
+    group_agg = df.groupby("group_name").agg(qa_cnt=("qa_cnt", "sum")).reset_index()
+    for grp in group_agg["group_name"]:
+        grp_data = df[df["group_name"] == grp]
+        total_qa = grp_data["qa_cnt"].sum()
+        group_agg.loc[group_agg["group_name"] == grp, "raw_accuracy_rate"] = (
+            (grp_data["raw_accuracy_rate"] * grp_data["qa_cnt"]).sum() / total_qa
+        )
+        group_agg.loc[group_agg["group_name"] == grp, "final_accuracy_rate"] = (
+            (grp_data["final_accuracy_rate"] * grp_data["qa_cnt"]).sum() / total_qa
+        )
+        # 加权错判率、漏判率、申诉改判率
+        for rate_col in ("misjudge_rate", "missjudge_rate", "appeal_reverse_rate"):
+            if rate_col in grp_data.columns:
+                group_agg.loc[group_agg["group_name"] == grp, rate_col] = (
+                    (grp_data[rate_col].fillna(0) * grp_data["qa_cnt"]).sum() / total_qa
+                )
+    return group_agg.sort_values("final_accuracy_rate", ascending=False)
 
 
-@st.cache_data(show_spinner=False, ttl=300)
-def load_all_group_monthly() -> pd.DataFrame:
-    return repo.fetch_df("SELECT * FROM mart_month_group ORDER BY month_begin_date, group_name")
+def render_ranking_table(group_agg: pd.DataFrame):
+    """渲染组别排名表（含条件高亮，为监控数据问题服务）"""
+    group_show = pd.DataFrame()
+    group_show["组别"] = group_agg["group_name"]
+    group_show["总质检量"] = group_agg["qa_cnt"].fillna(0).astype(int)
+    group_show["原始正确率"] = group_agg["raw_accuracy_rate"]
+    group_show["最终正确率"] = group_agg["final_accuracy_rate"]
+    # 错判率、漏判率
+    if "misjudge_rate" in group_agg.columns:
+        group_show["错判率"] = group_agg["misjudge_rate"].fillna(0)
+    if "missjudge_rate" in group_agg.columns:
+        group_show["漏判率"] = group_agg["missjudge_rate"].fillna(0)
+    # 申诉改判率
+    if "appeal_reverse_rate" in group_agg.columns:
+        group_show["申诉改判率"] = group_agg["appeal_reverse_rate"].fillna(0)
+    # 达标标记
+    group_show["达标"] = group_agg["final_accuracy_rate"].apply(
+        lambda x: "⚠️ 不达标" if pd.notna(x) and x < 99 else "✅ 达标"
+    )
 
+    # 条件高亮
+    def _highlight_group(val, col_name):
+        if col_name in ("原始正确率", "最终正确率"):
+            if pd.notna(val) and val < 99:
+                return "color: #dc2626; font-weight: 700; background-color: #fef2f2"
+            if pd.notna(val) and val < 99.5:
+                return "color: #d97706; font-weight: 600; background-color: #fffbeb"
+        if col_name == "漏判率":
+            if pd.notna(val) and val > 0.35:
+                return "color: #dc2626; font-weight: 700; background-color: #fef2f2"
+        if col_name == "错判率":
+            if pd.notna(val) and val > 0.5:
+                return "color: #d97706; font-weight: 600; background-color: #fffbeb"
+        if col_name == "申诉改判率":
+            if pd.notna(val) and val > 18:
+                return "color: #dc2626; font-weight: 700; background-color: #fef2f2"
+        return ""
+
+    styled = group_show.style
+    for col in ["原始正确率", "最终正确率", "漏判率", "错判率", "申诉改判率"]:
+        if col in group_show.columns:
+            styled = styled.map(
+                lambda val, c=col: _highlight_group(val, c), subset=[col]
+            )
+    # 达标列颜色
+    if "达标" in group_show.columns:
+        styled = styled.map(
+            lambda val: "color: #dc2626; font-weight: 700" if "不达标" in str(val) else "color: #16a34a",
+            subset=["达标"]
+        )
+
+    st.dataframe(
+        styled,
+        use_container_width=True,
+        hide_index=True,
+        column_config={
+            "组别": st.column_config.TextColumn("组别", width="medium"),
+            "总质检量": st.column_config.NumberColumn("总质检量", width="small", format="%,d"),
+            "原始正确率": st.column_config.NumberColumn("原始正确率", width="small", format="%.2f%%"),
+            "最终正确率": st.column_config.NumberColumn("最终正确率", width="small", format="%.2f%%"),
+            "错判率": st.column_config.NumberColumn("错判率", width="small", format="%.2f%%"),
+            "漏判率": st.column_config.NumberColumn("漏判率", width="small", format="%.2f%%"),
+            "申诉改判率": st.column_config.NumberColumn("申诉改判率", width="small", format="%.2f%%"),
+            "达标": st.column_config.TextColumn("达标", width="small"),
+        }
+    )
+
+
+def render_trend_chart(df: pd.DataFrame, grain: str, sel_group: str):
+    """渲染组别趋势图"""
+    cfg = GRAIN_CONFIG[grain]
+    trend = df[df["group_name"] == sel_group].sort_values(cfg["date_col"])
+    if trend.empty:
+        st.info("该组别暂无趋势数据")
+        return
+
+    fig = go.Figure()
+    fig.add_trace(go.Scatter(
+        x=trend[cfg["date_col"]], y=trend["final_accuracy_rate"],
+        mode="lines+markers", name="最终正确率",
+        line=dict(color="#3b82f6", width=3), marker=dict(size=8),
+        text=[f"{v:.2f}%" for v in trend["final_accuracy_rate"]],
+        hovertemplate="<b>%{x}</b><br>最终正确率: %{text}<extra></extra>"
+    ))
+    fig.add_trace(go.Scatter(
+        x=trend[cfg["date_col"]], y=trend["raw_accuracy_rate"],
+        mode="lines+markers", name="原始正确率",
+        line=dict(color="#94A3B8", width=2, dash="dot"), marker=dict(size=6),
+        text=[f"{v:.2f}%" for v in trend["raw_accuracy_rate"]],
+        hovertemplate="<b>%{x}</b><br>原始正确率: %{text}<extra></extra>"
+    ))
+    fig.add_hline(y=99.0, line_dash="dash", line_color="#F59E0B", annotation_text="目标 99%", annotation_position="right")
+
+    # 动态 y 轴范围
+    all_rates = pd.concat([trend["final_accuracy_rate"], trend["raw_accuracy_rate"]]).dropna()
+    if not all_rates.empty:
+        y_min = max(0, all_rates.min() - 1)
+        y_max = min(101, all_rates.max() + 1)
+    else:
+        y_min, y_max = 95, 100.5
+
+    fig.update_layout(
+        height=400, margin=dict(l=20, r=20, t=30, b=30),
+        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+        yaxis_range=[y_min, y_max], yaxis_title="正确率 (%)",
+        xaxis=dict(tickformat="%Y-%m-%d", tickangle=-45),
+        paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)'
+    )
+    st.plotly_chart(fig, use_container_width=True)
+
+    # 最新数据快照
+    row_latest = trend.iloc[-1]
+    st.markdown(f"""
+    <div class="result-summary" style="margin-top:0;">
+        <div class="result-item">
+            <div class="num">{row_latest['raw_accuracy_rate']:.2f}%</div>
+            <div class="label">原始正确率</div>
+        </div>
+        <div class="result-item">
+            <div class="num">{row_latest['final_accuracy_rate']:.2f}%</div>
+            <div class="label">最终正确率</div>
+        </div>
+        <div class="result-item">
+            <div class="num">{int(row_latest['qa_cnt']):,}</div>
+            <div class="label">质检量</div>
+        </div>
+        <div class="result-item">
+            <div class="num">{'—' if pd.isna(row_latest.get('appeal_reverse_rate')) else f"{row_latest['appeal_reverse_rate']:.2f}%"}</div>
+            <div class="label">申诉改判率</div>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+
+def render_grain_section(grain: str, df: pd.DataFrame, min_d: date, max_d: date):
+    """渲染单个粒度的完整区域（排名 + 趋势图）"""
+    cfg = GRAIN_CONFIG[grain]
+
+    if df.empty:
+        st.markdown(f'<div class="alert-box warning">⚠️ 暂无{cfg["label"]}数据。请运行 `python jobs/refresh_warehouse.py` 刷新数仓。</div>', unsafe_allow_html=True)
+        return
+
+    # 日期筛选（仅日维度提供）
+    if grain == "day":
+        st.markdown('<div class="card"><div class="section-title"><span class="emoji">📅</span> 日期筛选</div>', unsafe_allow_html=True)
+        col1, col2 = st.columns(2)
+        with col1:
+            date_start = st.date_input("起始日期", value=min_d, key=cfg["start_key"])
+        with col2:
+            date_end = st.date_input("截止日期", value=max_d, key=cfg["end_key"])
+
+        df[cfg["date_col"]] = pd.to_datetime(df[cfg["date_col"]]).dt.date
+        filtered = df[
+            df[cfg["date_col"]].notna() &
+            (df[cfg["date_col"]] >= date_start) &
+            (df[cfg["date_col"]] <= date_end)
+        ]
+
+        if filtered.empty:
+            st.markdown('<div class="alert-box warning">⚠️ 所选日期范围内没有数据。</div>', unsafe_allow_html=True)
+            st.markdown("</div>", unsafe_allow_html=True)
+            return
+    else:
+        filtered = df
+
+    # 全量组别排名
+    st.markdown("### 🏆 全量组别排名")
+    group_agg = calc_group_ranking(filtered)
+    if not group_agg.empty:
+        render_ranking_table(group_agg)
+
+    if grain == "day":
+        st.markdown("</div>", unsafe_allow_html=True)
+
+    # 组别趋势
+    emoji_map = {"day": "📊", "week": "📈", "month": "📉"}
+    st.markdown(f'<div class="card"><div class="section-title"><span class="emoji">{emoji_map[grain]}</span> 组别趋势图</div>', unsafe_allow_html=True)
+    groups = sorted(filtered["group_name"].unique().tolist())
+    sel_group = st.selectbox("选择组别", options=groups, key=f"{grain}_group")
+
+    if sel_group:
+        render_trend_chart(filtered, grain, sel_group)
+    st.markdown("</div>", unsafe_allow_html=True)
+
+
+# ════════════════════════════════════════════════════════════════
+#  主程序
+# ════════════════════════════════════════════════════════════════
 
 min_d, max_d = get_date_range()
 
-# Hero 区域
-st.markdown("""
-<div style="margin-bottom: 1.5rem; padding: 1.5rem; background: #ffffff; border-radius: 1rem; border-left: 4px solid #2e7d32; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
-    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
-        <h1 style="margin: 0; font-size: 2rem; font-weight: 700; color: #1a1a1a;">📈 数据总览</h1>
-    </div>
-    <div style="font-size: 0.9rem; color: #4b5563; line-height: 1.6;">
-        跨周期趋势对比 · 全量组别排名 · 数据全景洞察
-    </div>
+# ---- 标题区 ----
+st.markdown(f"""
+<div style="padding: 20px 0 10px 0;">
+    <div class="page-title">📈 数据总览</div>
+    <div class="page-subtitle">跨周期趋势对比 · 全量组别排名 · 数据全景洞察</div>
 </div>
 """, unsafe_allow_html=True)
 
-# 检查数据范围
+# 检查数据
 if min_d is None or max_d is None:
-    st.warning("数据库中没有质检数据，请先导入数据。")
+    st.markdown('<div class="alert-box warning">⚠️ 数据库中没有质检数据，请先导入数据。</div>', unsafe_allow_html=True)
     st.stop()
 
-# 数据范围提示（优化样式）
+# 数据范围
 st.markdown(f"""
-<div style='background: #f9fafb; padding: 0.75rem 1rem; border-radius: 0.5rem; border-left: 4px solid #6b7280; margin-bottom: 1rem;'>
-    <span style='font-weight: 600; color: #374151;'>📅 数据日期范围：</span>
-    <span style='color: #374151;'>{min_d} ~ {max_d}</span>
+<div class="card" style="padding:12px 20px;">
+    <div class="result-summary" style="margin-top:0;">
+        <div class="result-item">
+            <div class="num">{min_d}</div>
+            <div class="label">最早日期</div>
+        </div>
+        <div class="result-item">
+            <div class="num">{max_d}</div>
+            <div class="label">最新日期</div>
+        </div>
+    </div>
 </div>
 """, unsafe_allow_html=True)
 
-tab_grain = st.tabs(["日维度", "周维度", "月维度"])
+tab_grain = st.tabs([cfg["label"] for cfg in GRAIN_CONFIG.values()])
 
-# ==================== 日维度 ====================
-with tab_grain[0]:
-    df_daily = load_all_group_daily()
-    
-    if df_daily.empty:
-        st.warning("暂无日维度数据。请运行 `python jobs/refresh_warehouse.py` 刷新数仓。")
-    else:
-        # 日期筛选（优化样式）
-        st.markdown("#### 📅 日期筛选")
-        col1, col2 = st.columns(2)
-        with col1:
-            date_start = st.date_input("起始日期", value=min_d, key="day_start")
-        with col2:
-            date_end = st.date_input("截止日期", value=max_d, key="day_end")
-        
-        # 转换日期格式并过滤空值
-        df_daily["biz_date"] = pd.to_datetime(df_daily["biz_date"]).dt.date
-        filtered = df_daily[
-            df_daily["biz_date"].notna() & 
-            (df_daily["biz_date"] >= date_start) & 
-            (df_daily["biz_date"] <= date_end)
-        ]
-        
-        if filtered.empty:
-            st.warning("所选日期范围内没有数据。")
-        else:
-            # 全量组别排名（使用加权平均）
-            st.markdown("### 🏆 全量组别排名")
-            group_agg = filtered.groupby("group_name").agg(
-                qa_cnt=("qa_cnt", "sum"),
-            ).reset_index()
-            # 计算加权平均正确率
-            for grp in group_agg["group_name"]:
-                grp_data = filtered[filtered["group_name"] == grp]
-                group_agg.loc[group_agg["group_name"] == grp, "raw_accuracy_rate"] = (
-                    (grp_data["raw_accuracy_rate"] * grp_data["qa_cnt"]).sum() / grp_data["qa_cnt"].sum()
-                )
-                group_agg.loc[group_agg["group_name"] == grp, "final_accuracy_rate"] = (
-                    (grp_data["final_accuracy_rate"] * grp_data["qa_cnt"]).sum() / grp_data["qa_cnt"].sum()
-                )
-            group_agg = group_agg.sort_values("final_accuracy_rate", ascending=False)
-            
-            group_show = pd.DataFrame()
-            group_show["组别"] = group_agg["group_name"]
-            group_show["总质检量"] = group_agg["qa_cnt"].apply(lambda x: f"{int(x):,}")
-            group_show["原始正确率"] = group_agg["raw_accuracy_rate"].apply(lambda x: f"{x:.2f}%")
-            group_show["最终正确率"] = group_agg["final_accuracy_rate"].apply(lambda x: f"{x:.2f}%")
-            
-            st.dataframe(
-                group_show, 
-                use_container_width=True, 
-                hide_index=True,
-                column_config={
-                    "组别": st.column_config.TextColumn("组别", width="medium"),
-                    "总质检量": st.column_config.TextColumn("总质检量", width="medium"),
-                    "原始正确率": st.column_config.TextColumn("原始正确率", width="medium"),
-                    "最终正确率": st.column_config.TextColumn("最终正确率", width="medium"),
-                }
-            )
-            
-            # 组别趋势
-            st.markdown("### 📊 组别趋势图")
-            groups = sorted(filtered["group_name"].unique().tolist())
-            sel_group = st.selectbox("选择组别", options=groups, key="day_group")
-            
-            if sel_group:
-                trend = filtered[filtered["group_name"] == sel_group].sort_values("biz_date")
-                if not trend.empty:
-                    fig = go.Figure()
-                    fig.add_trace(go.Scatter(
-                        x=trend["biz_date"], y=trend["final_accuracy_rate"],
-                        mode="lines+markers", name="最终正确率",
-                        line=dict(color="#10B981", width=3), marker=dict(size=8),
-                        text=[f"{v:.2f}%" for v in trend["final_accuracy_rate"]],
-                        hovertemplate="<b>%{x}</b><br>最终正确率: %{text}<extra></extra>"
-                    ))
-                    fig.add_trace(go.Scatter(
-                        x=trend["biz_date"], y=trend["raw_accuracy_rate"],
-                        mode="lines+markers", name="原始正确率",
-                        line=dict(color="#94A3B8", width=2, dash="dot"), marker=dict(size=6),
-                        text=[f"{v:.2f}%" for v in trend["raw_accuracy_rate"]],
-                        hovertemplate="<b>%{x}</b><br>原始正确率: %{text}<extra></extra>"
-                    ))
-                    fig.add_hline(y=99.0, line_dash="dash", line_color="#F59E0B", annotation_text="目标 99%", annotation_position="right")
-                    fig.update_layout(
-                        height=400, margin=dict(l=20, r=20, t=30, b=30),
-                        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
-                        yaxis_range=[95, 100.5], yaxis_title="正确率 (%)",
-                        xaxis=dict(tickformat="%Y-%m-%d", tickangle=-45),
-                        paper_bgcolor='rgba(0,0,0,0)',
-                        plot_bgcolor='rgba(0,0,0,0)'
-                    )
-                    st.plotly_chart(fig, use_container_width=True)
-                    
-                    # 最新数据指标（优化样式）
-                    row_latest = trend.iloc[-1]
-                    st.markdown("#### 📈 最新数据快照")
-                    m1, m2, m3, m4 = st.columns(4)
-                    m1.metric("最新原始正确率", f"{row_latest['raw_accuracy_rate']:.2f}%")
-                    m2.metric("最新最终正确率", f"{row_latest['final_accuracy_rate']:.2f}%")
-                    m3.metric("质检量", f"{int(row_latest['qa_cnt']):,}")
-                    # 安全访问申诉改判率字段
-                    appeal_rate = row_latest.get('appeal_reverse_rate')
-                    if pd.notna(appeal_rate):
-                        m4.metric("申诉改判率", f"{appeal_rate:.2f}%", help="基于联表匹配数据计算，当前联表命中率极低，仅供参考")
-                    else:
-                        m4.metric("申诉改判率", "—", help="暂无联表匹配数据")
-
-
-# ==================== 周维度 ====================
-with tab_grain[1]:
-    df_weekly = load_all_group_weekly()
-    
-    if df_weekly.empty:
-        st.warning("暂无周维度数据。")
-    else:
-        # 全量组别周度排名（使用加权平均）
-        st.markdown("### 🏆 全量组别周度排名")
-        group_agg_w = df_weekly.groupby("group_name").agg(
-            qa_cnt=("qa_cnt", "sum"),
-        ).reset_index()
-        # 计算加权平均正确率
-        for grp in group_agg_w["group_name"]:
-            grp_data = df_weekly[df_weekly["group_name"] == grp]
-            group_agg_w.loc[group_agg_w["group_name"] == grp, "raw_accuracy_rate"] = (
-                (grp_data["raw_accuracy_rate"] * grp_data["qa_cnt"]).sum() / grp_data["qa_cnt"].sum()
-            )
-            group_agg_w.loc[group_agg_w["group_name"] == grp, "final_accuracy_rate"] = (
-                (grp_data["final_accuracy_rate"] * grp_data["qa_cnt"]).sum() / grp_data["qa_cnt"].sum()
-            )
-        group_agg_w = group_agg_w.sort_values("final_accuracy_rate", ascending=False)
-        
-        group_show_w = pd.DataFrame()
-        group_show_w["组别"] = group_agg_w["group_name"]
-        group_show_w["总质检量"] = group_agg_w["qa_cnt"].apply(lambda x: f"{int(x):,}")
-        group_show_w["平均原始正确率"] = group_agg_w["raw_accuracy_rate"].apply(lambda x: f"{x:.2f}%")
-        group_show_w["平均最终正确率"] = group_agg_w["final_accuracy_rate"].apply(lambda x: f"{x:.2f}%")
-        
-        st.dataframe(
-            group_show_w, 
-            use_container_width=True, 
-            hide_index=True,
-            column_config={
-                "组别": st.column_config.TextColumn("组别", width="medium"),
-                "总质检量": st.column_config.TextColumn("总质检量", width="medium"),
-            }
-        )
-        
-        # 组别趋势
-        st.markdown("### 📊 组别周趋势")
-        groups_w = sorted(df_weekly["group_name"].unique().tolist())
-        sel_group_w = st.selectbox("选择组别", options=groups_w, key="week_group")
-        
-        if sel_group_w:
-            trend_w = df_weekly[df_weekly["group_name"] == sel_group_w].sort_values("week_begin_date")
-            if not trend_w.empty:
-                fig_w = go.Figure()
-                fig_w.add_trace(go.Scatter(
-                    x=trend_w["week_begin_date"], y=trend_w["final_accuracy_rate"],
-                    mode="lines+markers", name="最终正确率",
-                    line=dict(color="#10B981", width=3), marker=dict(size=8),
-                    text=[f"{v:.2f}%" for v in trend_w["final_accuracy_rate"]],
-                    hovertemplate="<b>%{x}</b><br>最终正确率: %{text}<extra></extra>"
-                ))
-                fig_w.add_trace(go.Scatter(
-                    x=trend_w["week_begin_date"], y=trend_w["raw_accuracy_rate"],
-                    mode="lines+markers", name="原始正确率",
-                    line=dict(color="#94A3B8", width=2, dash="dot"), marker=dict(size=6),
-                    text=[f"{v:.2f}%" for v in trend_w["raw_accuracy_rate"]],
-                    hovertemplate="<b>%{x}</b><br>原始正确率: %{text}<extra></extra>"
-                ))
-                fig_w.add_hline(y=99.0, line_dash="dash", line_color="#F59E0B", annotation_text="目标 99%", annotation_position="right")
-                fig_w.update_layout(
-                    height=400, margin=dict(l=20, r=20, t=30, b=30),
-                    legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
-                    yaxis_range=[95, 100.5], yaxis_title="正确率 (%)",
-                    xaxis=dict(tickformat="%Y-%m-%d", tickangle=-45),
-                    paper_bgcolor='rgba(0,0,0,0)',
-                    plot_bgcolor='rgba(0,0,0,0)'
-                )
-                st.plotly_chart(fig_w, use_container_width=True)
-
-
-# ==================== 月维度 ====================
-with tab_grain[2]:
-    df_monthly = load_all_group_monthly()
-    
-    if df_monthly.empty:
-        st.warning("暂无月维度数据。")
-    else:
-        # 全量组别月度排名（使用加权平均）
-        st.markdown("### 🏆 全量组别月度排名")
-        group_agg_m = df_monthly.groupby("group_name").agg(
-            qa_cnt=("qa_cnt", "sum"),
-        ).reset_index()
-        # 计算加权平均正确率
-        for grp in group_agg_m["group_name"]:
-            grp_data = df_monthly[df_monthly["group_name"] == grp]
-            group_agg_m.loc[group_agg_m["group_name"] == grp, "raw_accuracy_rate"] = (
-                (grp_data["raw_accuracy_rate"] * grp_data["qa_cnt"]).sum() / grp_data["qa_cnt"].sum()
-            )
-            group_agg_m.loc[group_agg_m["group_name"] == grp, "final_accuracy_rate"] = (
-                (grp_data["final_accuracy_rate"] * grp_data["qa_cnt"]).sum() / grp_data["qa_cnt"].sum()
-            )
-        group_agg_m = group_agg_m.sort_values("final_accuracy_rate", ascending=False)
-        
-        group_show_m = pd.DataFrame()
-        group_show_m["组别"] = group_agg_m["group_name"]
-        group_show_m["总质检量"] = group_agg_m["qa_cnt"].apply(lambda x: f"{int(x):,}")
-        group_show_m["平均原始正确率"] = group_agg_m["raw_accuracy_rate"].apply(lambda x: f"{x:.2f}%")
-        group_show_m["平均最终正确率"] = group_agg_m["final_accuracy_rate"].apply(lambda x: f"{x:.2f}%")
-        
-        st.dataframe(
-            group_show_m, 
-            use_container_width=True, 
-            hide_index=True,
-            column_config={
-                "组别": st.column_config.TextColumn("组别", width="medium"),
-                "总质检量": st.column_config.TextColumn("总质检量", width="medium"),
-            }
-        )
-        
-        # 组别趋势
-        st.markdown("### 📊 组别月趋势")
-        groups_m = sorted(df_monthly["group_name"].unique().tolist())
-        sel_group_m = st.selectbox("选择组别", options=groups_m, key="month_group")
-        
-        if sel_group_m:
-            trend_m = df_monthly[df_monthly["group_name"] == sel_group_m].sort_values("month_begin_date")
-            if not trend_m.empty:
-                fig_m = go.Figure()
-                fig_m.add_trace(go.Scatter(
-                    x=trend_m["month_begin_date"], y=trend_m["final_accuracy_rate"],
-                    mode="lines+markers", name="最终正确率",
-                    line=dict(color="#10B981", width=3), marker=dict(size=10),
-                    text=[f"{v:.2f}%" for v in trend_m["final_accuracy_rate"]],
-                    hovertemplate="<b>%{x}</b><br>最终正确率: %{text}<extra></extra>"
-                ))
-                fig_m.add_trace(go.Scatter(
-                    x=trend_m["month_begin_date"], y=trend_m["raw_accuracy_rate"],
-                    mode="lines+markers", name="原始正确率",
-                    line=dict(color="#94A3B8", width=2, dash="dot"), marker=dict(size=8),
-                    text=[f"{v:.2f}%" for v in trend_m["raw_accuracy_rate"]],
-                    hovertemplate="<b>%{x}</b><br>原始正确率: %{text}<extra></extra>"
-                ))
-                fig_m.add_hline(y=99.0, line_dash="dash", line_color="#F59E0B", annotation_text="目标 99%", annotation_position="right")
-                fig_m.update_layout(
-                    height=400, margin=dict(l=20, r=20, t=30, b=30),
-                    legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
-                    yaxis_range=[95, 100.5], yaxis_title="正确率 (%)",
-                    xaxis=dict(tickformat="%Y-%m-%d", tickangle=-45),
-                    paper_bgcolor='rgba(0,0,0,0)',
-                    plot_bgcolor='rgba(0,0,0,0)'
-                )
-                st.plotly_chart(fig_m, use_container_width=True)
+# 三个粒度共享同一套渲染逻辑
+for i, grain in enumerate(GRAIN_CONFIG):
+    with tab_grain[i]:
+        df = load_group_data(grain)
+        render_grain_section(grain, df, min_d, max_d)

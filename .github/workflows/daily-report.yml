@@ -1,14 +1,11 @@
-# 质检日报自动推送 - GitHub Action
-# 每天北京时间 15:00 执行，生成昨日质检日报并推送到企业微信群
+# 评论质量日报残留 Workflow（手动保留版）
+# 注意：该文件不属于 TAO 看板正式调度链，已关闭 schedule，避免与评论看板链路串任务。
 
-name: Daily QA Report
+name: Legacy Comment QA Report (Manual Only)
 
 on:
-  schedule:
-    # UTC 7:00 = 北京时间 15:00（每天）
-    - cron: '0 7 * * *'
   workflow_dispatch:
-    # 允许手动触发（用于测试）
+    # 仅允许手动触发（保留给历史排查/人工取证）
     inputs:
       report_date:
         description: '报告日期 (YYYY-MM-DD)，默认昨天'
@@ -102,15 +99,6 @@ jobs:
           
           echo "Running: python jobs/daily_report.py $ARGS"
           python jobs/daily_report.py $ARGS
-
-      - name: Commit daily_data.json
-        if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
-        run: |
-          git config --local user.email "action@github.com"
-          git config --local user.name "GitHub Action"
-          git add daily_data.json || true
-          git diff --quiet && git diff --staged --quiet || git commit -m "Update daily_data.json [skip ci]"
-          git push
 
       - name: Upload report artifact
         if: always()

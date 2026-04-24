@@ -12,12 +12,13 @@ QC Dashboard — 数据采集器
   python src/collector.py fetch          # 拉取所有队列数据
   python src/collector.py fetch --queue q6_shangqiang   # 只拉取指定队列
   python src/collector.py import         # 导入 Excel 数据
+  python src/collector.py live-sync      # 直读企微网页内置计算结果（适合公式队列兜底）
   python src/collector.py status         # 查看各队列数据状态
   python src/collector.py export-json    # 导出 JSON 数据
   python src/collector.py export-html    # 导出带数据的完整 HTML 看板
 """
 
-import os, sys, json, yaml, logging, subprocess, shutil
+import os, sys, json, yaml, logging, subprocess, shutil, asyncio
 from pathlib import Path
 from datetime import datetime, timedelta
 from typing import Optional
@@ -322,9 +323,8 @@ def import_excel(conn, config: dict, queue_id: Optional[str] = None, file_path: 
 
                 metrics = {}
                 for mcfg in sub_fields.get('metrics', []):
-                    col = mcfg.get('col', '')
                     key = mcfg.get('key', '')
-                    val = get_cell_val_pandas(row_values, col)
+                    val = resolve_metric_value(row_values, mcfg)
                     if val is not None:
                         metrics[key] = val
 
@@ -404,6 +404,39 @@ def get_cell_val_pandas(row_values, col_ref: str):
     return v
 
 
+def _safe_float(val) -> Optional[float]:
+    if val is None:
+        return None
+    try:
+        num = float(val)
+    except (TypeError, ValueError):
+        return None
+    if num != num or num == float('inf') or num == float('-inf'):
+        return None
+    return num
+
+
+def resolve_metric_value(row_values, metric_cfg: dict):
+    """优先读取配置列；若导出文件丢失公式缓存值，则按 fallback 规则回填。"""
+    direct_val = get_cell_val_pandas(row_values, metric_cfg.get('col', ''))
+    if direct_val is not None:
+        return direct_val
+
+    fallback = metric_cfg.get('fallback') or {}
+    if fallback.get('type') != 'ratio':
+        return None
+
+    numerator = _safe_float(get_cell_val_pandas(row_values, fallback.get('numerator_col', '')))
+    denominator = _safe_float(get_cell_val_pandas(row_values, fallback.get('denominator_col', '')))
+    if numerator is None or denominator in (None, 0):
+        return None
+
+    value = numerator / denominator
+    if fallback.get('invert'):
+        value = 1 - value
+    return value
+
+
 def parse_date(val) -> Optional[str]:
     if isinstance(val, datetime):
         return val.strftime('%Y-%m-%d')
@@ -424,6 +457,184 @@ def parse_date(val) -> Optional[str]:
     except:
         pass
     return None
+
+
+def col_ref_to_index(col_ref: str) -> int:
+    """将 Excel 列号（A/AA/BE）转为 0-based 索引。"""
+    if not col_ref or not str(col_ref).strip():
+        raise ValueError("列号不能为空")
+    col_ref = str(col_ref).upper().strip()
+    col_idx = 0
+    for ch in col_ref:
+        if not ('A' <= ch <= 'Z'):
+            raise ValueError(f"非法列号: {col_ref}")
+        col_idx = col_idx * 26 + (ord(ch) - ord('A') + 1)
+    return col_idx - 1
+
+
+def _collect_support_col_indices(metric_cfg: dict) -> list[int]:
+    """提取指标占位过滤所需的原始支撑列。"""
+    cols = []
+    fallback = metric_cfg.get('fallback') or {}
+    for key in ('numerator_col', 'denominator_col'):
+        col = fallback.get(key)
+        if col:
+            cols.append(col_ref_to_index(col))
+    return cols
+
+
+async def _scrape_queue_metrics_via_spreadsheet_app(qcfg: dict, headless: bool = True) -> list[dict]:
+    """通过企微网页内置 SpreadsheetApp 直接读取单元格结果，绕过 xlsx 公式缓存缺失。"""
+    from playwright.async_api import async_playwright
+
+    doc_url = qcfg.get('doc_url', '')
+    qname = qcfg.get('name', qcfg.get('id', ''))
+    if not doc_url:
+        raise ValueError(f"队列 [{qname}] 缺少 doc_url")
+
+    live_cfg = qcfg.get('live_sync') or {}
+    scan_cfg = live_cfg.get('scan_rows') or {}
+    scan_start = int(scan_cfg.get('start', 1))
+    scan_end = int(scan_cfg.get('end', 400))
+
+    fields_cfg = qcfg.get('fields', {})
+    metric_defs = []
+    for metric_cfg in fields_cfg.get('metrics', []):
+        metric_defs.append({
+            'key': metric_cfg.get('key', ''),
+            'colIndex': col_ref_to_index(metric_cfg.get('col', '')),
+            'supportColIndices': _collect_support_col_indices(metric_cfg),
+        })
+
+    payload = {
+        'scanStart': max(scan_start, 1) - 1,
+        'scanEnd': max(scan_end, scan_start) - 1,
+        'dateColIndex': col_ref_to_index(fields_cfg.get('date_col', 'A')),
+        'metricDefs': metric_defs,
+    }
+
+    browser_profile = PROJECT_ROOT / 'data' / 'browser_profile'
+    browser_profile.mkdir(parents=True, exist_ok=True)
+
+    async with async_playwright() as p:
+        context = await p.chromium.launch_persistent_context(
+            str(browser_profile),
+            headless=headless,
+            channel='chrome',
+            args=['--disable-blink-features=AutomationControlled', '--window-size=1400,900'],
+            viewport={'width': 1400, 'height': 900},
+        )
+        try:
+            page = context.pages[0] if context.pages else await context.new_page()
+            await page.goto(doc_url, wait_until='domcontentloaded', timeout=30_000)
+            await page.wait_for_function("() => !!window.SpreadsheetApp?.e2eTools?.getValueAndTypeFromCell", timeout=30_000)
+            await page.wait_for_timeout(1500)
+
+            js = """
+            async spec => {
+              const app = window.SpreadsheetApp;
+              const wb = app.workbook;
+              const tools = app.e2eTools;
+              const sheet = wb.activeSheet;
+              const rows = [];
+
+              const readCell = (rowIndex, colIndex) => {
+                const cell = sheet.getCellDataAtPosition(rowIndex, colIndex);
+                if (!cell) return null;
+                return {
+                  editValue: tools.getCellEditValue(wb, rowIndex, colIndex),
+                  valueAndType: tools.getValueAndTypeFromCell(cell),
+                };
+              };
+
+              for (let rowIndex = spec.scanStart; rowIndex <= spec.scanEnd; rowIndex++) {
+                const dateCell = readCell(rowIndex, spec.dateColIndex);
+                const metricCells = {};
+                for (const metric of spec.metricDefs) {
+                  metricCells[metric.key] = {
+                    metricCell: readCell(rowIndex, metric.colIndex),
+                    supportCells: metric.supportColIndices.map(colIndex => readCell(rowIndex, colIndex)),
+                  };
+                }
+                rows.push({
+                  rowIndex,
+                  dateCell,
+                  metricCells,
+                });
+              }
+              return rows;
+            }
+            """
+            return await page.evaluate(js, payload)
+        finally:
+            await context.close()
+
+
+def sync_playwright_live(conn, config: dict, queue_id: Optional[str] = None, headless: bool = True):
+    """通过企微网页内置 SpreadsheetApp 直接同步指标，适合作为公式队列兜底。"""
+    queues = [q for q in config.get('queues', []) if (q.get('live_sync') or {}).get('enabled')]
+    if queue_id:
+        queues = [q for q in queues if q.get('id') == queue_id]
+    if not queues:
+        return 0
+
+    today_str = datetime.now().strftime('%Y-%m-%d')
+    total = 0
+
+    for qcfg in queues:
+        qid = qcfg['id']
+        qname = qcfg.get('name', qid)
+        log.info(f"🧠 Playwright live 同步: [{qname}] ({qid})")
+
+        try:
+            scraped_rows = asyncio.run(_scrape_queue_metrics_via_spreadsheet_app(qcfg, headless=headless))
+        except Exception as e:
+            log.warning(f"  ⚠️ live 同步失败 [{qname}]: {e}")
+            continue
+
+        row_count = 0
+        for row in scraped_rows:
+            date_cell = row.get('dateCell') or {}
+            date_str = parse_date(date_cell.get('editValue')) if date_cell else None
+            if not date_str or date_str > today_str:
+                continue
+
+            metrics = {}
+            for metric_cfg in qcfg.get('fields', {}).get('metrics', []):
+                key = metric_cfg.get('key', '')
+                metric_bundle = (row.get('metricCells') or {}).get(key) or {}
+                metric_cell = metric_bundle.get('metricCell') or {}
+                metric_info = metric_cell.get('valueAndType') or {}
+                metric_value = metric_info.get('value')
+                metric_value = _safe_float(metric_value)
+                if metric_value is None:
+                    continue
+
+                support_vals = []
+                for support_cell in metric_bundle.get('supportCells') or []:
+                    if not support_cell:
+                        continue
+                    support_info = support_cell.get('valueAndType') or {}
+                    support_val = _safe_float(support_info.get('value'))
+                    if support_val is not None:
+                        support_vals.append(support_val)
+
+                # 对公式汇总列做占位过滤：当支撑分子/分母全为 0 时，跳过该日期。
+                if support_vals and all(val == 0 for val in support_vals):
+                    continue
+
+                metrics[key] = metric_value
+
+            if not metrics:
+                continue
+
+            upsert_metrics(conn, qid, qname, date_str, metrics, source='playwright-live')
+            row_count += 1
+
+        log.info(f"  ✅ live 同步 {row_count} 条日期记录")
+        total += row_count
+
+    return total
 
 
 # ============================================================
@@ -894,6 +1105,10 @@ def main():
         count = import_excel(conn, config, queue_arg)
         log.info(f"\n🎉 导入完成！{count} 条数据")
 
+    elif action == 'live-sync':
+        count = sync_playwright_live(conn, config, queue_arg)
+        log.info(f"\n🎉 live 同步完成！{count} 条日期记录")
+
     elif action == 'status':
         show_status(conn, config)
 
@@ -908,7 +1123,7 @@ def main():
         log.info(f"✅ JSON 导出: {out_file}")
 
     else:
-        log.error(f"未知命令: {action}. 支持: setup, fetch, import, status, export-html, export-json")
+        log.error(f"未知命令: {action}. 支持: setup, fetch, import, live-sync, status, export-html, export-json")
 
     conn.close()
 

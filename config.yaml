@@ -24,9 +24,9 @@ global:
     api_key: ""           # ← 留空，通过环境变量 DEEPSEEK_API_KEY 传入
     base_url: "https://api.deepseek.com"  # API 地址
 
-  # 每日推送配置（18:20 数据刷新时不推送，由独立定时任务 9:10 负责）
+  # 每日推送配置（18:25 数据刷新时不推送，由独立定时任务 09:15 负责）
   push:
-    enabled: false        # 改为 false：数据采集(18:20)和企微推送(9:10)分离
+    enabled: false        # 改为 false：数据采集(18:25)和企微推送(09:15)分离
     msg_type: "markdown"  # 消息格式: markdown | text
 
   # CDP 模式配置（备选，如使用 CDP 模式需填写）
@@ -91,15 +91,29 @@ queues:
     sheet_tab: "nz9ura"
     color: "#f97316"  # 橙色
     icon: "🔄"
+    live_sync:
+      enabled: true
+      scan_rows:
+        start: 230
+        end: 420
     fields:
       date_col: "AR"
       metrics:
         - key: violation_rate
           label: "违规准确率"
           col: "BE"
+          fallback:
+            type: "ratio"
+            numerator_col: "BC"
+            denominator_col: "BB"
+            invert: true
         - key: miss_rate
           label: "漏率"
           col: "BH"
+          fallback:
+            type: "ratio"
+            numerator_col: "BG"
+            denominator_col: "BF"
 
   # ──────────────────────────────────────────────
   # 队列3b：四期供应商-二审切片GT业务
@@ -113,15 +127,29 @@ queues:
     sheet_tab: "nz9ura"
     color: "#f59e0b"  # 琥珀色（与二审GT区分）
     icon: "🔪"
+    live_sync:
+      enabled: true
+      scan_rows:
+        start: 230
+        end: 420
     fields:
       date_col: "CB"
       metrics:
         - key: violation_rate
           label: "违规准确率"
           col: "CO"
+          fallback:
+            type: "ratio"
+            numerator_col: "CM"
+            denominator_col: "CL"
+            invert: true
         - key: miss_rate
           label: "漏率"
           col: "CR"
+          fallback:
+            type: "ratio"
+            numerator_col: "CQ"
+            denominator_col: "CP"
 
   # ──────────────────────────────────────────────
   # 队列4：四期供应商-举报周推质检分歧单

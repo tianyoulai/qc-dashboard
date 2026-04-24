@@ -1,5 +1,8 @@
 #!/usr/bin/env python3
-"""用评论看板新格式推送到正确的企微群"""
+"""评论质量日报残留推送脚本。
+
+注意：这个脚本服务于评论质量日报链路，不属于 TAO 看板的本地 launchd 任务入口。
+"""
 import json
 import sys
 from pathlib import Path

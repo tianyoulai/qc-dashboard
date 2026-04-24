@@ -2,7 +2,7 @@
 """
 QC Dashboard — 自动定时刷新脚本
 =====================================
-由 launchd 调用，每天 18:15 自动执行：
+由 launchd 调用，每天 18:25 自动执行：
   1. 通过 Playwright 自动下载企微表格 xlsx
   2. 解析入库并清理未来日期
   3. 检测数据缺口并记录
@@ -58,6 +58,65 @@ def get_db_latest_date(conn):
     return row[0] if row and row[0] else None
 
 
+def get_queue_latest_dates(conn):
+    """获取每个队列的最新日期"""
+    c = conn.cursor()
+    c.execute("SELECT queue_id, MAX(date) FROM daily_metrics GROUP BY queue_id")
+    return {qid: latest for qid, latest in c.fetchall()}
+
+
+def analyze_queue_freshness(conn, config):
+    """分析各队列数据新鲜度，避免被全局 MAX(date) 掩盖局部停更问题"""
+    latest_map = get_queue_latest_dates(conn)
+    today = date.today()
+    stale_queues = []
+
+    for qcfg in config.get("queues", []):
+        qid = qcfg.get("id")
+        qname = qcfg.get("name", qid)
+        latest = latest_map.get(qid)
+
+        if not latest:
+            stale_queues.append({
+                "queue_id": qid,
+                "queue_name": qname,
+                "latest": None,
+                "lag_days": None,
+                "reason": "missing",
+            })
+            continue
+
+        try:
+            latest_date = datetime.strptime(latest, "%Y-%m-%d").date()
+            lag_days = (today - latest_date).days
+        except ValueError:
+            stale_queues.append({
+                "queue_id": qid,
+                "queue_name": qname,
+                "latest": latest,
+                "lag_days": None,
+                "reason": "invalid-date",
+            })
+            continue
+
+        if lag_days > 0:
+            stale_queues.append({
+                "queue_id": qid,
+                "queue_name": qname,
+                "latest": latest,
+                "lag_days": lag_days,
+                "reason": "stale",
+            })
+
+    return {
+        "queue_latest_dates": latest_map,
+        "stale_queues": stale_queues,
+        "queue_count": len(config.get("queues", [])),
+        "fresh_queue_count": len(config.get("queues", [])) - len(stale_queues),
+        "fully_synced": len(stale_queues) == 0,
+    }
+
+
 def find_date_gaps(conn):
     """检测数据库最新日期到今天之间的缺口日期
     
@@ -107,7 +166,7 @@ def clean_future_dates(conn):
     return deleted
 
 
-def record_run_result(success, imported, gap_info=None):
+def record_run_result(success, imported, gap_info=None, freshness_info=None):
     """记录本次运行结果到状态文件"""
     status_file = PROJECT_ROOT / "data" / "logs" / "last_run.json"
     result = {
@@ -116,6 +175,11 @@ def record_run_result(success, imported, gap_info=None):
         "imported": imported,
         "latest_db_date": gap_info.get("latest") if gap_info else None,
         "gap_days": gap_info.get("gap_days", 0) if gap_info else 0,
+        "fully_synced": freshness_info.get("fully_synced") if freshness_info else None,
+        "queue_count": freshness_info.get("queue_count") if freshness_info else None,
+        "fresh_queue_count": freshness_info.get("fresh_queue_count") if freshness_info else None,
+        "stale_queues": freshness_info.get("stale_queues") if freshness_info else [],
+        "queue_latest_dates": freshness_info.get("queue_latest_dates") if freshness_info else {},
     }
     with open(status_file, "w", encoding="utf-8") as f:
         json.dump(result, f, ensure_ascii=False, indent=2)
@@ -144,25 +208,39 @@ def main(dry_run=False):
         # ── Step 1: 数据缺口检测 ──
         log.info("📊 [1/4] 检测数据缺口...")
         gap_info = find_date_gaps(conn)
-        
+        freshness_info = analyze_queue_freshness(conn, config)
+
         if gap_info["gap_days"] > 0:
             log.warning(
-                f"   ⚠️ 发现 {gap_info['gap_days']} 天数据缺口: "
+                f"   ⚠️ 发现 {gap_info['gap_days']} 天全库日期缺口: "
                 f"{gap_info['gap_dates'][0]} ~ {gap_info['gap_dates'][-1]}"
                 f"（含周末 {gap_info['weekend_count']} 天）"
             )
             log.info("   💡 本次拉取将尝试自动补全缺失日期的数据")
         else:
-            log.info(f"   ✅ 数据连续，最新日期: {gap_info['latest']}")
+            log.info(f"   ✅ 全库最新日期: {gap_info['latest']}")
+
+        if freshness_info["stale_queues"]:
+            log.warning(
+                f"   ⚠️ 当前仅 {freshness_info['fresh_queue_count']}/{freshness_info['queue_count']} 个队列同步到今天，"
+                f"其余队列仍有滞后"
+            )
+            for item in freshness_info["stale_queues"][:5]:
+                latest = item["latest"] or "无数据"
+                lag = f"落后 {item['lag_days']} 天" if item["lag_days"] is not None else item["reason"]
+                log.warning(f"      - [{item['queue_id']}] {item['queue_name']}: 最新 {latest}（{lag}）")
+        else:
+            log.info("   ✅ 所有队列都已同步到今天")
 
         if dry_run:
             log.info("🏁 DRY-RUN 模式，不执行实际操作")
-            record_run_result(True, 0, gap_info)
+            record_run_result(True, 0, gap_info, freshness_info)
             return 0
 
         # ── Step 2: 拉取数据 ──
         mode = config.get("global", {}).get("collector_mode", "playwright")
         total_imported = 0
+        live_synced = 0
         log.info(f"📡 [2/4] 拉取数据 (模式: {mode})...")
         
         if mode == "playwright":
@@ -211,6 +289,13 @@ def main(dry_run=False):
                 log.warning("   ⚠️ 未下载到任何文件，尝试用 uploads 目录已有文件兜底")
                 from collector import import_excel
                 total_imported = import_excel(conn, config)
+
+            # 对 q3/q3b 这类公式汇总队列，再走一遍网页直读结果兜底，覆盖 xlsx 丢公式缓存的问题
+            from collector import sync_playwright_live
+            live_synced = sync_playwright_live(conn, config, headless=True)
+            if live_synced > 0:
+                total_imported += live_synced
+                log.info(f"   ✅ live 同步补写 {live_synced} 条日期记录（已覆盖公式队列）")
         
         elif mode == "wcom-api":
             from collector import fetch_wecom_api, check_wecom_init
@@ -239,16 +324,28 @@ def main(dry_run=False):
 
         # ── Step 4: 最终状态 ──
         final_gap = find_date_gaps(conn)
+        final_freshness = analyze_queue_freshness(conn, config)
         log.info("📋 [4/4] 刷新完成汇总:")
         log.info(f"   📥 新增记录: {total_imported}")
         log.info(f"   🧹 未来日期清理: {future_deleted}")
-        log.info(f"   📅 数据库最新: {final_gap['latest']}")
+        log.info(f"   📅 全库最新: {final_gap['latest']}")
         if final_gap["gap_days"] > 0:
-            log.warning(f"   ⚠️ 仍有 {final_gap['gap_days']} 天缺口（可能源数据尚未更新）")
+            log.warning(f"   ⚠️ 仍有 {final_gap['gap_days']} 天全库日期缺口（可能源数据尚未更新）")
         else:
-            log.info(f"   ✅ 数据已同步到今天 ({final_gap['today']})")
+            log.info(f"   ✅ 全库日期已覆盖到今天 ({final_gap['today']})")
 
-        record_run_result(True, total_imported, final_gap)
+        if final_freshness["stale_queues"]:
+            log.warning(
+                f"   ⚠️ 队列级新鲜度未全绿：{final_freshness['fresh_queue_count']}/{final_freshness['queue_count']} 个队列同步到今天"
+            )
+            for item in final_freshness["stale_queues"][:5]:
+                latest = item["latest"] or "无数据"
+                lag = f"落后 {item['lag_days']} 天" if item["lag_days"] is not None else item["reason"]
+                log.warning(f"      - [{item['queue_id']}] {item['queue_name']}: 最新 {latest}（{lag}）")
+        else:
+            log.info(f"   ✅ 所有队列都已同步到今天 ({final_gap['today']})")
+
+        record_run_result(True, total_imported, final_gap, final_freshness)
         conn.close()
 
         log.info("=" * 60)

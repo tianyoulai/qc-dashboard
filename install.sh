@@ -165,7 +165,7 @@ EOF
     fi
 elif [[ "$OSTYPE" == "linux"* ]]; then
     echo ""
-    echo "💡 Linux 用户可手动添加 crontab: crontab -e → 添加 '0 9 * * * cd $(pwd) && python3 src/collector.py fetch'"
+    echo "💡 Linux 用户可手动添加 crontab: crontab -e → 添加 '25 18 * * * cd $(pwd) && python3 src/collector.py fetch'"
 fi
 
 # ── 8. 完成 ──

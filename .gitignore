@@ -2,43 +2,63 @@
 __pycache__/
 *.pyc
 *.pyo
+*.egg-info/
+*.egg
+dist/
+build/
 
-# 浏览器数据（大文件，不需要提交）
+# 浏览器数据 / 大文件
 data/browser_profile/
+data/downloads/
+data/uploads/
+data/*.db
+data/*.db-*
+data/logs/
+data/_debug_*
+data/_menu_state*
 
-# 下载/临时文件
-data/uploads/processed/*.xlsx
-data/uploads/raw/*.xls*
+# 输出产物（本地生成，不需提交）
+deliverables/
+dashboard/*.html
+daily_data.json
 
 # IDE
 .vscode/
 .idea/
 *.swp
 *.swo
+*.code-workspace
 
 # macOS
 .DS_Store
 .AppleDouble
+Thumbs.db
 
-# Streamlit 缓存
+# Streamlit
 .streamlit/cache/
+.streamlit/*.log
 
-# 调试文件
-data/_debug_*
+# 调试 / 截图 / 临时脚本
 capture_*.py
 scroll_top.py
 sheet_*.png
 wecom-*.png
 wecom-sheet-report.md
+q3-*.yaml
+q3-*.json
+q3-*.txt
+q3-*.png
 
 # 敏感凭证
 .env
 config.local.yaml
 
-# 备份文件
-data/metrics.db.plaintext.bak
-data/metrics.db.encrypted.bak
+# WorkBuddy / CodeBuddy 本地记忆（不提交到仓库）
+.workbuddy/
+.codebuddy/
 
-# 临时下载文件（处理后自动清理）
-data/downloads/*.xlsx
-data/uploads/*.xlsx
+# Playwright CLI 日志（大量）
+.playwright-cli/
+
+# jobs 临时输出
+jobs/__pycache__/

@@ -3,7 +3,7 @@
 # QC Dashboard — 定时刷新管理工具
 # ============================================================
 # 用法:
-#   bash scripts/refresh_manager.sh install    # 安装定时任务（每天 9:10）
+#   bash scripts/refresh_manager.sh install    # 安装定时任务（每天 18:25）
 #   bash scripts/refresh_manager.sh uninstall  # 卸载定时任务
 #   bash scripts/refresh_manager.sh status     # 查看定时任务状态
 #   bash scripts/refresh_manager.sh run        # 手动执行一次刷新
@@ -44,11 +44,11 @@ case "${1:-help}" in
         }
         
         echo "✅ 定时任务已安装！"
-        echo "   ⏰ 执行时间: 每天 09:10"
-        echo "   📝 日志位置: $PROJECT_ROOT/$LOG_DIR/"
+        echo "   ⏰ 执行时间: 每天 18:25"
+        echo "   📝 日志位置: $PROJECT_ROOT/$LOG_DIR/launchd-auto-refresh.*.log"
         echo ""
         echo "💡 提示:"
-        echo "   - 如果电脑在 9:10 关机，开机后会自动补偿执行"
+        echo "   - 如果电脑在 18:25 关机，开机后会自动补偿执行"
         echo "   - 周末没开电脑的话，周一开电脑后自动补拉缺失日期的数据"
         echo ""
         echo "📌 管理命令:"
@@ -159,7 +159,7 @@ print(f\"   缺口天数: {d.get('gap_days', 0)} 天\")
         
         echo ""
         # launchd 日志
-        for f in data/logs/launchd-stderr.log; do
+        for f in data/logs/launchd-auto-refresh.stderr.log; do
             if [ -f "$f" ] && [ -s "$f" ]; then
                 echo "=== launchd 错误日志 (最后20行) ==="
                 tail -20 "$f"
@@ -176,7 +176,7 @@ print(f\"   缺口天数: {d.get('gap_days', 0)} 天\")
         echo "用法: bash $0 <命令>"
         echo ""
         echo "命令:"
-        echo "  install      安装定时任务（每天 9:10 自动执行）"
+        echo "  install      安装定时任务（每天 18:25 自动执行）"
         echo "  uninstall    卸载定时任务"
         echo "  status       查看定时任务状态和数据情况"
         echo "  run          手动执行一次刷新"

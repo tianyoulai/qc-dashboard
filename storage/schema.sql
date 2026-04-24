@@ -30,6 +30,9 @@ CREATE TABLE IF NOT EXISTS fact_qa_event (
     channel_name VARCHAR(128),
     content_type VARCHAR(64),
 
+    inspect_type VARCHAR(16),
+    workforce_type VARCHAR(16),
+
     reviewer_name VARCHAR(128),
     qa_owner_name VARCHAR(128),
     trainer_name VARCHAR(128),
@@ -75,6 +78,8 @@ CREATE INDEX IF NOT EXISTS idx_fqe_biz_date ON fact_qa_event (biz_date);
 CREATE INDEX IF NOT EXISTS idx_fqe_sub_biz ON fact_qa_event (sub_biz);
 CREATE INDEX IF NOT EXISTS idx_fqe_join_key ON fact_qa_event (join_key (128));
 CREATE INDEX IF NOT EXISTS idx_fqe_row_hash ON fact_qa_event (row_hash);
+CREATE INDEX IF NOT EXISTS idx_fqe_inspect_type ON fact_qa_event (inspect_type);
+CREATE INDEX IF NOT EXISTS idx_fqe_workforce_type ON fact_qa_event (workforce_type);
 
 CREATE TABLE IF NOT EXISTS fact_appeal_event (
     appeal_event_id VARCHAR(64),
@@ -364,6 +369,46 @@ CREATE TABLE IF NOT EXISTS mart_month_error_topic (
     PRIMARY KEY (month_begin_date, group_name, queue_name, error_type)
 );
 
+CREATE TABLE IF NOT EXISTS mart_day_content_type (
+    biz_date DATE,
+    group_name VARCHAR(128),
+    content_type VARCHAR(64),
+    qa_cnt BIGINT,
+    raw_correct_cnt BIGINT,
+    final_correct_cnt BIGINT,
+    raw_error_cnt BIGINT,
+    final_error_cnt BIGINT,
+    raw_accuracy_rate DOUBLE,
+    final_accuracy_rate DOUBLE,
+    PRIMARY KEY (biz_date, group_name, content_type)
+);
+
+CREATE INDEX IF NOT EXISTS idx_mdct_group ON mart_day_content_type (group_name);
+
+-- ═══════════════════════════════════════════════════════════════
+--  DIM_REVIEWER 审核人画像维度表
+-- ═══════════════════════════════════════════════════════════════
+
+CREATE TABLE IF NOT EXISTS dim_reviewer (
+    reviewer_name VARCHAR(128) PRIMARY KEY,
+    group_name VARCHAR(128),
+    main_queue VARCHAR(128),
+    inspect_type VARCHAR(16),
+    workforce_type VARCHAR(16),
+    first_qa_date DATE,
+    last_qa_date DATE,
+    active_days_30d INT,
+    total_qa_cnt_30d BIGINT,
+    rolling_accuracy_30d DOUBLE,
+    misjudge_rate_30d DOUBLE,
+    missjudge_rate_30d DOUBLE,
+    top_error_type VARCHAR(128),
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_dr_group ON dim_reviewer (group_name);
+CREATE INDEX IF NOT EXISTS idx_dr_workforce ON dim_reviewer (workforce_type);
+
 CREATE TABLE IF NOT EXISTS mart_training_action_recovery (
     action_id VARCHAR(64) PRIMARY KEY,
     alert_id VARCHAR(64),
@@ -455,6 +500,8 @@ SELECT
     q.reviewer_name,
     q.qa_owner_name,
     q.content_type,
+    q.inspect_type,
+    q.workforce_type,
     q.scene_name,
     q.channel_name,
     q.source_record_id,

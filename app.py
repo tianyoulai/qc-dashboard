@@ -1,8 +1,8 @@
 """
 ============================================================
-QC Dashboard — Streamlit 看板  v5.3（紧凑7列布局）
+QC Dashboard — Streamlit 看板  v6.0（统一视觉系统）
 ============================================================
-对标 HTML 模板版 UI 风格（白底卡片/胶囊Tab/轻量走势图）
+对标 HTML 模板版 UI 风格（白底卡片/胶囊Tab/轻量走势图）· CSS 统一到 custom.css
 用法:  cd qc-dashboard && streamlit run app.py
 依赖: streamlit, plotly, pandas, xlsxwriter (pip install -r requirements.txt)
 数据源: data/metrics.db (SQLite) + 用户上传 xlsx
@@ -955,187 +955,7 @@ def render_dashboard(all_data):
                        key=f"dl_{qid}")
 
     # Footer
-    st.caption(f'📊 QC Dashboard v5.3 · {datetime.now().strftime("%Y-%m-%d %H:%M")}')
-
-
-# ════════════════════════════════════════════════════════════════
-#  页面：数据导入（保持不变）
-# ════════════════════════════════════════════════════════════════
-
-def render_import():
-    """数据导入页面"""
-
-    st.markdown("# 📥 数据导入")
-    st.caption("上传质检 Excel 文件、管理缓存和数据")
-
-    # 上传（用 fragment 隔离，避免 rerun 触发 removeChild DOM 竞态 bug）
-    st.markdown("### 📤 上传质检 Excel")
-    @st.fragment
-    def upload_fragment():
-        uploaded_files = st.file_uploader("选择质检文件", type=["xlsx", "xls"],
-                                          accept_multiple_files=True)
-        if uploaded_files:
-            st.success(f"已选择 **{len(uploaded_files)}** 个文件")
-            if st.button("⬆️ 批量导入", type="primary", use_container_width=True,
-                         key="_btn_import"):
-                _process_uploads(uploaded_files)
-    upload_fragment()
-
-    st.divider()
-
-    # 一键刷新
-    st.markdown("### 🔄 一键刷新")
-    excel_files = [(f, os.path.join(UPLOAD_DIR, f)) for f in sorted(os.listdir(UPLOAD_DIR))
-                   if os.path.isdir(UPLOAD_DIR) and f.lower().endswith(('.xlsx', '.xls'))]
-    processed_count = len([f for f in os.listdir(os.path.join(UPLOAD_DIR, "processed"))
-                           if f.lower().endswith(('.xlsx', '.xls'))]) if os.path.isdir(os.path.join(UPLOAD_DIR, "processed")) else 0
-
-    ci, cb = st.columns([2, 1])
-    with ci:
-        if excel_files:
-            st.info(f"📂 待处理 **{len(excel_files)}** 个文件（已处理 {processed_count} 个）")
-            st.dataframe(pd.DataFrame([{"文件": f, "大小(KB)": round(os.path.getsize(p)/1024, 1)}
-                                       for f, p in excel_files]), use_container_width=True, hide_index=True)
-        else:
-            st.warning("⏳ 暂无文件，请先上传")
-
-    with cb:
-        st.write("")
-        if not excel_files:
-            st.button("🔄 执行刷新", disabled=True, type="primary", use_container_width=True)
-        elif st.button("🔄 执行刷新", type="primary", use_container_width=True):
-            _do_refresh()
-
-    st.divider()
-
-    # 已上传文件
-    st.markdown("### 📂 已上传文件")
-    ufiles = sorted(os.listdir(UPLOAD_DIR)) if os.path.isdir(UPLOAD_DIR) else []
-    if ufiles:
-        st.dataframe(pd.DataFrame([{"文件名": f, "大小(KB)": round(os.stat(os.path.join(UPLOAD_DIR,f)).st_size/1024, 1),
-                                     "时间": datetime.fromtimestamp(os.stat(os.path.join(UPLOAD_DIR,f)).st_mtime).strftime("%Y-%m-%d %H:%M")} for f in ufiles]),
-                      use_container_width=True, hide_index=True)
-        if st.button("🗑️ 清空上传记录"):
-            import shutil
-            shutil.rmtree(UPLOAD_DIR); os.makedirs(UPLOAD_DIR, exist_ok=True)
-            st.success("已清空"); st.rerun()
-
-    st.divider()
-
-    cc, cd = st.columns(2)
-    with cc:
-        st.markdown("### 🧹 清除缓存")
-        if st.button("清除缓存", use_container_width=True):
-            st.cache_data.clear(); st.success("✅"); time.sleep(1); st.rerun()
-
-    with cd:
-        st.markdown("### ⚠️ 清除数据")
-        with st.expander("📅 按日期范围清除"):
-            dd1 = st.date_input("起始", key="del_from")
-            dd2 = st.date_input("截止", key="del_to")
-            if dd1 and dd2:
-                fs, ts = dd1.strftime("%Y-%m-%d"), dd2.strftime("%Y-%m-%d")
-                cnt = get_db(DB_PATH).execute(
-                    "SELECT COUNT(*) FROM daily_metrics WHERE date BETWEEN ? AND ?", (fs, ts)).fetchone()[0]
-                if cnt > 0:
-                    st.warning(f"将删除 **{cnt}** 条（{fs} ~ {ts}）")
-                    if st.button("🗑️ 删除选中范围", type="primary"):
-                        conn = get_db(DB_PATH)
-                        conn.execute("DELETE FROM daily_metrics WHERE date BETWEEN ? AND ?", (fs, ts))
-                        conn.commit(); conn.close(); st.cache_data.clear()
-                        st.success(f"✅ 删除 {cnt} 条"); time.sleep(1); st.rerun()
-                else:
-                    st.info(f"该范围无数据（{fs} ~ {ts}）")
-
-        st.markdown("**全部清除**")
-        conf = st.text_input("输入 CONFIRM 确认全量删除", key="_conf_del")
-        if conf and conf.strip().upper() == "CONFIRM":
-            if st.button("确认清除全部数据", type="primary"):
-                conn = get_db(DB_PATH)
-                c = conn.execute("DELETE FROM daily_metrics"); conn.commit()
-                st.success(f"已删除 {c.rowcount} 条"); conn.close(); st.cache_data.clear(); time.sleep(1); st.rerun()
-
-
-def _process_uploads(uploaded_files):
-    pb = st.progress(0); status = st.empty(); res = []; ok = err = 0
-    for i, uf in enumerate(uploaded_files):
-        try:
-            status.text(f"[{i+1}/{len(uploaded_files)}] 处理: **{uf.name}** ...")
-            pb.progress((i+0.5)/len(uploaded_files))
-            sp = os.path.join(UPLOAD_DIR, f"{datetime.now().strftime('%Y%m%d%H%M%S')}_{uf.name}")
-            with open(sp, "wb") as f: f.write(uf.getvalue())
-            xl = pd.ExcelFile(io.BytesIO(uf.getvalue()))
-            sn = xl.sheet_names[0]
-            df = pd.read_excel(io.BytesIO(uf.getvalue()), sheet_name=sn)
-            res.append({"文件": uf.name, "状态": "✅", "行数": len(df), "子表": sn}); ok += 1
-        except Exception as e:
-            res.append({"文件": uf.name, "状态": f"❌ {str(e)[:40]}", "行数": 0, "子表": "-"}); err += 1
-    pb.progress(1.0)
-    st.subheader("结果")
-    st.columns(2)[0].metric("成功", ok); st.columns(2)[1].metric("失败", err)
-    if res: st.dataframe(pd.DataFrame(res), use_container_width=True)
-
-
-def _do_refresh():
-    import yaml
-    from pathlib import Path
-    status = st.empty(); progress = st.progress(0); logs = []
-    def log(msg): logs.append(msg); status.markdown("\n".join(f"· {l}" for l in logs[-12:]))
-    try:
-        progress.progress(5); log("📋 加载配置...")
-        cfg_path = os.path.join(BASE, "config.yaml")
-        if not os.path.exists(cfg_path): st.error("❌ config.yaml 不存在"); return
-        with open(cfg_path) as f: config = yaml.safe_load(f)
-
-        progress.progress(15); log("📂 扫描 uploads...")
-        sys_path = os.path.join(BASE, "src")
-        if sys_path not in __import__("sys").path: __import__("sys").path.insert(0, sys_path)
-        import importlib.util
-        spec = importlib.util.spec_from_file_location("collector", os.path.join(sys_path, "collector.py"))
-        if spec and spec.loader:
-            mod = importlib.util.module_from_spec(spec); spec.loader.exec_module(mod)
-            conn = mod.init_db(); imported = mod.import_excel(conn, config)
-            log(f"✅ 导入 **{imported}** 条")
-        else:
-            log("⚠️ 简单模式"); _simple_import(progress, log); imported = "?"
-
-        progress.progress(60); log("🧹 清理未来日期...")
-        from datetime import date as _date
-        today_s = _date.today().isoformat()
-        cn = get_db(DB_PATH); c = cn.cursor()
-        c.execute("DELETE FROM daily_metrics WHERE date > ?", (today_s,))
-        fd = c.rowcount; cn.commit(); cn.close()
-        if fd: log(f"🧹 清理 {fd} 条未来日期")
-        else: log("🧹 无需清理")
-
-        progress.progress(80); st.cache_data.clear(); log("🔄 缓存已清除")
-        progress.progress(100)
-        st.success(f"🎉 完成！新增 {imported} 条 · 未来清理 {fd} 条")
-        time.sleep(2)
-    except Exception as e:
-        st.error(f"❌ 失败: {str(e)}")
-
-
-def _simple_import(progress, log):
-    import glob
-    files = list(glob.glob(os.path.join(UPLOAD_DIR, "*.xlsx"))) + list(glob.glob(os.path.join(UPLOAD_DIR, "*.xls")))
-    proc_dir = os.path.join(UPLOAD_DIR, "processed"); os.makedirs(proc_dir, exist_ok=True)
-    total = 0
-    for fi, fp in enumerate(files):
-        fn = os.path.basename(fp)
-        progress.progress(0.2 + 0.4*fi/max(len(files),1))
-        log(f"📄 [{fi+1}/{len(files)}] {fn}")
-        try:
-            xl = pd.ExcelFile(fp)
-            for sn in xl.sheet_names:
-                df = pd.read_excel(xl, sheet_name=sn, header=None)
-                log(f"   📊 「{sn}」: {df.shape}")
-            import shutil
-            shutil.move(fp, os.path.join(proc_dir, f"{datetime.now().strftime('%Y%m%d%H%M%S')}_{fn}"))
-            total += len(df) - 2
-        except Exception as e:
-            log(f"   ❌ {str(e)[:60]}")
-    log(f"✅ 处理完成 {total} 行")
+    st.caption(f'📊 QC Dashboard v6.0 · {datetime.now().strftime("%Y-%m-%d %H:%M")}')
 
 
 # ════════════════════════════════════════════════════════════════
@@ -1145,72 +965,18 @@ def _simple_import(progress, log):
 st.set_page_config(
     page_title="QC 质检数据看板", page_icon="📊", layout="wide",
     initial_sidebar_state="collapsed",
-    menu_items={"About": "📊 QC Dashboard v5.3", "Report a bug": None, "Get Help": None},
+    menu_items={"About": "📊 QC Dashboard v6.0", "Report a bug": None, "Get Help": None},
 )
 
-# ═══ 全局 CSS — v4.3 内联注入（对标模板版 UI）═══
-# ═══ 全局 CSS — v5.3 紧凑7列布局版（KPI+Tab一行显示）═══
-_CSS = r"""/* ══ v5.3 QC Dashboard — 紧凑7列布局 ══ */
-:root{--bg:#f8fafc;--card:#fff;--bd:#e2e8f0;--tx:#0f172a;--tx2:#334155;--dim:#94a3b8;--ac:#3b82f6;--ac2:#1d4ed8;--ok:#16a34a;--ng:#dc2626;--warn:#f59e0b}
-.main *{font-family:-apple-system,'PingFang SC','Microsoft YaHei','Helvetica Neue',sans-serif!important;-webkit-font-smoothing:antialiased}
-body{background:var(--bg)!important;font-size:14px!important;line-height:1.55!important;color:var(--tx2)!important;padding:12px 20px!important}
-[data-testid="stSidebar"]{display:none!important}[data-testid="stAppViewBlockContainer"] [data-testid="stToolbar"]{display:none!important}#MainMenu{visibility:hidden}header{visibility:hidden}
+# ── 加载统一 CSS（从 custom.css 读取）──
+_css_path = os.path.join(BASE, "custom.css")
+if os.path.exists(_css_path):
+    with open(_css_path, "r", encoding="utf-8") as _f:
+        _CSS = _f.read()
+    st.markdown(f'<style>{_CSS}</style>', unsafe_allow_html=True)
+else:
+    st.warning("⚠️ custom.css 缺失")
 
-/* ── Overview HTML 自绘卡片（7列一行，替代 st.metric）── */
-.ov-card{background:var(--card);border:1px solid var(--bd);border-radius:8px;box-shadow:0 1px 2px rgba(0,0,0,.03);padding:10px 4px;text-align:center;transition:box-shadow .18s,transform .15s;margin:2px 1px;flex:1 1 0;min-width:0}
-.ov-card:hover{box-shadow:0 3px 10px rgba(0,0,0,.07);transform:translateY(-1px);border-color:rgba(59,130,246,.25)}
-.ov-title{font-size:10px;font-weight:600;color:var(--dim);margin-bottom:3px;line-height:1.2;letter-spacing:.15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.ov-val{font-size:18px;font-weight:700;color:var(--tx);line-height:1.15;font-variant-numeric:tabular-nums}
-.ov-status{font-size:12px;margin-left:2px}
-.ov-miss{font-size:9.5px;color:#94a3b8;font-weight:500;margin-top:2px;line-height:1.2}
-.ov-delta{font-size:8px;color:var(--dim);margin-top:3px;line-height:1.15;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-
-/* ── metric 卡片（详情页仍用 st.metric）── */
-[data-testid="stMetric"]{background:var(--card)!important;border:1px solid var(--bd)!important;border-radius:8px!important;box-shadow:0 1px 2px rgba(0,0,0,.03)!important;padding:16px 10px!important;transition:box-shadow .18s,transform .15s!important;margin:4px!important}
-
-/* ── Tab 胶囊按钮（选中实心蓝底 / 非选中白底，紧凑不换行）── */
-[id^="_tab_"]{background:transparent!important;color:var(--tx2)!important;border:1.5px solid transparent!important;border-radius:20px!important;font-size:11.5px!important;font-weight:600!important;padding:6px 10px!important;box-shadow:none!important;transition:all .15s ease!important;text-align:center!important;white-space:nowrap!important;min-height:34px!important;line-height:1.25!important;overflow:hidden!important;flex:1 1 0!important;min-width:0!important}
-[id^="_tab_"]:not(:focus):not(:active){background:#fff!important;border-color:#e2e8f0!important;color:var(--tx2)!important}
-[id^="_tab_"]:not(:focus):not(:active):hover{background:#f8fafc!important;border-color:#94a3b8!important}
-[id^="_tab_"]:focus,[id^="_tab_"]:active{background:var(--ac)!important;color:#fff!important;border-color:var(--ac)!important;box-shadow:0 2px 10px rgba(59,130,246,.28)!important}
-[id^="_tab_"] code{background:rgba(255,255,255,.85)!important;color:var(--ac)!important;font-size:9px!important;font-weight:700!important;padding:0px 4px!important;border-radius:8px!important;border:none!important;letter-spacing:.15px;margin-left:3px!important}
-[id^="_tab_"]:focus code,[id^="_tab_"]:active code{background:rgba(255,255,255,.25)!important;color:#dbeafe!important}
-
-/* ── 标题体系 ── */
-.main h1{font-size:22px!important;font-weight:700!important;color:var(--tx)!important;margin-bottom:6px!important;line-height:1.3!important}
-.main h2{font-size:15px!important;font-weight:600!important;color:var(--tx2)!important;margin-top:20px!important;margin-bottom:12px!important;display:flex;align-items:center;gap:6px}
-.main h3{font-size:13.5px!important;font-weight:600!important;color:var(--tx2)!important;margin-top:18px!important;margin-bottom:10px!important}
-
-/* ── AI 分析区 blockquote ── */
-.main blockquote{border-left:4px solid var(--ac)!important;background:linear-gradient(135deg,#eff6ff,#dbeafe)!important;border-radius:0 12px 12px 0!important;padding:16px 20px!important;font-size:12.5px!important;line-height:1.75!important;color:var(--tx2)!important}
-.main blockquote h3,.main blockquote strong{color:#0369a1!important}
-.main blockquote p{margin:6px 0!important;line-height:1.75!important}
-
-/* ── 数据表格 ── */
-[data-testid="stDataFrame"]{border-radius:12px!important;overflow:hidden;border:1px solid var(--bd)!important;background:var(--card)!important}
-[data-testid="stDataFrame"] th{background:#f1f5f9!important;color:var(--tx2)!important;font-weight:600!important;font-size:11.5px!important;padding:10px 14px!important;border-bottom:2px solid var(--bd)!important}
-[data-testid="stDataFrame"] td{font-size:12px!important;padding:8px 14px!important;border-bottom:1px solid #f1f5f9!important}
-[data-testid="stDataFrame"] tr:hover td{background:#f8fafc!important}
-
-/* ── 按钮 ── */
-.stButton button[kind="primary"]{border-radius:10px!important;font-weight:600!important;font-size:12.5px!important;background-color:var(--ac)!important;border:none!important;padding:8px 16px!important;transition:all .15s!important;box-shadow:0 2px 4px rgba(59,130,246,.2)!important}
-.stButton button[kind="primary"]:hover{background-color:var(--ac2)!important;box-shadow:0 4px 8px rgba(59,130,246,.32)!important;transform:translateY(-1px)!important}
-.stButton button:not([kind]){border-radius:10px!important;font-size:12.5px!important;font-weight:500!important;padding:7px 14px!important;transition:all .15s!important}
-hr{border:none!important;border-top:1px solid #e2e8f0!important;margin:18px 0}
-
-/* ── Plotly 图表 / Caption / 提示框 / 折叠面板 / 日期 / 导出 / 页脚 / 容器间距 ── */
-.js-plotly-plot{border-radius:12px!important;overflow:hidden;border:1px solid var(--bd)!important;background:var(--card)!important}
-.stCaption{color:var(--dim)!important;font-size:11.5px!important;line-height:1.45!important}
-[data-testid="stInfo"],[data-testid="stWarning"],[data-testid="stSuccess"]{border-radius:12px!important;font-size:12.5px!important;line-height:1.65!important;padding:14px 18px!important}
-[data-testid="stException"]{display:none!important;height:0!important;overflow:hidden!important;margin:0!important;padding:0!important;border:none!important;opacity:0!important;pointer-events:none!important;visibility:hidden!important;max-height:0!important;position:absolute!important;left:-99999px!important}
-.stApp [data-baseweb="notification"],.stApp [role="alert"]{display:none!important}
-[data-testid="stExpander"]{border:1px solid var(--bd)!important;border-radius:12px!important;background:var(--card)!important}
-[data-testid="stExpanderToggle"]{font-size:12.5px!important;font-weight:600!important;color:var(--tx2)!important}
-[data-testid="stDateInput"] input{font-size:13px!important;border-radius:8px!important;padding:6px 10px!important}
-.stDownloadButton button{font-size:12.5px!important;font-weight:600!important;border-radius:10px!important;padding:7px 16px!important}
-footer,.stAppFooter{font-size:10.5px!important;color:var(--dim)!important;text-align:center!important;padding:14px 0!important;border-top:1px solid #e2e8f0!important;margin-top:28px!important}
-[data-testid="stVerticalBlock"]>div{gap:4px!important}"""
-st.html(f'<style>{_CSS}</style>')
 # ── JS：MutationObserver 实时消灭 Streamlit 异常提示（removeChild/NotFoundError）──
 import streamlit.components.v1 as components
 components.html("""
@@ -1251,21 +1017,18 @@ components.html("""
 """, height=0)
 
 # ── 顶部导航条（替代侧边栏）──
-
-# ── 顶部导航条（替代侧边栏）──
-nav_col1, nav_col2, nav_spacer = st.columns([1, 1, 5])
+nav_col1, nav_col2, nav_col3, nav_spacer = st.columns([1, 1, 1, 3])
 with nav_col1:
-    if st.button("📊 数据总览", use_container_width=True, type="primary",
-                 disabled=(st.session_state.get("_page", "dash") == "dash")):
-        st.session_state._page = "dash"; st.rerun()
+    if st.button("📊 数据总览", use_container_width=True, type="primary"):
+        st.switch_page("pages/02_数据总览.py")
 with nav_col2:
-    if st.button("📥 数据导入", use_container_width=True,
-                 disabled=(st.session_state.get("_page", "dash") == "import")):
-        st.session_state._page = "import"; st.rerun()
+    if st.button("📥 数据导入", use_container_width=True):
+        st.switch_page("pages/00_数据导入.py")
+with nav_col3:
+    if st.button("🔍 明细查询", use_container_width=True):
+        st.switch_page("pages/03_明细查询.py")
 
-if st.session_state.get("_page", "dash") == "import":
-    render_import()
-else:
-    with st.spinner("加载中..."):
-        all_data = load_all_queue_data()
-    render_dashboard(all_data)
+# 主页面：质检数据看板
+with st.spinner("加载中..."):
+    all_data = load_all_queue_data()
+render_dashboard(all_data)
