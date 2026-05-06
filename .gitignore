@@ -13,6 +13,7 @@ data/downloads/
 data/uploads/
 data/*.db
 data/*.db-*
+!data/ilabel_detail.db
 data/logs/
 data/_debug_*
 data/_menu_state*
